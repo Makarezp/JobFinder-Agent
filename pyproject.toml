@@ -1,0 +1,51 @@
+[project]
+name = "ai-scraper-bot"
+version = "0.1.0"
+description = "Production-ready AI Chatbot with FastAPI, LangGraph, and HTMX"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "jinja2",
+    "python-multipart",
+    "httpx",
+    "langchain",
+    "langgraph",
+    "langchain-openai",
+    "langchain-google-genai",
+    "google-genai",
+    "langsmith",
+    "crawl4ai",
+    "pydantic-settings",
+    "beautifulsoup4",
+    "markdown",
+    "python-dotenv",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "black",
+    "isort",
+    "mypy"
+]
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q"
+testpaths = [
+    "tests",
+]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+asyncio_mode = "auto"
