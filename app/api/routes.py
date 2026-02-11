@@ -23,15 +23,15 @@ async def chat_endpoint(request: Request, message: str = Form(...)):
 
     # Run Agent
     try:
-        inputs: AgentState = {
-            "messages": [HumanMessage(content=message)],
-            "url": None,
-            "scraped_content": None,
-            "loading": False,
-        }
-        # Invoke the graph (synchronous invoke for simplicity in this step, async invoke preferred if supported)
-        # Note: langgraph compile() returns a Runnable, which has ainvoke
-        result = await graph.ainvoke(inputs)
+        inputs = {"messages": [HumanMessage(content=message)]}
+
+        # Use a consistent thread_id for conversation history
+        # In a real app, this would come from a session or user ID
+        thread_id = "default_user_session"
+        config = {"configurable": {"thread_id": thread_id}}
+
+        # Invoke the graph with config
+        result = await graph.ainvoke(inputs, config=config)
 
         last_message = result["messages"][-1]
         ai_content = last_message.content

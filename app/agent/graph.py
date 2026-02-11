@@ -21,6 +21,8 @@ def route_tools(state: AgentState):
     return END
 
 
+from langgraph.checkpoint.memory import MemorySaver
+
 # Graph Definition
 graph_builder = StateGraph(AgentState)
 
@@ -33,4 +35,5 @@ graph_builder.add_conditional_edges(
 )
 graph_builder.add_edge("tools", "chatbot")
 
-graph = graph_builder.compile()
+checkpointer = MemorySaver()
+graph = graph_builder.compile(checkpointer=checkpointer)
