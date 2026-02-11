@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     LANGCHAIN_API_KEY: Optional[str] = None
     LANGCHAIN_PROJECT: str = "default"
 
+    # Adzuna
+    ADZUNA_APP_ID: Optional[str] = None
+    ADZUNA_APP_KEY: Optional[str] = None
+
     model_config = SettingsConfigDict(env_file=".env", env_ignore_empty=True)
 
 

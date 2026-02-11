@@ -4,7 +4,10 @@ from langchain_core.messages import HumanMessage
 from app.agent.graph import graph
 from app.agent.state import AgentState
 from pathlib import Path
+import logging
 import markdown
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -33,6 +36,19 @@ async def chat_endpoint(request: Request, message: str = Form(...)):
         last_message = result["messages"][-1]
         ai_content = last_message.content
 
+        if isinstance(ai_content, list):
+            # Hande multipart content (e.g. text + tool_use)
+            # We want to extract the text parts
+            text_parts = []
+            for part in ai_content:
+                if isinstance(part, str):
+                    text_parts.append(part)
+                elif isinstance(part, dict) and "text" in part:
+                    text_parts.append(part["text"])
+            ai_content = "\n".join(text_parts)
+
+        logger.info(f"AI Response: {ai_content}")
+
         # Convert Markdown to HTML for rendering
         ai_content_html = markdown.markdown(ai_content)
 
@@ -45,6 +61,9 @@ async def chat_endpoint(request: Request, message: str = Form(...)):
             },
         )
     except Exception as e:
+        import traceback
+
+        logger.error(f"Error processing chat request: {e}\n{traceback.format_exc()}")
         return templates.TemplateResponse(
             request,
             "components/chat_message.html",

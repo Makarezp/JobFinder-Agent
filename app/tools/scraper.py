@@ -1,14 +1,24 @@
 import logging
-from typing import Type
-from pydantic import BaseModel, Field
+from typing import Type, Union, List, Optional, Annotated
+from pydantic import BaseModel, Field, BeforeValidator
 from langchain_core.tools import tool
 from crawl4ai import AsyncWebCrawler
 
 logger = logging.getLogger(__name__)
 
 
+def ensure_single_string(v: Union[str, List[str]]) -> str:
+    if isinstance(v, list):
+        if not v:
+            return ""
+        return v[0]
+    return str(v)
+
+
 class ScrapeArgs(BaseModel):
-    url: str = Field(..., description="The full URL of the website to scrape.")
+    url: Annotated[str, BeforeValidator(ensure_single_string)] = Field(
+        ..., description="The full URL of the website to scrape."
+    )
 
 
 @tool(args_schema=ScrapeArgs)
@@ -18,6 +28,13 @@ async def scrape_website(url: str) -> str:
     Use this tool when you need to read the content of a URL to answer a question.
     """
     logger.info(f"Scraping URL: {url}")
+
+    # Handle potential list input for url
+    if isinstance(url, list):
+        if not url:
+            return "Error: Empty URL list provided."
+        url = url[0]
+
     async with AsyncWebCrawler(verbose=True) as crawler:
         result = await crawler.arun(url=url)
 

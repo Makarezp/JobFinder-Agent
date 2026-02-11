@@ -1,9 +1,13 @@
 import logging
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.messages import SystemMessage, ToolMessage, AIMessage
 from langsmith import traceable
 from app.agent.state import AgentState
 from app.tools.scraper import scrape_website
+from app.tools.scraper import scrape_website
+from app.tools.adzuna import adzuna_search
+import logging
+
+logger = logging.getLogger(__name__)
 from app.core.config import settings
 from langgraph.prebuilt import ToolNode
 
@@ -11,7 +15,7 @@ from langgraph.prebuilt import ToolNode
 llm = ChatGoogleGenerativeAI(
     model="gemini-flash-latest", temperature=0, google_api_key=settings.GEMINI_API_KEY
 )
-tools = [scrape_website]
+tools = [adzuna_search]
 llm_with_tools = llm.bind_tools(tools)
 
 
