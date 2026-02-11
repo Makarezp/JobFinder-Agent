@@ -21,6 +21,25 @@ class AdzunaApiArgs(BaseModel):
     results_per_page: int = Field(
         default=10, description="Number of results to return."
     )
+    sort_by: Optional[str] = Field(
+        default=None, description="Sort by 'date' or 'salary'."
+    )
+    max_days_old: Optional[int] = Field(
+        default=None, description="Filter jobs posted within these many days."
+    )
+    salary_min: Optional[int] = Field(default=None, description="Minimum salary.")
+    full_time: Optional[bool] = Field(
+        default=None, description="Filter for full-time jobs."
+    )
+    part_time: Optional[bool] = Field(
+        default=None, description="Filter for part-time jobs."
+    )
+    permanent: Optional[bool] = Field(
+        default=None, description="Filter for permanent jobs."
+    )
+    contract: Optional[bool] = Field(
+        default=None, description="Filter for contract jobs."
+    )
 
 
 @tool("adzuna_api_search", args_schema=AdzunaApiArgs)
@@ -29,6 +48,13 @@ def adzuna_api_search(
     where: Optional[str] = None,
     country: str = "gb",
     results_per_page: int = 10,
+    sort_by: Optional[str] = None,
+    max_days_old: Optional[int] = None,
+    salary_min: Optional[int] = None,
+    full_time: Optional[bool] = None,
+    part_time: Optional[bool] = None,
+    permanent: Optional[bool] = None,
+    contract: Optional[bool] = None,
 ) -> str:
     """
     Searches for jobs using the Adzuna API.
@@ -57,10 +83,29 @@ def adzuna_api_search(
     if where:
         params["where"] = where
 
+    if sort_by:
+        params["sort_by"] = sort_by
+
+    if max_days_old:
+        params["max_days_old"] = max_days_old
+
+    if salary_min:
+        params["salary_min"] = salary_min
+
+    # Handle contract_time (full_time/part_time) - API takes 1 for yes
+    if full_time:
+        params["full_time"] = 1
+    if part_time:
+        params["part_time"] = 1
+
+    # Handle contract_type (permanent/contract) - API takes 1 for yes
+    if permanent:
+        params["permanent"] = 1
+    if contract:
+        params["contract"] = 1
+
     try:
-        logger.info(
-            f"Calling Adzuna API: {base_url} with what='{what}', where='{where}'"
-        )
+        logger.info(f"Calling Adzuna API: {base_url} with params={params}")
 
         # Use httpx for the request
         with httpx.Client() as client:
@@ -93,6 +138,15 @@ def adzuna_api_search(
                     job.get("description", "")[:200] + "..."
                 )  # Truncate description
 
+                # Extra fields
+                category = job.get("category", {}).get("label", "N/A")
+                created = job.get("created", "N/A")
+
+                # Format Contract/Time info
+                c_time = job.get("contract_time", "").replace("_", " ").title()
+                c_type = job.get("contract_type", "").replace("_", " ").title()
+                type_info = ", ".join(filter(None, [c_type, c_time])) or "N/A"
+
                 salary_str = "Negotiable"
                 if salary_min and salary_max:
                     salary_str = f"£{salary_min} - £{salary_max}"
@@ -104,6 +158,9 @@ def adzuna_api_search(
                     f"**Company:** {company}\n"
                     f"**Location:** {location}\n"
                     f"**Salary:** {salary_str}\n"
+                    f"**Type:** {type_info}\n"
+                    f"**Category:** {category}\n"
+                    f"**Posted:** {created}\n"
                     f"**Link:** [Apply Here]({url})\n"
                     f"**Summary:** {description}\n"
                     "---"
