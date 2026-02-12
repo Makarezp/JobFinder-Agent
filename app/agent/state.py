@@ -11,4 +11,5 @@ class AgentState(TypedDict):
     messages: Annotated[List[BaseMessage], operator.add]
     url: str | None
     scraped_content: str | None
+    cv_text: str | None
     loading: bool

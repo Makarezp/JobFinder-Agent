@@ -6,6 +6,9 @@ from app.agent.state import AgentState
 from pathlib import Path
 import logging
 import markdown
+from fastapi import UploadFile, File
+from pypdf import PdfReader
+from io import BytesIO
 
 logger = logging.getLogger(__name__)
 
@@ -70,5 +73,69 @@ async def chat_endpoint(request: Request, message: str = Form(...)):
             {
                 "user_message": message,
                 "ai_message": f"<p class='text-red-500'>Error: {str(e)}</p>",
+            },
+        )
+
+
+@router.post("/upload-cv")
+async def upload_cv(request: Request, file: UploadFile = File(...)):
+    try:
+        # Read PDF content
+        content = await file.read()
+        pdf = PdfReader(BytesIO(content))
+        text = ""
+        for page in pdf.pages:
+            text += page.extract_text() + "\n"
+
+        # Update Agent State with CV text
+        thread_id = "default_user_session"
+        config = {"configurable": {"thread_id": thread_id}}
+
+        # We need to update the state. LangGraph's update_state usage:
+        # graph.update_state(config, {"cv_text": text})
+        graph.update_state(config, {"cv_text": text})
+
+        # Trigger agent response acknowledging the upload
+        inputs = {
+            "messages": [
+                HumanMessage(
+                    content="I just uploaded my CV. Please analyze it and tell me what kind of jobs I should look for based on my skills."
+                )
+            ]
+        }
+        result = await graph.ainvoke(inputs, config=config)
+
+        last_message = result["messages"][-1]
+        ai_content = last_message.content
+
+        # Handle multipart content (copy-paste from chat endpoint logic for now, refactor later)
+        if isinstance(ai_content, list):
+            text_parts = []
+            for part in ai_content:
+                if isinstance(part, str):
+                    text_parts.append(part)
+                elif isinstance(part, dict) and "text" in part:
+                    text_parts.append(part["text"])
+            ai_content = "\n".join(text_parts)
+
+        ai_content_html = markdown.markdown(ai_content)
+
+        return templates.TemplateResponse(
+            request,
+            "components/chat_message.html",
+            {
+                "user_message": f"Uploaded CV: {file.filename}",
+                "ai_message": ai_content_html,
+            },
+        )
+
+    except Exception as e:
+        logger.error(f"Error processing CV upload: {e}")
+        return templates.TemplateResponse(
+            request,
+            "components/chat_message.html",
+            {
+                "user_message": "CV Upload Failed",
+                "ai_message": f"<p class='text-red-500'>Error processing CV: {str(e)}</p>",
             },
         )

@@ -39,8 +39,20 @@
                 <input type="text" name="message" placeholder="E.g., 'Extract pricing from https://openai.com/pricing'"
                     class="flex-1 p-4 rounded-xl border-2 border-gray-200 focus:border-indigo-500 focus:ring-0 transition-colors shadow-sm text-lg"
                     required autocomplete="off">
+                <!-- Upload Button -->
+                <label
+                    class="cursor-pointer bg-gray-100 hover:bg-gray-200 text-gray-600 px-4 rounded-xl flex items-center justify-center transition-colors border-2 border-transparent hover:border-gray-300"
+                    title="Upload CV">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                        stroke="currentColor" class="w-6 h-6">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 5.818l-5.123 5.122m-3.536 6.192l-9.193-9.193M12.75 8.25l4.755-4.754a6.714 6.714 0 019.536 9.536l-7.136 7.136a6.5 6.5 0 01-9.193-9.193l.879-.88" />
+                    </svg>
+                    <input type="file" name="file" accept=".pdf" class="hidden" hx-post="/upload-cv"
+                        hx-encoding="multipart/form-data" hx-target="#chat-history" hx-swap="beforeend">
+                </label>
                 <button type="submit"
-                    class="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-4 rounded-xl font-bold transition-transform transform active:scale-95 shadow-md">
+                    class="bg-indigo-600 hover:bg-indigo-700 text-white px-8 rounded-xl font-bold transition-transform transform active:scale-95 shadow-md">
                     Send
                 </button>
             </div>

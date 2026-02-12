@@ -33,7 +33,18 @@ After scraping, you should provide a comprehensive answer that includes the new 
 @traceable
 def chatbot(state: AgentState):
     logger.info("Invoking chatbot node")
-    messages = [SystemMessage(content=SYSTEM_PROMPT)] + state["messages"]
+
+    messages = state["messages"]
+
+    # Add System Prompt
+    system_messages = [SystemMessage(content=SYSTEM_PROMPT)]
+
+    # Add CV Context if available
+    if state.get("cv_text"):
+        cv_context = f"\n\nUser's CV Content:\n{state['cv_text']}\n\nUse this to personalize job recommendations."
+        system_messages.append(SystemMessage(content=cv_context))
+
+    messages = system_messages + messages
     return {"messages": [llm_with_tools.invoke(messages)]}
 
 

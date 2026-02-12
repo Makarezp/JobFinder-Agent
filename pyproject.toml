@@ -20,6 +20,7 @@ dependencies = [
     "beautifulsoup4",
     "markdown",
     "python-dotenv",
+    "pypdf",
 ]
 
 [project.optional-dependencies]
