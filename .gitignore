@@ -50,3 +50,6 @@ list_models.py
 # OS
 .DS_Store
 Thumbs.db
+
+# Data
+data/user_memory.db

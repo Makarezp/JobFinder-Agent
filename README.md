@@ -18,6 +18,8 @@
 
 3.  **Run**:
     ```bash
+    # IMPORTANT: Always activate the virtual environment first!
+    source .venv/bin/activate
     uvicorn app.main:app --reload
     ```
     Visit `http://localhost:8000` to chat.
