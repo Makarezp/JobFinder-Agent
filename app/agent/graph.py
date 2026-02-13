@@ -17,6 +17,10 @@ def route_tools(state: AgentState):
         and hasattr(ai_message, "tool_calls")
         and len(ai_message.tool_calls) > 0
     ):
+        # Check if the tool call is final_answer
+        first_tool_call = ai_message.tool_calls[0]
+        if first_tool_call["name"] == "final_answer":
+            return END
         return "tools"
     return END
 

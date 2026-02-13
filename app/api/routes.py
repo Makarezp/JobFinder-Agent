@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Request, Form, HTTPException
 from fastapi.templating import Jinja2Templates
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, AIMessage
 from app.agent.graph import graph
 from app.agent.state import AgentState
 from pathlib import Path
@@ -37,20 +37,32 @@ async def chat_endpoint(request: Request, message: str = Form(...)):
         result = await graph.ainvoke(inputs, config=config)
 
         last_message = result["messages"][-1]
-        ai_content = last_message.content
-
-        if isinstance(ai_content, list):
-            # Hande multipart content (e.g. text + tool_use)
-            # We want to extract the text parts
-            text_parts = []
-            for part in ai_content:
-                if isinstance(part, str):
-                    text_parts.append(part)
-                elif isinstance(part, dict) and "text" in part:
-                    text_parts.append(part["text"])
-            ai_content = "\n".join(text_parts)
+        # Check for FinalAnswer tool call
+        jobs = []
+        if (
+            isinstance(last_message, AIMessage)
+            and hasattr(last_message, "tool_calls")
+            and len(last_message.tool_calls) > 0
+            and last_message.tool_calls[0]["name"] == "final_answer"
+        ):
+            final_args = last_message.tool_calls[0]["args"]
+            ai_content = final_args.get("text_response", "")
+            jobs = final_args.get("jobs", [])
+        else:
+            ai_content = last_message.content
+            if isinstance(ai_content, list):
+                # Hande multipart content (e.g. text + tool_use)
+                # We want to extract the text parts
+                text_parts = []
+                for part in ai_content:
+                    if isinstance(part, str):
+                        text_parts.append(part)
+                    elif isinstance(part, dict) and "text" in part:
+                        text_parts.append(part["text"])
+                ai_content = "\n".join(text_parts)
 
         logger.info(f"AI Response: {ai_content}")
+        logger.info(f"Jobs Found: {len(jobs)}")
 
         # Convert Markdown to HTML for rendering
         ai_content_html = markdown.markdown(ai_content)
@@ -61,6 +73,7 @@ async def chat_endpoint(request: Request, message: str = Form(...)):
             {
                 "user_message": message,
                 "ai_message": ai_content_html,
+                "jobs": jobs,
             },
         )
     except Exception as e:
@@ -106,17 +119,28 @@ async def upload_cv(request: Request, file: UploadFile = File(...)):
         result = await graph.ainvoke(inputs, config=config)
 
         last_message = result["messages"][-1]
-        ai_content = last_message.content
-
-        # Handle multipart content (copy-paste from chat endpoint logic for now, refactor later)
-        if isinstance(ai_content, list):
-            text_parts = []
-            for part in ai_content:
-                if isinstance(part, str):
-                    text_parts.append(part)
-                elif isinstance(part, dict) and "text" in part:
-                    text_parts.append(part["text"])
-            ai_content = "\n".join(text_parts)
+        # Check for FinalAnswer tool call
+        jobs = []
+        if (
+            isinstance(last_message, AIMessage)
+            and hasattr(last_message, "tool_calls")
+            and len(last_message.tool_calls) > 0
+            and last_message.tool_calls[0]["name"] == "final_answer"
+        ):
+            final_args = last_message.tool_calls[0]["args"]
+            ai_content = final_args.get("text_response", "")
+            jobs = final_args.get("jobs", [])
+        else:
+            ai_content = last_message.content
+            # Handle multipart content
+            if isinstance(ai_content, list):
+                text_parts = []
+                for part in ai_content:
+                    if isinstance(part, str):
+                        text_parts.append(part)
+                    elif isinstance(part, dict) and "text" in part:
+                        text_parts.append(part["text"])
+                ai_content = "\n".join(text_parts)
 
         ai_content_html = markdown.markdown(ai_content)
 
@@ -126,6 +150,7 @@ async def upload_cv(request: Request, file: UploadFile = File(...)):
             {
                 "user_message": f"Uploaded CV: {file.filename}",
                 "ai_message": ai_content_html,
+                "jobs": jobs,
             },
         )
 
