@@ -15,7 +15,7 @@ High-level technical overview of the CVviewer backend for AI agents and develope
 ## Component Map
 
 ### Ingress Layer (`app/api/`)
-- **`routes.py`** — HTTP endpoints (`/chat`, `/upload-cv`). No business logic.
+- **`routes.py`** — HTTP endpoints (`/chat`, `/upload-cv`, `/profile`). No business logic.
 - **`dependencies.py`** — FastAPI DI wiring: `get_chat_service()` builds `ChatService(graph=graph)`.
 - **`middleware.py`** — `RequestIdMiddleware`: assigns `request_id` (ContextVar), logs request timing, sets `X-Request-ID` header.
 

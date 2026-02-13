@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Resp
 from fastapi.templating import Jinja2Templates
 
 from app.api.dependencies import get_chat_service
+from app.core.database import get_all_preferences, get_profile
 from app.services.chat_service import ChatService
 
 logger = logging.getLogger(__name__)
@@ -21,6 +22,22 @@ templates.env.filters["markdown"] = lambda text: md.markdown(text) if text else 
 
 # Type alias for injected ChatService dependency
 ChatServiceDep = Annotated[ChatService, Depends(get_chat_service)]
+
+
+@router.get("/profile")
+async def profile_page(request: Request) -> Response:  # type: ignore[type-arg]
+    """Render the user profile page."""
+    profile = get_profile() or {}
+    preferences = get_all_preferences() or {}
+
+    return templates.TemplateResponse(
+        request,
+        "profile.html",
+        {
+            "profile": profile,
+            "preferences": preferences,
+        },
+    )
 
 
 @router.post("/chat")

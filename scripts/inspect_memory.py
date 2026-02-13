@@ -2,18 +2,17 @@ import sqlite3
 import sys
 from pathlib import Path
 
-from tabulate import tabulate  # type: ignore
-
 # Add project root to sys.path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
-from app.core.database import DB_PATH
+from app.core.config import settings
 
 
 def inspect_db() -> None:
-    print(f"--- Inspecting Database: {DB_PATH} ---")
+    db_path = settings.USER_MEMORY_DB_PATH
+    print(f"--- Inspecting Database: {db_path} ---")
 
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(str(db_path))
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 
@@ -23,8 +22,9 @@ def inspect_db() -> None:
     rows = cursor.fetchall()
     if rows:
         headers = rows[0].keys()
-        data = [dict(row).values() for row in rows]
-        print(tabulate(data, headers=headers, tablefmt="grid"))
+        print(f"Columns: {list(headers)}")
+        for row in rows:
+            print(dict(row))
     else:
         print("(No profile found)")
 
@@ -34,8 +34,9 @@ def inspect_db() -> None:
     rows = cursor.fetchall()
     if rows:
         headers = rows[0].keys()
-        data = [dict(row).values() for row in rows]
-        print(tabulate(data, headers=headers, tablefmt="grid"))
+        print(f"Columns: {list(headers)}")
+        for row in rows:
+            print(dict(row))
     else:
         print("(No preferences found)")
 

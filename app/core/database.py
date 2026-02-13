@@ -109,10 +109,12 @@ def get_all_preferences() -> dict[str, Any]:
         for row in rows:
             try:
                 # SQLite stores JSON as text, so we parse it back
-                result[row["key"]] = json.loads(row["value"])
+                val = json.loads(row["value"])
             except (json.JSONDecodeError, TypeError):
-                # Fallback if raw string was stored somehow
-                result[row["key"]] = row["value"]
+                val = row["value"]
+
+            # Return full object with metadata
+            result[row["key"]] = {"value": val, "category": row["category"] or "soft"}
         return result
     finally:
         conn.close()

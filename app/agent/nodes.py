@@ -56,7 +56,15 @@ def fetch_profile(state: AgentState) -> dict[str, Any]:
     profile = get_profile()
     preferences = get_all_preferences()
     logger.info(f"Fetched profile: {profile}")
-    return {"user_profile": profile, "preferences": preferences}
+
+    # Hydrate state from DB
+    updates = {"user_profile": profile, "preferences": preferences}
+
+    # If CV exists in DB, ensure it's in the state's main text field
+    if profile and profile.get("cv_text"):
+        updates[CV_TEXT_KEY] = profile["cv_text"]
+
+    return updates
 
 
 @traceable

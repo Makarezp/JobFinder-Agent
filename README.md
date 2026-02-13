@@ -58,5 +58,5 @@ Keep it simple, **lowercase**, and **short**:
 
 ## Status
 **Phase 1: The Interactive Headhunter**
-- Active: Adzuna Search, Gemini Agent, HTMX UI.
+- Active: Adzuna Search, Gemini Agent, HTMX UI, Memory Profile View.
 - Next: SQLite Persistence, Cron Jobs.

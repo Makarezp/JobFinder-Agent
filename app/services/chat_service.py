@@ -8,6 +8,7 @@ from langgraph.graph.state import CompiledStateGraph
 from pypdf import PdfReader
 
 from app.agent.constants import CV_TEXT_KEY, DEFAULT_THREAD_ID, FINAL_ANSWER_TOOL_NAME, JOBS_KEY, TEXT_RESPONSE_KEY
+from app.core.database import update_profile
 from app.core.logging import log_timing, request_id_var
 
 logger = logging.getLogger(__name__)
@@ -42,6 +43,10 @@ class ChatService:
         logger.info("Processing CV upload", extra={"cv_filename": filename, "thread_id": thread_id})
 
         cv_text = self._extract_text_from_pdf(file_bytes)
+
+        # PERSISTENCE: Save to DB so it survives restarts and appears in Profile UI
+        update_profile(cv_text=cv_text)
+
         config: RunnableConfig = {
             "configurable": {"thread_id": thread_id},
             "metadata": {"request_id": request_id_var.get()},

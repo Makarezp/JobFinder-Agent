@@ -51,6 +51,7 @@ The agent manages memory via three dedicated tools:
 Before the `chatbot` node runs, a `fetch_profile` node reads the DB and injects data into `AgentState`:
 - `state["user_profile"]`: Dict of profile fields.
 - `state["preferences"]`: Dict of active preferences.
+- `state["cv_text"]`: Re-hydrates CV content from the profile table.
 
 ### 3.3 System Prompt
 The system prompt is dynamically formatted with this context:
@@ -62,6 +63,22 @@ The system prompt is dynamically formatted with this context:
 
 ---
 
-## 4. Verification
-- **Automated Tests**: `tests/verify_memory.py` validates persistence and CRUD operations.
-- **Manual Inspection**: `scripts/inspect_memory.py` prints the current database state.
+## 4. User Interface
+A strict separation exists between the Agent's "Brain" (Logic) and the User's "View" (UI), but they share the same data source.
+
+### 4.1 Profile Page (`/profile`)
+A read-only view of the agent's memory, visualizing:
+- **Identity Card**: Name, current role, and confirmation of CV upload status.
+- **Knowledge Base**: Active preferences categorized by "Hard Constraints" (Must-haves) and "Soft Preferences" (Nice-to-haves).
+
+This ensures transparency—the user can always see exactly what the agent "knows" and "believes".
+
+---
+
+## 5. Verification
+- **Automated Tests**:
+    - `tests/verify_memory.py`: Validates persistence and CRUD operations.
+    - `tests/integration/test_profile_routes.py`: Verifies UI rendering and data access.
+- **Manual Inspection**:
+    - `scripts/inspect_memory.py`: Prints the current database state to CLI.
+    - Visit `http://localhost:8000/profile`.

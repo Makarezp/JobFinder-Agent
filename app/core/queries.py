@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS preferences (
 );
 """
 
-SELECT_ALL_PREFERENCES = "SELECT key, value FROM preferences"
+SELECT_ALL_PREFERENCES = "SELECT key, value, category FROM preferences"
 
 UPSERT_PREFERENCE = """
 INSERT INTO preferences (key, value, category, updated_at)
