@@ -4,7 +4,8 @@ import pytest
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from app.agent.graph import graph
-from app.agent.nodes import SYSTEM_PROMPT, chatbot
+from app.agent.nodes import chatbot
+from app.agent.prompts.agent_prompts import SYSTEM_PROMPT
 
 
 @pytest.mark.asyncio
