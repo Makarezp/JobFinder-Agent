@@ -53,7 +53,7 @@ def adzuna_api_search(
     # Adzuna API endpoint: https://api.adzuna.com/v1/api/jobs/{country}/search/1
     base_url = f"https://api.adzuna.com/v1/api/jobs/{country}/search/1"
 
-    params = {
+    params: dict[str, str | int] = {
         "app_id": app_id,
         "app_key": app_key,
         "results_per_page": int(results_per_page),

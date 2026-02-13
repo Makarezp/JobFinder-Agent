@@ -36,10 +36,10 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 
 @app.get("/", response_class=HTMLResponse)
-async def read_root(request: Request):
+async def read_root(request: Request) -> HTMLResponse:  # type: ignore
     return templates.TemplateResponse(request, "index.html", {"app_name": settings.APP_NAME})
 
 
 @app.get("/health")
-async def health_check():
+async def health_check() -> dict[str, str]:
     return {"status": "ok", "env": settings.APP_ENV}

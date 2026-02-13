@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import Annotated
+from typing import Annotated, Any
 
 from crawl4ai import AsyncWebCrawler
 from langchain_core.tools import tool
@@ -77,7 +77,7 @@ def adzuna_search(
         logger.info(f"Scraping Adzuna URL: {full_url}")
 
         # We need to run the async crawler in a sync context for the tool
-        async def run_crawl():
+        async def run_crawl() -> Any:
             async with AsyncWebCrawler(verbose=True) as crawler:
                 return await crawler.arun(url=full_url)
 
@@ -88,7 +88,7 @@ def adzuna_search(
             logger.error(msg)
             return msg
 
-        content = result.markdown
+        content = str(result.markdown)
 
         output = f"**Scraped Adzuna Results for '{keywords}'**\n"
         output += f"Source URL: {full_url}\n\n"

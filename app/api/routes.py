@@ -3,7 +3,7 @@ from io import BytesIO
 from pathlib import Path
 
 import markdown
-from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.templating import Jinja2Templates
 from langchain_core.messages import AIMessage, HumanMessage
 from pypdf import PdfReader
@@ -28,7 +28,7 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 
 @router.post("/chat")
-async def chat_endpoint(request: Request, message: str = Form(...)):
+async def chat_endpoint(request: Request, message: str = Form(...)) -> Response:  # type: ignore
     if not message:
         raise HTTPException(status_code=400, detail="Message is required")
 
@@ -99,7 +99,7 @@ async def chat_endpoint(request: Request, message: str = Form(...)):
 
 
 @router.post("/upload-cv")
-async def upload_cv(request: Request, file: UploadFile = File(...)):
+async def upload_cv(request: Request, file: UploadFile = File(...)) -> Response:  # type: ignore
     try:
         # Read PDF content
         content = await file.read()

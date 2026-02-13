@@ -41,6 +41,6 @@ async def scrape_website(url: str) -> str:
 
         if result.success:
             # Limit content size to avoid context window issues (simple truncation for now)
-            return result.markdown[:20000]
+            return str(result.markdown)[:20000]
         else:
             return f"Failed to scrape {url}: {result.error_message}"

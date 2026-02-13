@@ -1,6 +1,6 @@
 import logging
 
-from langchain_core.messages import SystemMessage
+from langchain_core.messages import BaseMessage, SystemMessage
 from langchain_core.tools import tool
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.prebuilt import ToolNode
@@ -47,10 +47,11 @@ SYSTEM_PROMPT = """You are a helpful job assistant.
 
 
 @tool(args_schema=AgentResponse)
-def final_answer(text_response: str, jobs: list[JobListing] | None = None):
+def final_answer(text_response: str, jobs: list[JobListing] | None = None) -> str:
     """Present the final response to the user with optional job listings."""
     if jobs is None:
         jobs = []
+    return "Final Answer Processed"
 
 
 # Initialize Model
@@ -65,17 +66,17 @@ llm_with_tools = llm.bind_tools(tools)
 
 # Nodes
 @traceable
-def chatbot(state: AgentState):
+def chatbot(state: AgentState) -> dict[str, list[BaseMessage]]:
     logger.info("Invoking chatbot node")
 
-    messages = state[MESSAGES_KEY]
+    messages = state[MESSAGES_KEY]  # type: ignore
 
     # Add System Prompt
     system_messages = [SystemMessage(content=SYSTEM_PROMPT)]
 
     # Add CV Context if available
     if state.get(CV_TEXT_KEY):
-        cv_context = f"\n\nUser's CV Content:\n{state[CV_TEXT_KEY]}\n\nUse this to personalize job recommendations."
+        cv_context = f"\n\nUser's CV Content:\n{state[CV_TEXT_KEY]}\n\nUse this to personalize job recommendations."  # type: ignore
         system_messages.append(SystemMessage(content=cv_context))
 
     messages = system_messages + messages

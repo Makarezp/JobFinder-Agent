@@ -70,3 +70,19 @@ This project uses **Ruff** for fast linting and formatting, and **Pre-commit** t
     ```bash
     ruff format .
     ```
+
+### Type Checking
+
+This project enforces strict type checking using **Mypy**.
+
+1.  **Run Type Checks**:
+    ```bash
+    mypy .
+    ```
+
+2.  **Guidelines for AI Agents & Developers**:
+    -   **Strict Typing**: All new functions and methods **MUST** have type hints for arguments and return values.
+    -   **No `Any`**: Avoid using `Any` unless absolutely necessary.
+    -   **Pydantic Models**: Use Pydantic models for data validation and schema definitions.
+    -   **TypedDict**: When using `TypedDict`, ensure keys are string literals or use `Final` constants to avoid Mypy errors.
+    -   **Ignore Comments**: Use `# type: ignore` sparingly and only when a valid reason exists (e.g., library constraints).

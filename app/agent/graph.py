@@ -1,4 +1,6 @@
-from langchain_core.messages import AIMessage
+from typing import cast
+
+from langchain_core.messages import AIMessage, BaseMessage
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 
@@ -13,21 +15,21 @@ CHATBOT_NODE = "chatbot"
 TOOLS_NODE = "tools"
 
 
-def route_tools(state: AgentState):
+def route_tools(state: AgentState) -> str:
     """
     Check if the last message is a tool call.
     """
     # It's a dict/AgentState
-    messages = state.get(MESSAGES_KEY, [])
+    messages = cast(list[BaseMessage], state.get(MESSAGES_KEY, []))
     ai_message = messages[-1] if messages else None
 
     if isinstance(ai_message, AIMessage) and hasattr(ai_message, "tool_calls") and len(ai_message.tool_calls) > 0:
         # Check if the tool call is final_answer
         first_tool_call = ai_message.tool_calls[0]
         if first_tool_call["name"] == FINAL_ANSWER_TOOL_NAME:
-            return END
+            return str(END)
         return TOOLS_NODE
-    return END
+    return str(END)
 
 
 # Graph Definition
