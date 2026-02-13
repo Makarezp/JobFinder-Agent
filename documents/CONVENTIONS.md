@@ -18,5 +18,8 @@
 - **Fixtures**: Use `conftest.py` for shared fixtures (if available).
 
 ## 4. Logging
-- Use standard `logging` library.
-- Format: `logger = logging.getLogger(__name__)`.
+- Use standard `logging` library: `logger = logging.getLogger(__name__)`.
+- **Structured JSON**: All logs emit JSON via `python-json-logger`. Setup lives in `app/core/logging.py`.
+- **Request correlation**: Every log line includes `request_id` (injected via `RequestIdFilter` from a `ContextVar`). No manual passing needed.
+- **Timing**: Wrap slow operations with `log_timing("operation_name", logger)` context manager.
+- **Extra fields**: Use `extra={}` for structured data, but **never** use Python LogRecord reserved names (`filename`, `funcName`, `module`, `name`, `msg`). Prefix with context instead (e.g., `cv_filename`).
