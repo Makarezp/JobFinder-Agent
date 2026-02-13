@@ -3,6 +3,11 @@ from fastapi.testclient import TestClient
 from unittest.mock import AsyncMock, patch, MagicMock
 from app.main import app
 from langchain_core.messages import AIMessage
+from app.agent.constants import (
+    FINAL_ANSWER_TOOL_NAME,
+    JOBS_KEY,
+    TEXT_RESPONSE_KEY,
+)
 
 client = TestClient(app)
 
@@ -16,10 +21,10 @@ async def test_chat_endpoint_structured_response():
     with patch("app.api.routes.graph.ainvoke", new_callable=AsyncMock) as mock_ainvoke:
         # Create a mock AIMessage mimicking a tool call to final_answer
         mock_tool_call = {
-            "name": "final_answer",
+            "name": FINAL_ANSWER_TOOL_NAME,
             "args": {
-                "text_response": "Here are some jobs.",
-                "jobs": [
+                TEXT_RESPONSE_KEY: "Here are some jobs.",
+                JOBS_KEY: [
                     {
                         "title": "Python Dev",
                         "company": "Tech Corp",

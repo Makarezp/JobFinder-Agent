@@ -9,6 +9,10 @@ from app.agent.state import AgentState
 from app.agent.schemas import AgentResponse, JobListing
 from app.tools.scraper import scrape_website
 from app.tools.adzuna_api import adzuna_api_search
+from app.agent.constants import (
+    CV_TEXT_KEY,
+    MESSAGES_KEY,
+)
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -47,7 +51,9 @@ def final_answer(text_response: str, jobs: list[JobListing] = []):
 
 # Initialize Model
 llm = ChatGoogleGenerativeAI(
-    model="gemini-flash-latest", temperature=0, google_api_key=settings.GEMINI_API_KEY
+    model=settings.GEMINI_MODEL_NAME,
+    temperature=0,
+    google_api_key=settings.GEMINI_API_KEY,
 )
 tools = [adzuna_api_search, scrape_website, final_answer]
 llm_with_tools = llm.bind_tools(tools)
@@ -58,14 +64,14 @@ llm_with_tools = llm.bind_tools(tools)
 def chatbot(state: AgentState):
     logger.info("Invoking chatbot node")
 
-    messages = state["messages"]
+    messages = state[MESSAGES_KEY]
 
     # Add System Prompt
     system_messages = [SystemMessage(content=SYSTEM_PROMPT)]
 
     # Add CV Context if available
-    if state.get("cv_text"):
-        cv_context = f"\n\nUser's CV Content:\n{state['cv_text']}\n\nUse this to personalize job recommendations."
+    if state.get(CV_TEXT_KEY):
+        cv_context = f"\n\nUser's CV Content:\n{state[CV_TEXT_KEY]}\n\nUse this to personalize job recommendations."
         system_messages.append(SystemMessage(content=cv_context))
 
     messages = system_messages + messages

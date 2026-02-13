@@ -3,13 +3,21 @@ from app.agent.state import AgentState
 from app.agent.nodes import chatbot, tool_node
 from langchain_core.messages import AIMessage
 
+from app.agent.constants import (
+    FINAL_ANSWER_TOOL_NAME,
+    MESSAGES_KEY,
+)
+
+CHATBOT_NODE = "chatbot"
+TOOLS_NODE = "tools"
+
 
 def route_tools(state: AgentState):
     """
     Check if the last message is a tool call.
     """
     # It's a dict/AgentState
-    messages = state.get("messages", [])
+    messages = state.get(MESSAGES_KEY, [])
     ai_message = messages[-1] if messages else None
 
     if (
@@ -19,9 +27,9 @@ def route_tools(state: AgentState):
     ):
         # Check if the tool call is final_answer
         first_tool_call = ai_message.tool_calls[0]
-        if first_tool_call["name"] == "final_answer":
+        if first_tool_call["name"] == FINAL_ANSWER_TOOL_NAME:
             return END
-        return "tools"
+        return TOOLS_NODE
     return END
 
 
@@ -30,14 +38,14 @@ from langgraph.checkpoint.memory import MemorySaver
 # Graph Definition
 graph_builder = StateGraph(AgentState)
 
-graph_builder.add_node("chatbot", chatbot)
-graph_builder.add_node("tools", tool_node)
+graph_builder.add_node(CHATBOT_NODE, chatbot)
+graph_builder.add_node(TOOLS_NODE, tool_node)
 
-graph_builder.add_edge(START, "chatbot")
+graph_builder.add_edge(START, CHATBOT_NODE)
 graph_builder.add_conditional_edges(
-    "chatbot", route_tools, {"tools": "tools", END: END}
+    CHATBOT_NODE, route_tools, {TOOLS_NODE: TOOLS_NODE, END: END}
 )
-graph_builder.add_edge("tools", "chatbot")
+graph_builder.add_edge(TOOLS_NODE, CHATBOT_NODE)
 
 checkpointer = MemorySaver()
 graph = graph_builder.compile(checkpointer=checkpointer)

@@ -10,6 +10,15 @@ from fastapi import UploadFile, File
 from pypdf import PdfReader
 from io import BytesIO
 
+from app.agent.constants import (
+    CV_TEXT_KEY,
+    FINAL_ANSWER_TOOL_NAME,
+    JOBS_KEY,
+    TEXT_RESPONSE_KEY,
+)
+
+DEFAULT_THREAD_ID = "default_user_session"
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
@@ -30,7 +39,7 @@ async def chat_endpoint(request: Request, message: str = Form(...)):
 
         # Use a consistent thread_id for conversation history
         # In a real app, this would come from a session or user ID
-        thread_id = "default_user_session"
+        thread_id = DEFAULT_THREAD_ID
         config = {"configurable": {"thread_id": thread_id}}
 
         # Invoke the graph with config
@@ -43,11 +52,11 @@ async def chat_endpoint(request: Request, message: str = Form(...)):
             isinstance(last_message, AIMessage)
             and hasattr(last_message, "tool_calls")
             and len(last_message.tool_calls) > 0
-            and last_message.tool_calls[0]["name"] == "final_answer"
+            and last_message.tool_calls[0]["name"] == FINAL_ANSWER_TOOL_NAME
         ):
             final_args = last_message.tool_calls[0]["args"]
-            ai_content = final_args.get("text_response", "")
-            jobs = final_args.get("jobs", [])
+            ai_content = final_args.get(TEXT_RESPONSE_KEY, "")
+            jobs = final_args.get(JOBS_KEY, [])
         else:
             ai_content = last_message.content
             if isinstance(ai_content, list):
@@ -101,12 +110,12 @@ async def upload_cv(request: Request, file: UploadFile = File(...)):
             text += page.extract_text() + "\n"
 
         # Update Agent State with CV text
-        thread_id = "default_user_session"
+        thread_id = DEFAULT_THREAD_ID
         config = {"configurable": {"thread_id": thread_id}}
 
         # We need to update the state. LangGraph's update_state usage:
         # graph.update_state(config, {"cv_text": text})
-        graph.update_state(config, {"cv_text": text})
+        graph.update_state(config, {CV_TEXT_KEY: text})
 
         # Trigger agent response acknowledging the upload
         inputs = {
@@ -125,11 +134,11 @@ async def upload_cv(request: Request, file: UploadFile = File(...)):
             isinstance(last_message, AIMessage)
             and hasattr(last_message, "tool_calls")
             and len(last_message.tool_calls) > 0
-            and last_message.tool_calls[0]["name"] == "final_answer"
+            and last_message.tool_calls[0]["name"] == FINAL_ANSWER_TOOL_NAME
         ):
             final_args = last_message.tool_calls[0]["args"]
-            ai_content = final_args.get("text_response", "")
-            jobs = final_args.get("jobs", [])
+            ai_content = final_args.get(TEXT_RESPONSE_KEY, "")
+            jobs = final_args.get(JOBS_KEY, [])
         else:
             ai_content = last_message.content
             # Handle multipart content

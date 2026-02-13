@@ -10,6 +10,7 @@ class Settings(BaseSettings):
 
     # LLM
     GEMINI_API_KEY: str
+    GEMINI_MODEL_NAME: str = "gemini-flash-latest"
 
     # LangSmith
     LANGCHAIN_TRACING_V2: bool = False
