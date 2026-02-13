@@ -1,3 +1,4 @@
+import logging
 from typing import Annotated, Any, Literal
 
 from langchain_core.tools import tool
@@ -11,6 +12,8 @@ from app.core.database import (
 from app.core.database import (
     update_profile as db_update_profile,
 )
+
+logger = logging.getLogger(__name__)
 
 
 @tool
@@ -27,6 +30,7 @@ def update_my_profile(
         updated = db_update_profile(name=name, role=role)
         return f"Profile updated successfully: {updated}"
     except Exception as e:
+        logger.error("Failed to update profile", exc_info=True)
         return f"Error updating profile: {str(e)}"
 
 
@@ -50,6 +54,7 @@ def save_preference(
         db_save_preference(key, value, category)
         return f"Preference saved: {key} = {value} ({category})"
     except Exception as e:
+        logger.error("Failed to save preference", exc_info=True, extra={"preference_key": key, "category": category})
         return f"Error saving preference: {str(e)}"
 
 
@@ -66,4 +71,5 @@ def delete_preference(
             return f"Preference '{key}' deleted."
         return f"Preference '{key}' not found."
     except Exception as e:
+        logger.error("Failed to delete preference", exc_info=True, extra={"preference_key": key})
         return f"Error deleting preference: {str(e)}"

@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -20,6 +22,13 @@ class Settings(BaseSettings):
     # Adzuna
     ADZUNA_APP_ID: str | None = None
     ADZUNA_APP_KEY: str | None = None
+
+    # Data
+    DATA_DIR: Path = Path("data")
+
+    @property
+    def USER_MEMORY_DB_PATH(self) -> Path:
+        return self.DATA_DIR / "user_memory.db"
 
     model_config = SettingsConfigDict(env_file=".env", env_ignore_empty=True)
 

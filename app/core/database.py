@@ -1,22 +1,17 @@
 import json
 import sqlite3
-from pathlib import Path
 from typing import Any
 
 from app.core import queries
-
-# Define the path for the SQLite database
-# We'll store it in a 'data' directory at the project root to keep it out of the app code
-DB_DIR = Path(__file__).resolve().parent.parent.parent / "data"
-DB_PATH = DB_DIR / "user_memory.db"
+from app.core.config import settings
 
 
 def get_db_connection() -> sqlite3.Connection:
     """Establish a connection to the SQLite database."""
-    if not DB_DIR.exists():
-        DB_DIR.mkdir(parents=True, exist_ok=True)
+    if not settings.DATA_DIR.exists():
+        settings.DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-    conn = sqlite3.connect(str(DB_PATH))
+    conn = sqlite3.connect(str(settings.USER_MEMORY_DB_PATH))
     conn.row_factory = sqlite3.Row  # Access columns by name
     return conn
 
