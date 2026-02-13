@@ -5,6 +5,7 @@ from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
 from app.core.config import settings
+from app.core.logging import log_timing
 
 logger = logging.getLogger(__name__)
 
@@ -83,11 +84,10 @@ def adzuna_api_search(
         params["contract"] = 1
 
     try:
-        logger.info(f"Calling Adzuna API: {base_url} with params={params}")
-
-        # Use httpx for the request
-        with httpx.Client() as client:
-            response = client.get(base_url, params=params, timeout=10.0)
+        with log_timing("adzuna_api_search", logger):
+            # Use httpx for the request
+            with httpx.Client() as client:
+                response = client.get(base_url, params=params, timeout=10.0)
 
             if response.status_code != 200:
                 return f"Error: Adzuna API returned status code {response.status_code}. Details: {response.text}"

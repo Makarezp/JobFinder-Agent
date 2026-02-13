@@ -1,5 +1,4 @@
 import logging
-import sys
 from pathlib import Path
 
 import markdown as md
@@ -8,18 +7,17 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+from app.api.middleware import RequestIdMiddleware
 from app.api.routes import router as api_router
 from app.core.config import settings
+from app.core.logging import setup_logging
 
-# Configure Logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[logging.StreamHandler(sys.stdout)],
-)
+# Configure structured JSON logging with request correlation
+setup_logging()
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title=settings.APP_NAME, debug=settings.DEBUG)
+app.add_middleware(RequestIdMiddleware)
 
 # Setup Paths
 BASE_DIR = Path(__file__).resolve().parent.parent

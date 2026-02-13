@@ -8,6 +8,7 @@ from langgraph.graph.state import CompiledStateGraph
 from pypdf import PdfReader
 
 from app.agent.constants import CV_TEXT_KEY, DEFAULT_THREAD_ID, FINAL_ANSWER_TOOL_NAME, JOBS_KEY, TEXT_RESPONSE_KEY
+from app.core.logging import log_timing, request_id_var
 
 logger = logging.getLogger(__name__)
 
@@ -21,18 +22,31 @@ class ChatService:
         Processes a user message through the LangGraph agent.
         Returns a dictionary suitable for the frontend template.
         """
-        inputs: dict[str, Any] = {"messages": [HumanMessage(content=message)]}
-        config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
+        logger.info("Processing chat message", extra={"thread_id": thread_id})
 
-        result = await self._graph.ainvoke(inputs, config=config)
+        inputs: dict[str, Any] = {"messages": [HumanMessage(content=message)]}
+        config: RunnableConfig = {
+            "configurable": {"thread_id": thread_id},
+            "metadata": {"request_id": request_id_var.get()},
+            "tags": ["chat"],
+        }
+
+        with log_timing("graph.ainvoke", logger):
+            result = await self._graph.ainvoke(inputs, config=config)
         return self._parse_agent_result(result, message)
 
     async def process_cv(self, file_bytes: bytes, filename: str, thread_id: str = DEFAULT_THREAD_ID) -> dict[str, Any]:
         """
         Extracts text from a PDF, updates agent state, and triggers a response.
         """
+        logger.info("Processing CV upload", extra={"cv_filename": filename, "thread_id": thread_id})
+
         cv_text = self._extract_text_from_pdf(file_bytes)
-        config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
+        config: RunnableConfig = {
+            "configurable": {"thread_id": thread_id},
+            "metadata": {"request_id": request_id_var.get()},
+            "tags": ["upload-cv"],
+        }
 
         # Update state with CV text
         self._graph.update_state(config, {CV_TEXT_KEY: cv_text})
@@ -45,7 +59,8 @@ class ChatService:
                 )
             ]
         }
-        result = await self._graph.ainvoke(inputs, config=config)
+        with log_timing("graph.ainvoke", logger):
+            result = await self._graph.ainvoke(inputs, config=config)
         return self._parse_agent_result(result, f"Uploaded CV: {filename}")
 
     def _parse_agent_result(self, result: dict[str, Any], user_message: str) -> dict[str, Any]:
