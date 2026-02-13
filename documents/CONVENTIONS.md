@@ -1,7 +1,7 @@
 # CONVENTIONS.md - The Rules
 
 ## 1. Coding Standards
-- **Strict Typing**: All code must pass `mypy --strict`. No `Any` unless absolutely unavoidable.
+- **Strict Typing**: All code must pass `mypy --strict`. No `Any` unless absolutely unavoidable. All functions **MUST** have return type annotations, including `-> None`.
 - **Pydantic**: Use Pydantic models for all data exchange, configuration, and tool arguments.
 - **Input Sanitization**: Use `Annotated[T, BeforeValidator(ensure_string)]` for flexible LLM inputs (handling list vs string ambiguity).
 

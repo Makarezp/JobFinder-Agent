@@ -33,6 +33,9 @@
 ### LogRecord reserved attributes
 Python's `logging.LogRecord` has built-in attributes (`filename`, `funcName`, `module`, `name`, `msg`, etc.). Never use these as keys in `extra={}` — it will raise `KeyError: "Attempt to overwrite 'filename' in LogRecord"`. Use prefixed names like `cv_filename` instead.
 
+### Missing Return Types
+Python functions (especially tests and `__init__`) often default to returning `None`, but `mypy --strict` requires explicit `-> None` annotation. Always include it.
+
 ### Pre-commit mypy vs direct mypy
 The pre-commit hook runs mypy **per-file** (isolated resolution), while `mypy app/` runs on the full project. Starlette's `Request` class triggers `[type-arg]` errors only in per-file mode. Fix: use `# type: ignore[type-arg]` on `Request` params + `warn_unused_ignores = false` in `[tool.mypy]`.
 
