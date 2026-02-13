@@ -1,4 +1,6 @@
 import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import markdown as md
@@ -10,13 +12,25 @@ from fastapi.templating import Jinja2Templates
 from app.api.middleware import RequestIdMiddleware
 from app.api.routes import router as api_router
 from app.core.config import settings
+from app.core.database import init_db
 from app.core.logging import setup_logging
 
 # Configure structured JSON logging with request correlation
 setup_logging()
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title=settings.APP_NAME, debug=settings.DEBUG)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    # Startup
+    logger.info("Initializing Database...")
+    init_db()
+    yield
+    # Shutdown
+    logger.info("Shutting down...")
+
+
+app = FastAPI(title=settings.APP_NAME, debug=settings.DEBUG, lifespan=lifespan)
 app.add_middleware(RequestIdMiddleware)
 
 # Setup Paths

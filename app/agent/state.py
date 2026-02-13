@@ -1,5 +1,5 @@
 import operator
-from typing import Annotated, TypedDict
+from typing import Annotated, Any, TypedDict
 
 from langchain_core.messages import BaseMessage
 
@@ -14,3 +14,5 @@ class AgentState(TypedDict):
     scraped_content: str | None
     cv_text: str | None
     loading: bool
+    user_profile: dict[str, Any] | None
+    preferences: dict[str, Any] | None
