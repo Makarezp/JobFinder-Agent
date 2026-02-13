@@ -14,3 +14,6 @@ JOBS_KEY: Final[str] = "jobs"
 # State Keys
 MESSAGES_KEY: Final[str] = "messages"
 CV_TEXT_KEY: Final[str] = "cv_text"
+
+# Default Thread
+DEFAULT_THREAD_ID: Final[str] = "default_user_session"

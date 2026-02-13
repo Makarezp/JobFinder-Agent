@@ -10,35 +10,31 @@ client = TestClient(app)
 
 
 @pytest.mark.asyncio
-async def test_chat_endpoint_success():
+async def test_chat_endpoint_success() -> None:
     """
     Test the /chat endpoint validates input and returns HTML.
     Mocks the agent graph to avoid real LLM calls.
     """
     mock_response = {"messages": [AIMessage(content="Hello from AI")]}
 
-    with patch("app.api.routes.graph.ainvoke", new_callable=AsyncMock) as mock_invoke:
+    # Patched to point to where graph is used: app.services.chat_service
+    with patch("app.services.chat_service.graph.ainvoke", new_callable=AsyncMock) as mock_invoke:
         mock_invoke.return_value = mock_response
 
         response = client.post("/chat", data={"message": "Test Message"})
 
         assert response.status_code == 200
         content = response.text
-        assert "Test Message" in content  # User message bubble?
-        # Actually my template implementation renders *both* user and AI message.
+        assert "Test Message" in content
         assert "Hello from AI" in content
-        assert "bg-blue-600" in content  # User bubble class
-        assert "bg-indigo-100" in content  # AI bubble class
+        assert "bg-blue-600" in content
+        assert "bg-indigo-100" in content
 
 
 @pytest.mark.asyncio
-async def test_chat_endpoint_empty_message():
+async def test_chat_endpoint_empty_message() -> None:
     """Test validation for empty messages."""
     response = client.post("/chat", data={"message": ""})
-    # FastAPI Form validation usually returns 422 for missing required fields if omitted,
-    # but I handles `message: str = Form(...)` and explicit check `if not message`.
-    # If I send empty string, `Form(...)` accepts it, so my check raises 400.
-    # However, sometimes Validation raises 422.
     assert response.status_code in [400, 422]
     if response.status_code == 400:
         assert "Message is required" in response.json()["detail"]

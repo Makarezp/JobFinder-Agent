@@ -15,7 +15,7 @@ client = TestClient(app)
 
 
 @pytest.mark.asyncio
-async def test_chat_endpoint_structured_response():
+async def test_chat_endpoint_structured_response() -> None:
     """
     Test the /chat endpoint when the agent returns a structured response via final_answer tool.
     """

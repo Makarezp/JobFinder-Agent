@@ -9,7 +9,7 @@ client = TestClient(app)
 
 
 @pytest.mark.asyncio
-async def test_upload_cv_endpoint():
+async def test_upload_cv_endpoint() -> None:
     """
     Test the /upload-cv endpoint.
     Mocks PdfReader and graph execution.
@@ -26,10 +26,10 @@ async def test_upload_cv_endpoint():
         mock_instance = mock_pdf_reader.return_value
         mock_instance.pages = [mock_page]
 
-        # Mock graph methods
+        # Mock graph methods in the Service Layer
         with (
-            patch("app.api.routes.graph.update_state") as mock_update_state,
-            patch("app.api.routes.graph.ainvoke", new_callable=AsyncMock) as mock_ainvoke,
+            patch("app.services.chat_service.graph.update_state") as mock_update_state,
+            patch("app.services.chat_service.graph.ainvoke", new_callable=AsyncMock) as mock_ainvoke,
         ):
             mock_ainvoke.return_value = {"messages": [MagicMock(content="I received your CV.")]}
 
@@ -41,4 +41,5 @@ async def test_upload_cv_endpoint():
             # Verify update_state was called with correct text
             assert mock_update_state.called
             args, _ = mock_update_state.call_args
+            # args[1] is the state dict update
             assert args[1]["cv_text"] == "Parsed CV Info: Python Developer\n"

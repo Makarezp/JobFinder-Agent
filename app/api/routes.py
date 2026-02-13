@@ -1,22 +1,14 @@
 import logging
+import traceback
 from io import BytesIO
 from pathlib import Path
 
 import markdown
 from fastapi import APIRouter, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.templating import Jinja2Templates
-from langchain_core.messages import AIMessage, HumanMessage
 from pypdf import PdfReader
 
-from app.agent.constants import (
-    CV_TEXT_KEY,
-    FINAL_ANSWER_TOOL_NAME,
-    JOBS_KEY,
-    TEXT_RESPONSE_KEY,
-)
-from app.agent.graph import graph
-
-DEFAULT_THREAD_ID = "default_user_session"
+from app.services.chat_service import ChatService
 
 logger = logging.getLogger(__name__)
 
@@ -32,61 +24,17 @@ async def chat_endpoint(request: Request, message: str = Form(...)) -> Response:
     if not message:
         raise HTTPException(status_code=400, detail="Message is required")
 
-    # Run Agent
     try:
-        inputs = {"messages": [HumanMessage(content=message)]}
+        service = ChatService()
+        result = await service.process_message(message)
 
-        # Use a consistent thread_id for conversation history
-        # In a real app, this would come from a session or user ID
-        thread_id = DEFAULT_THREAD_ID
-        config = {"configurable": {"thread_id": thread_id}}
+        # Format Markdown to HTML for rendering
+        if result.get("ai_message"):
+            result["ai_message"] = markdown.markdown(result["ai_message"])
 
-        # Invoke the graph with config
-        result = await graph.ainvoke(inputs, config=config)
+        return templates.TemplateResponse(request, "components/chat_message.html", result)
 
-        last_message = result["messages"][-1]
-        # Check for FinalAnswer tool call
-        jobs = []
-        if (
-            isinstance(last_message, AIMessage)
-            and hasattr(last_message, "tool_calls")
-            and len(last_message.tool_calls) > 0
-            and last_message.tool_calls[0]["name"] == FINAL_ANSWER_TOOL_NAME
-        ):
-            final_args = last_message.tool_calls[0]["args"]
-            ai_content = final_args.get(TEXT_RESPONSE_KEY, "")
-            jobs = final_args.get(JOBS_KEY, [])
-        else:
-            ai_content = last_message.content
-            if isinstance(ai_content, list):
-                # Hande multipart content (e.g. text + tool_use)
-                # We want to extract the text parts
-                text_parts = []
-                for part in ai_content:
-                    if isinstance(part, str):
-                        text_parts.append(part)
-                    elif isinstance(part, dict) and "text" in part:
-                        text_parts.append(part["text"])
-                ai_content = "\n".join(text_parts)
-
-        logger.info(f"AI Response: {ai_content}")
-        logger.info(f"Jobs Found: {len(jobs)}")
-
-        # Convert Markdown to HTML for rendering
-        ai_content_html = markdown.markdown(ai_content)
-
-        return templates.TemplateResponse(
-            request,
-            "components/chat_message.html",
-            {
-                "user_message": message,
-                "ai_message": ai_content_html,
-                "jobs": jobs,
-            },
-        )
     except Exception as e:
-        import traceback
-
         logger.error(f"Error processing chat request: {e}\n{traceback.format_exc()}")
         return templates.TemplateResponse(
             request,
@@ -108,63 +56,18 @@ async def upload_cv(request: Request, file: UploadFile = File(...)) -> Response:
         for page in pdf.pages:
             text += page.extract_text() + "\n"
 
-        # Update Agent State with CV text
-        thread_id = DEFAULT_THREAD_ID
-        config = {"configurable": {"thread_id": thread_id}}
+        # Delegate to Service Layer
+        service = ChatService()
+        result = await service.process_cv(text, filename=file.filename or "unknown")
 
-        # We need to update the state. LangGraph's update_state usage:
-        # graph.update_state(config, {"cv_text": text})
-        graph.update_state(config, {CV_TEXT_KEY: text})
+        # Format Markdown to HTML for rendering
+        if result.get("ai_message"):
+            result["ai_message"] = markdown.markdown(result["ai_message"])
 
-        # Trigger agent response acknowledging the upload
-        inputs = {
-            "messages": [
-                HumanMessage(
-                    content="I just uploaded my CV. Please analyze it and tell me what kind of jobs "
-                    "I should look for based on my skills."
-                )
-            ]
-        }
-        result = await graph.ainvoke(inputs, config=config)
-
-        last_message = result["messages"][-1]
-        # Check for FinalAnswer tool call
-        jobs = []
-        if (
-            isinstance(last_message, AIMessage)
-            and hasattr(last_message, "tool_calls")
-            and len(last_message.tool_calls) > 0
-            and last_message.tool_calls[0]["name"] == FINAL_ANSWER_TOOL_NAME
-        ):
-            final_args = last_message.tool_calls[0]["args"]
-            ai_content = final_args.get(TEXT_RESPONSE_KEY, "")
-            jobs = final_args.get(JOBS_KEY, [])
-        else:
-            ai_content = last_message.content
-            # Handle multipart content
-            if isinstance(ai_content, list):
-                text_parts = []
-                for part in ai_content:
-                    if isinstance(part, str):
-                        text_parts.append(part)
-                    elif isinstance(part, dict) and "text" in part:
-                        text_parts.append(part["text"])
-                ai_content = "\n".join(text_parts)
-
-        ai_content_html = markdown.markdown(ai_content)
-
-        return templates.TemplateResponse(
-            request,
-            "components/chat_message.html",
-            {
-                "user_message": f"Uploaded CV: {file.filename}",
-                "ai_message": ai_content_html,
-                "jobs": jobs,
-            },
-        )
+        return templates.TemplateResponse(request, "components/chat_message.html", result)
 
     except Exception as e:
-        logger.error(f"Error processing CV upload: {e}")
+        logger.error(f"Error processing CV upload: {e}\n{traceback.format_exc()}")
         return templates.TemplateResponse(
             request,
             "components/chat_message.html",

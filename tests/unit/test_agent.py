@@ -8,13 +8,13 @@ from app.agent.nodes import SYSTEM_PROMPT, chatbot
 
 
 @pytest.mark.asyncio
-async def test_agent_graph_initialization():
+async def test_agent_graph_initialization() -> None:
     """Test that the graph compiles and can handle a basic input structure."""
     assert graph is not None
 
 
 @pytest.mark.asyncio
-async def test_agent_graph_execution_mock():
+async def test_agent_graph_execution_mock() -> None:
     """
     Smoke test for graph execution.
     Note: Real execution requires keys, so we mock or just check structure.
@@ -26,7 +26,7 @@ async def test_agent_graph_execution_mock():
 
 
 @pytest.mark.asyncio
-async def test_chatbot_node_adds_system_prompt():
+async def test_chatbot_node_adds_system_prompt() -> None:
     """Test that the chatbot node prepends the system prompt."""
     state = {"messages": [HumanMessage(content="Hello")]}
 
