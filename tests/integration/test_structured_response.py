@@ -20,7 +20,7 @@ async def test_chat_endpoint_structured_response() -> None:
     Test the /chat endpoint when the agent returns a structured response via final_answer tool.
     """
     # Mock graph execution
-    with patch("app.api.routes.graph.ainvoke", new_callable=AsyncMock) as mock_ainvoke:
+    with patch("app.services.chat_service.graph.ainvoke", new_callable=AsyncMock) as mock_ainvoke:
         # Create a mock AIMessage mimicking a tool call to final_answer
         mock_tool_call = {
             "name": FINAL_ANSWER_TOOL_NAME,

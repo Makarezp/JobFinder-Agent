@@ -1,3 +1,7 @@
+> [!NOTE]
+> **HISTORICAL DOCUMENT**: This file captures the original vision and ideation.
+> For active Business Rules, Glossary, and Project Status, please refer to **[domain.md](domain.md)** and **[README.md](../README.md)**.
+
 # Project Vision: The "Tinder for Jobs" Agent
 
 ## The Core Concept
