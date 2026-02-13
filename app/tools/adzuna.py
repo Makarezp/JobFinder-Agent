@@ -1,14 +1,15 @@
-import logging
 import asyncio
-from typing import Optional, Union, List, Annotated
-from pydantic import BaseModel, Field, BeforeValidator
-from langchain_core.tools import tool
+import logging
+from typing import Annotated
+
 from crawl4ai import AsyncWebCrawler
+from langchain_core.tools import tool
+from pydantic import BaseModel, BeforeValidator, Field
 
 logger = logging.getLogger(__name__)
 
 
-def ensure_string(v: Union[str, List[str], None]) -> Optional[str]:
+def ensure_string(v: str | list[str] | None) -> str | None:
     """Coerces a list of strings to a single string, or returns the original string."""
     if v is None:
         return None
@@ -25,22 +26,20 @@ class AdzunaSearchArgs(BaseModel):
     keywords: Annotated[str, BeforeValidator(ensure_string)] = Field(
         ..., description="The job title or keywords to search for."
     )
-    location: Optional[Annotated[str, BeforeValidator(ensure_string)]] = Field(
+    location: Annotated[str, BeforeValidator(ensure_string)] | None = Field(
         default=None, description="The location to search for jobs (e.g., 'London')."
     )
     country: str = Field(
         default="gb",
         description="The country code to search in (e.g., 'gb' for UK, 'us' for USA).",
     )
-    results_per_page: int = Field(
-        default=10, description="Number of results to return (approximate)."
-    )
+    results_per_page: int = Field(default=10, description="Number of results to return (approximate).")
 
 
 @tool(args_schema=AdzunaSearchArgs)
 def adzuna_search(
     keywords: str,
-    location: Optional[str] = None,
+    location: str | None = None,
     country: str = "gb",
     results_per_page: int = 10,
 ) -> str:

@@ -1,8 +1,10 @@
-import pytest
-from app.agent.graph import graph
-from app.agent.nodes import chatbot, SYSTEM_PROMPT
 from unittest.mock import patch
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+
+import pytest
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+
+from app.agent.graph import graph
+from app.agent.nodes import SYSTEM_PROMPT, chatbot
 
 
 @pytest.mark.asyncio

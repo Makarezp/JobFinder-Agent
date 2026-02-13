@@ -1,11 +1,10 @@
 import logging
-import httpx
-from typing import Optional, List
-from pydantic import BaseModel, Field
-from langchain_core.tools import tool
-from app.core.config import settings
 import os
+
+import httpx
 from dotenv import load_dotenv
+from langchain_core.tools import tool
+from pydantic import BaseModel, Field
 
 load_dotenv()
 
@@ -14,47 +13,31 @@ logger = logging.getLogger(__name__)
 
 class AdzunaApiArgs(BaseModel):
     what: str = Field(..., description="The job title or keywords to search for.")
-    where: Optional[str] = Field(
-        default=None, description="The location to search for jobs."
-    )
+    where: str | None = Field(default=None, description="The location to search for jobs.")
     country: str = Field(default="gb", description="The country code (e.g., 'gb').")
-    results_per_page: int = Field(
-        default=10, description="Number of results to return."
-    )
-    sort_by: Optional[str] = Field(
-        default=None, description="Sort by 'date' or 'salary'."
-    )
-    max_days_old: Optional[int] = Field(
-        default=None, description="Filter jobs posted within these many days."
-    )
-    salary_min: Optional[int] = Field(default=None, description="Minimum salary.")
-    full_time: Optional[bool] = Field(
-        default=None, description="Filter for full-time jobs."
-    )
-    part_time: Optional[bool] = Field(
-        default=None, description="Filter for part-time jobs."
-    )
-    permanent: Optional[bool] = Field(
-        default=None, description="Filter for permanent jobs."
-    )
-    contract: Optional[bool] = Field(
-        default=None, description="Filter for contract jobs."
-    )
+    results_per_page: int = Field(default=10, description="Number of results to return.")
+    sort_by: str | None = Field(default=None, description="Sort by 'date' or 'salary'.")
+    max_days_old: int | None = Field(default=None, description="Filter jobs posted within these many days.")
+    salary_min: int | None = Field(default=None, description="Minimum salary.")
+    full_time: bool | None = Field(default=None, description="Filter for full-time jobs.")
+    part_time: bool | None = Field(default=None, description="Filter for part-time jobs.")
+    permanent: bool | None = Field(default=None, description="Filter for permanent jobs.")
+    contract: bool | None = Field(default=None, description="Filter for contract jobs.")
 
 
 @tool("adzuna_api_search", args_schema=AdzunaApiArgs)
 def adzuna_api_search(
     what: str,
-    where: Optional[str] = None,
+    where: str | None = None,
     country: str = "gb",
     results_per_page: int = 10,
-    sort_by: Optional[str] = None,
-    max_days_old: Optional[int] = None,
-    salary_min: Optional[int] = None,
-    full_time: Optional[bool] = None,
-    part_time: Optional[bool] = None,
-    permanent: Optional[bool] = None,
-    contract: Optional[bool] = None,
+    sort_by: str | None = None,
+    max_days_old: int | None = None,
+    salary_min: int | None = None,
+    full_time: bool | None = None,
+    part_time: bool | None = None,
+    permanent: bool | None = None,
+    contract: bool | None = None,
 ) -> str:
     """
     Searches for jobs using the Adzuna API.
@@ -65,9 +48,7 @@ def adzuna_api_search(
     app_key = os.getenv("ADZUNA_APP_KEY")
 
     if not app_id or not app_key:
-        return (
-            "Error: Adzuna API credentials (ADZUNA_APP_ID, ADZUNA_APP_KEY) not found."
-        )
+        return "Error: Adzuna API credentials (ADZUNA_APP_ID, ADZUNA_APP_KEY) not found."
 
     # Adzuna API endpoint: https://api.adzuna.com/v1/api/jobs/{country}/search/1
     base_url = f"https://api.adzuna.com/v1/api/jobs/{country}/search/1"
@@ -124,9 +105,7 @@ def adzuna_api_search(
             total_count = data.get("count", 0)
 
             # Format results
-            formatted_jobs = [
-                f"Found {total_count} total jobs (showing top {results_per_page}):\n"
-            ]
+            formatted_jobs = [f"Found {total_count} total jobs (showing top {results_per_page}):\n"]
             for job in results:
                 title = job.get("title", "N/A")
                 company = job.get("company", {}).get("display_name", "N/A")
@@ -134,9 +113,7 @@ def adzuna_api_search(
                 salary_min = job.get("salary_min")
                 salary_max = job.get("salary_max")
                 url = job.get("redirect_url")
-                description = (
-                    job.get("description", "")[:200] + "..."
-                )  # Truncate description
+                description = job.get("description", "")[:200] + "..."  # Truncate description
 
                 # Extra fields
                 category = job.get("category", {}).get("label", "N/A")

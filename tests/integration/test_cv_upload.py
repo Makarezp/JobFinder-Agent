@@ -1,6 +1,8 @@
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import AsyncMock, patch, MagicMock
+
 from app.main import app
 
 client = TestClient(app)
@@ -27,13 +29,9 @@ async def test_upload_cv_endpoint():
         # Mock graph methods
         with (
             patch("app.api.routes.graph.update_state") as mock_update_state,
-            patch(
-                "app.api.routes.graph.ainvoke", new_callable=AsyncMock
-            ) as mock_ainvoke,
+            patch("app.api.routes.graph.ainvoke", new_callable=AsyncMock) as mock_ainvoke,
         ):
-            mock_ainvoke.return_value = {
-                "messages": [MagicMock(content="I received your CV.")]
-            }
+            mock_ainvoke.return_value = {"messages": [MagicMock(content="I received your CV.")]}
 
             response = client.post("/upload-cv", files=file)
 

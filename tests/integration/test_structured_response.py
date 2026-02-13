@@ -1,13 +1,15 @@
+from unittest.mock import AsyncMock, patch
+
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import AsyncMock, patch, MagicMock
-from app.main import app
 from langchain_core.messages import AIMessage
+
 from app.agent.constants import (
     FINAL_ANSWER_TOOL_NAME,
     JOBS_KEY,
     TEXT_RESPONSE_KEY,
 )
+from app.main import app
 
 client = TestClient(app)
 

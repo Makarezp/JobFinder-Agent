@@ -27,9 +27,9 @@ dependencies = [
 dev = [
     "pytest",
     "pytest-asyncio",
-    "black",
-    "isort",
-    "mypy"
+    "mypy",
+    "ruff",
+    "pre-commit"
 ]
 
 [build-system]
@@ -50,3 +50,15 @@ python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"
 asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["B008"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"

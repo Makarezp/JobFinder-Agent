@@ -1,13 +1,14 @@
 import logging
-from typing import Type, Union, List, Optional, Annotated
-from pydantic import BaseModel, Field, BeforeValidator
-from langchain_core.tools import tool
+from typing import Annotated
+
 from crawl4ai import AsyncWebCrawler
+from langchain_core.tools import tool
+from pydantic import BaseModel, BeforeValidator, Field
 
 logger = logging.getLogger(__name__)
 
 
-def ensure_single_string(v: Union[str, List[str]]) -> str:
+def ensure_single_string(v: str | list[str]) -> str:
     if isinstance(v, list):
         if not v:
             return ""

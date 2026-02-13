@@ -1,12 +1,14 @@
 import logging
 import sys
 from pathlib import Path
+
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from app.core.config import settings
+
 from app.api.routes import router as api_router
+from app.core.config import settings
 
 # Configure Logging
 logging.basicConfig(
@@ -35,9 +37,7 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
-    return templates.TemplateResponse(
-        request, "index.html", {"app_name": settings.APP_NAME}
-    )
+    return templates.TemplateResponse(request, "index.html", {"app_name": settings.APP_NAME})
 
 
 @app.get("/health")

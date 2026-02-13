@@ -1,14 +1,12 @@
-from fastapi import APIRouter, Request, Form, HTTPException
-from fastapi.templating import Jinja2Templates
-from langchain_core.messages import HumanMessage, AIMessage
-from app.agent.graph import graph
-from app.agent.state import AgentState
-from pathlib import Path
 import logging
-import markdown
-from fastapi import UploadFile, File
-from pypdf import PdfReader
 from io import BytesIO
+from pathlib import Path
+
+import markdown
+from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
+from fastapi.templating import Jinja2Templates
+from langchain_core.messages import AIMessage, HumanMessage
+from pypdf import PdfReader
 
 from app.agent.constants import (
     CV_TEXT_KEY,
@@ -16,6 +14,7 @@ from app.agent.constants import (
     JOBS_KEY,
     TEXT_RESPONSE_KEY,
 )
+from app.agent.graph import graph
 
 DEFAULT_THREAD_ID = "default_user_session"
 
@@ -121,7 +120,8 @@ async def upload_cv(request: Request, file: UploadFile = File(...)):
         inputs = {
             "messages": [
                 HumanMessage(
-                    content="I just uploaded my CV. Please analyze it and tell me what kind of jobs I should look for based on my skills."
+                    content="I just uploaded my CV. Please analyze it and tell me what kind of jobs "
+                    "I should look for based on my skills."
                 )
             ]
         }
