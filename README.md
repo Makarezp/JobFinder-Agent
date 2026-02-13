@@ -40,3 +40,33 @@ Start the FastAPI server:
 uvicorn app.main:app --reload
 ```
 
+## Development
+
+### Linting & Formatting
+
+This project uses **Ruff** for fast linting and formatting, and **Pre-commit** to enforce quality checks before every commit.
+
+1.  **Install Development Dependencies**:
+    ```bash
+    pip install -e ".[dev]"
+    ```
+
+2.  **Install Pre-commit Hooks**:
+    ```bash
+    pre-commit install
+    ```
+    This ensures that linting runs automatically when you `git commit`.
+
+3.  **Run Checks Manually**:
+    To check for errors:
+    ```bash
+    ruff check .
+    ```
+    To auto-fix errors:
+    ```bash
+    ruff check --fix .
+    ```
+    To format code:
+    ```bash
+    ruff format .
+    ```
