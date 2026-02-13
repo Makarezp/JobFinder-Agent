@@ -1,12 +1,10 @@
 import logging
-import os
 
 import httpx
-from dotenv import load_dotenv
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
-load_dotenv()
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -43,9 +41,8 @@ def adzuna_api_search(
     Searches for jobs using the Adzuna API.
     Returns a structured list of jobs including title, company, location, salary, and link.
     """
-    # Try to get from os.environ first (loaded by dotenv), fallback to settings if possible
-    app_id = os.getenv("ADZUNA_APP_ID")
-    app_key = os.getenv("ADZUNA_APP_KEY")
+    app_id = settings.ADZUNA_APP_ID
+    app_key = settings.ADZUNA_APP_KEY
 
     if not app_id or not app_key:
         return "Error: Adzuna API credentials (ADZUNA_APP_ID, ADZUNA_APP_KEY) not found."

@@ -1,7 +1,9 @@
 import logging
+from io import BytesIO
 from typing import Any
 
 from langchain_core.messages import AIMessage, HumanMessage
+from pypdf import PdfReader
 
 from app.agent.constants import CV_TEXT_KEY, DEFAULT_THREAD_ID, FINAL_ANSWER_TOOL_NAME, JOBS_KEY, TEXT_RESPONSE_KEY
 from app.agent.graph import graph
@@ -21,10 +23,11 @@ class ChatService:
         result = await graph.ainvoke(inputs, config=config)
         return self._parse_agent_result(result, message)
 
-    async def process_cv(self, cv_text: str, filename: str, thread_id: str = DEFAULT_THREAD_ID) -> dict[str, Any]:
+    async def process_cv(self, file_bytes: bytes, filename: str, thread_id: str = DEFAULT_THREAD_ID) -> dict[str, Any]:
         """
-        Updates agent state with CV text and triggers a response.
+        Extracts text from a PDF, updates agent state, and triggers a response.
         """
+        cv_text = self._extract_text_from_pdf(file_bytes)
         config = {"configurable": {"thread_id": thread_id}}
 
         # Update state with CV text
@@ -76,3 +79,9 @@ class ChatService:
             "ai_message": ai_content,
             "jobs": jobs,
         }
+
+    @staticmethod
+    def _extract_text_from_pdf(file_bytes: bytes) -> str:
+        """Extract text content from raw PDF bytes."""
+        pdf = PdfReader(BytesIO(file_bytes))
+        return "\n".join(page.extract_text() for page in pdf.pages)

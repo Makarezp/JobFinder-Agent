@@ -18,8 +18,8 @@ async def test_upload_cv_endpoint() -> None:
     pdf_content = b"%PDF-1.4 dummy content"
     file = {"file": ("resume.pdf", pdf_content, "application/pdf")}
 
-    # Mock PdfReader to return text
-    with patch("app.api.routes.PdfReader") as mock_pdf_reader:
+    # Mock PdfReader at its new location (ChatService)
+    with patch("app.services.chat_service.PdfReader") as mock_pdf_reader:
         mock_page = MagicMock()
         mock_page.extract_text.return_value = "Parsed CV Info: Python Developer"
 
@@ -42,4 +42,4 @@ async def test_upload_cv_endpoint() -> None:
             assert mock_update_state.called
             args, _ = mock_update_state.call_args
             # args[1] is the state dict update
-            assert args[1]["cv_text"] == "Parsed CV Info: Python Developer\n"
+            assert args[1]["cv_text"] == "Parsed CV Info: Python Developer"

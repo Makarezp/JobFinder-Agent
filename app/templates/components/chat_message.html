@@ -17,7 +17,7 @@
             </div>
             <div
                 class="bg-white border border-gray-100 dark:border-gray-800 text-gray-800 p-4 rounded-2xl rounded-tl-none max-w-[90%] shadow-sm prose prose-sm">
-                {{ ai_message | safe }}
+                {{ ai_message | markdown | safe }}
             </div>
         </div>
 

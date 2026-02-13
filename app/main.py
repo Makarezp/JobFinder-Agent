@@ -2,6 +2,7 @@ import logging
 import sys
 from pathlib import Path
 
+import markdown as md
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -33,6 +34,7 @@ app.include_router(api_router)
 
 # Setup Templates
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+templates.env.filters["markdown"] = lambda text: md.markdown(text) if text else ""
 
 
 @app.get("/", response_class=HTMLResponse)
