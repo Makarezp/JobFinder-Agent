@@ -26,7 +26,9 @@ This document provides a high-level technical overview of the `CVviewer` (Agenti
 - **Nodes (`nodes.py`)**: Implementation of graph nodes.
     - `chatbot`: Invokes the LLM with tool definitions.
     - `tool_node`: Executes tool calls.
-- **State (`state.py`)**: TypedDict defining the agent's shared memory (`messages`, `url`, `scraped_content`).
+- **State (`state.py`)**: TypedDict defining the agent's shared memory (`messages`, `cv_text`, `scraped_content`).
+- **Prompts (`prompts/agent_prompts.py`)**: Stores the `SYSTEM_PROMPT` and other instructional text for the LLM.
+- **Schemas (`schemas.py`)**: Pydantic models (e.g., `AgentResponse`, `JobListing`) for structured output parsing.
 
 ### 3. Tools Capability (`app/tools/`)
 - **Adzuna Scraper (`adzuna.py`)**: Uses `Crawl4AI` to scrape job listings (Phase 1 focus).
@@ -41,12 +43,14 @@ This document provides a high-level technical overview of the `CVviewer` (Agenti
 1.  **User Request**: HTML interaction (HTMX) or API call triggers a route in `app/api/routes.py`.
 2.  **Route Handler**:
     - Instantiates or retrieves the `graph`.
-    - Invokes `graph.invoke` or `graph.stream` with the initial state (user message).
+    - Invokes `graph.invoke` or `graph.stream` with the initial state (user message + optional `cv_text`).
 3.  **Agent Execution**:
-    - **Chatbot Node**: LLM processes input, decides to call a tool or reply.
+    - **Chatbot Node**: LLM processes input using `SYSTEM_PROMPT` and `cv_text` (if available), decides to call a tool or reply.
     - **Router**: Directs flow based on LLM output.
-    - **Tool Node**: Executes the requested tool (e.g., `scrape_website`).
-4.  **Response**: Final answer is returned to the user (JSON or rendered HTML fragment).
+    - **Tool Node**: Executes the requested tool (e.g., `scrape_website`, `adzuna_search`).
+4.  **Response**:
+    - The LLM streams back a structured response (validated by `AgentResponse` schema).
+    - Final answer is returned to the user (JSON or rendered HTML fragment).
 
 ## Current Development Phase (Phase 1: The Interactive Headhunter)
 - **Focus**: Building a conversational agent that acts as a real-time scout.
@@ -54,4 +58,3 @@ This document provides a high-level technical overview of the `CVviewer` (Agenti
     - Enhancing LangGraph agent to handle complex queries.
     - Improving `adzuna.py` tool for better compatibility with LLM (structured output).
     - Refining the Chat UI (HTMX) for better interaction loop.
-
