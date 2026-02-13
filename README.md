@@ -40,6 +40,19 @@ Detailed documentation is available in the `documents/` directory:
 - **Type Check**: `mypy .`
 - **Test**: `./.venv/bin/pytest`
 
+## 🤝 Committing
+
+This project uses **pre-commit** hooks to ensure quality. When you run `git commit`, it will automatically run:
+- **Ruff** (Linting & Formatting)
+- **Mypy** (Type Checking)
+
+### Commit Conventions
+Keep it simple, **lowercase**, and **short**:
+- `feat: ...`
+- `fix: ...`
+- `docs: ...`
+- `refactor: ...`
+
 ## Status
 **Phase 1: The Interactive Headhunter**
 - Active: Adzuna Search, Gemini Agent, HTMX UI.
