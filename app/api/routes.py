@@ -1,11 +1,13 @@
 import logging
 import traceback
 from pathlib import Path
+from typing import Annotated
 
 import markdown as md
-from fastapi import APIRouter, File, Form, HTTPException, Request, Response, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.templating import Jinja2Templates
 
+from app.api.dependencies import get_chat_service
 from app.services.chat_service import ChatService
 
 logger = logging.getLogger(__name__)
@@ -17,14 +19,20 @@ TEMPLATES_DIR = BASE_DIR / "app" / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 templates.env.filters["markdown"] = lambda text: md.markdown(text) if text else ""
 
+# Type alias for injected ChatService dependency
+ChatServiceDep = Annotated[ChatService, Depends(get_chat_service)]
+
 
 @router.post("/chat")
-async def chat_endpoint(request: Request, message: str = Form(...)) -> Response:  # type: ignore
+async def chat_endpoint(
+    request: Request,  # type: ignore[type-arg]
+    service: ChatServiceDep,
+    message: str = Form(...),
+) -> Response:
     if not message:
         raise HTTPException(status_code=400, detail="Message is required")
 
     try:
-        service = ChatService()
         result = await service.process_message(message)
 
         return templates.TemplateResponse(request, "components/chat_message.html", result)
@@ -42,9 +50,12 @@ async def chat_endpoint(request: Request, message: str = Form(...)) -> Response:
 
 
 @router.post("/upload-cv")
-async def upload_cv(request: Request, file: UploadFile = File(...)) -> Response:  # type: ignore
+async def upload_cv(
+    request: Request,  # type: ignore[type-arg]
+    service: ChatServiceDep,
+    file: UploadFile = File(...),
+) -> Response:
     try:
-        service = ChatService()
         raw_bytes = await file.read()
         result = await service.process_cv(raw_bytes, filename=file.filename or "unknown")
 

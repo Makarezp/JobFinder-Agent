@@ -17,9 +17,8 @@ async def test_chat_endpoint_success() -> None:
     """
     mock_response = {"messages": [AIMessage(content="Hello from AI")]}
 
-    # Patched to point to where graph is used: app.services.chat_service
-    with patch("app.services.chat_service.graph.ainvoke", new_callable=AsyncMock) as mock_invoke:
-        mock_invoke.return_value = mock_response
+    with patch("app.api.dependencies.graph") as mock_graph:
+        mock_graph.ainvoke = AsyncMock(return_value=mock_response)
 
         response = client.post("/chat", data={"message": "Test Message"})
 

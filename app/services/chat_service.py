@@ -3,24 +3,28 @@ from io import BytesIO
 from typing import Any
 
 from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.runnables import RunnableConfig
+from langgraph.graph.state import CompiledStateGraph
 from pypdf import PdfReader
 
 from app.agent.constants import CV_TEXT_KEY, DEFAULT_THREAD_ID, FINAL_ANSWER_TOOL_NAME, JOBS_KEY, TEXT_RESPONSE_KEY
-from app.agent.graph import graph
 
 logger = logging.getLogger(__name__)
 
 
 class ChatService:
+    def __init__(self, graph: CompiledStateGraph[Any]) -> None:
+        self._graph = graph
+
     async def process_message(self, message: str, thread_id: str = DEFAULT_THREAD_ID) -> dict[str, Any]:
         """
         Processes a user message through the LangGraph agent.
         Returns a dictionary suitable for the frontend template.
         """
-        inputs = {"messages": [HumanMessage(content=message)]}
-        config = {"configurable": {"thread_id": thread_id}}
+        inputs: dict[str, Any] = {"messages": [HumanMessage(content=message)]}
+        config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
 
-        result = await graph.ainvoke(inputs, config=config)
+        result = await self._graph.ainvoke(inputs, config=config)
         return self._parse_agent_result(result, message)
 
     async def process_cv(self, file_bytes: bytes, filename: str, thread_id: str = DEFAULT_THREAD_ID) -> dict[str, Any]:
@@ -28,10 +32,10 @@ class ChatService:
         Extracts text from a PDF, updates agent state, and triggers a response.
         """
         cv_text = self._extract_text_from_pdf(file_bytes)
-        config = {"configurable": {"thread_id": thread_id}}
+        config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
 
         # Update state with CV text
-        graph.update_state(config, {CV_TEXT_KEY: cv_text})
+        self._graph.update_state(config, {CV_TEXT_KEY: cv_text})
 
         # Trigger follow-up
         inputs = {
@@ -41,7 +45,7 @@ class ChatService:
                 )
             ]
         }
-        result = await graph.ainvoke(inputs, config=config)
+        result = await self._graph.ainvoke(inputs, config=config)
         return self._parse_agent_result(result, f"Uploaded CV: {filename}")
 
     def _parse_agent_result(self, result: dict[str, Any], user_message: str) -> dict[str, Any]:

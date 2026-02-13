@@ -18,7 +18,7 @@ async def test_upload_cv_endpoint() -> None:
     pdf_content = b"%PDF-1.4 dummy content"
     file = {"file": ("resume.pdf", pdf_content, "application/pdf")}
 
-    # Mock PdfReader at its new location (ChatService)
+    # Mock PdfReader at its location (ChatService)
     with patch("app.services.chat_service.PdfReader") as mock_pdf_reader:
         mock_page = MagicMock()
         mock_page.extract_text.return_value = "Parsed CV Info: Python Developer"
@@ -26,12 +26,10 @@ async def test_upload_cv_endpoint() -> None:
         mock_instance = mock_pdf_reader.return_value
         mock_instance.pages = [mock_page]
 
-        # Mock graph methods in the Service Layer
-        with (
-            patch("app.services.chat_service.graph.update_state") as mock_update_state,
-            patch("app.services.chat_service.graph.ainvoke", new_callable=AsyncMock) as mock_ainvoke,
-        ):
-            mock_ainvoke.return_value = {"messages": [MagicMock(content="I received your CV.")]}
+        # Mock graph at the DI wiring point
+        with patch("app.api.dependencies.graph") as mock_graph:
+            mock_graph.ainvoke = AsyncMock(return_value={"messages": [MagicMock(content="I received your CV.")]})
+            mock_graph.update_state = MagicMock()
 
             response = client.post("/upload-cv", files=file)
 
@@ -39,7 +37,7 @@ async def test_upload_cv_endpoint() -> None:
             assert "I received your CV" in response.text
 
             # Verify update_state was called with correct text
-            assert mock_update_state.called
-            args, _ = mock_update_state.call_args
+            assert mock_graph.update_state.called
+            args, _ = mock_graph.update_state.call_args
             # args[1] is the state dict update
             assert args[1]["cv_text"] == "Parsed CV Info: Python Developer"

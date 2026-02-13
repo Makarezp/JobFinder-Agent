@@ -38,7 +38,7 @@ templates.env.filters["markdown"] = lambda text: md.markdown(text) if text else 
 
 
 @app.get("/", response_class=HTMLResponse)
-async def read_root(request: Request) -> HTMLResponse:  # type: ignore
+async def read_root(request: Request) -> HTMLResponse:  # type: ignore[type-arg]
     return templates.TemplateResponse(request, "index.html", {"app_name": settings.APP_NAME})
 
 

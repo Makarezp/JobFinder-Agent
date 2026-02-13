@@ -19,8 +19,8 @@ async def test_chat_endpoint_structured_response() -> None:
     """
     Test the /chat endpoint when the agent returns a structured response via final_answer tool.
     """
-    # Mock graph execution
-    with patch("app.services.chat_service.graph.ainvoke", new_callable=AsyncMock) as mock_ainvoke:
+    # Mock graph at the DI wiring point
+    with patch("app.api.dependencies.graph") as mock_graph:
         # Create a mock AIMessage mimicking a tool call to final_answer
         mock_tool_call = {
             "name": FINAL_ANSWER_TOOL_NAME,
@@ -41,7 +41,7 @@ async def test_chat_endpoint_structured_response() -> None:
         }
 
         mock_message = AIMessage(content="", tool_calls=[mock_tool_call])
-        mock_ainvoke.return_value = {"messages": [mock_message]}
+        mock_graph.ainvoke = AsyncMock(return_value={"messages": [mock_message]})
 
         # Make the request
         response = client.post("/chat", data={"message": "find jobs"})
