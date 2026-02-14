@@ -5,18 +5,27 @@ from typing import Any
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph.state import CompiledStateGraph
+from langgraph.store.base import BaseStore
 from pypdf import PdfReader
 
-from app.agent.constants import CV_TEXT_KEY, DEFAULT_THREAD_ID, FINAL_ANSWER_TOOL_NAME, JOBS_KEY, TEXT_RESPONSE_KEY
-from app.core.database import update_profile
+from app.agent.constants import (
+    CV_TEXT_KEY,
+    DEFAULT_THREAD_ID,
+    DEFAULT_USER_ID,
+    FINAL_ANSWER_TOOL_NAME,
+    JOBS_KEY,
+    TEXT_RESPONSE_KEY,
+)
+from app.agent.memory_schema import UserProfile
 from app.core.logging import log_timing, request_id_var
 
 logger = logging.getLogger(__name__)
 
 
 class ChatService:
-    def __init__(self, graph: CompiledStateGraph[Any]) -> None:
+    def __init__(self, graph: CompiledStateGraph[Any], store: BaseStore) -> None:
         self._graph = graph
+        self._store = store
 
     async def process_message(self, message: str, thread_id: str = DEFAULT_THREAD_ID) -> dict[str, Any]:
         """
@@ -27,7 +36,7 @@ class ChatService:
 
         inputs: dict[str, Any] = {"messages": [HumanMessage(content=message)]}
         config: RunnableConfig = {
-            "configurable": {"thread_id": thread_id},
+            "configurable": {"thread_id": thread_id, "user_id": DEFAULT_USER_ID},
             "metadata": {"request_id": request_id_var.get()},
             "tags": ["chat"],
         }
@@ -44,11 +53,20 @@ class ChatService:
 
         cv_text = self._extract_text_from_pdf(file_bytes)
 
-        # PERSISTENCE: Save to DB so it survives restarts and appears in Profile UI
-        update_profile(cv_text=cv_text)
+        # PERSISTENCE: Save to Store so it survives restarts and appears in Profile UI
+        # Use default user for now
+        user_id = DEFAULT_USER_ID
+        namespace = (user_id, "profile")
+
+        # Merge with existing
+        existing = self._store.get(namespace, "data")
+        # Load into Pydantic model
+        profile = UserProfile(**existing.value) if existing else UserProfile()
+        profile.cv_text = cv_text
+        self._store.put(namespace, "data", profile.model_dump())
 
         config: RunnableConfig = {
-            "configurable": {"thread_id": thread_id},
+            "configurable": {"thread_id": thread_id, "user_id": user_id},
             "metadata": {"request_id": request_id_var.get()},
             "tags": ["upload-cv"],
         }

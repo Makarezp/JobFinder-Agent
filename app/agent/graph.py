@@ -1,8 +1,10 @@
+import functools
 from typing import cast
 
 from langchain_core.messages import AIMessage, BaseMessage
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
+from langgraph.store.memory import InMemoryStore
 
 from app.agent.constants import (
     FINAL_ANSWER_TOOL_NAME,
@@ -35,9 +37,10 @@ def route_tools(state: AgentState) -> str:
 
 # Graph Definition
 graph_builder = StateGraph(AgentState)
+store = InMemoryStore()
 
 graph_builder.add_node(CHATBOT_NODE, chatbot)
-graph_builder.add_node(FETCH_PROFILE_NODE, fetch_profile)
+graph_builder.add_node(FETCH_PROFILE_NODE, functools.partial(fetch_profile, store=store))
 graph_builder.add_node(TOOLS_NODE, tool_node)
 
 graph_builder.add_edge(START, FETCH_PROFILE_NODE)
@@ -46,4 +49,4 @@ graph_builder.add_conditional_edges(CHATBOT_NODE, route_tools, {TOOLS_NODE: TOOL
 graph_builder.add_edge(TOOLS_NODE, CHATBOT_NODE)
 
 checkpointer = MemorySaver()
-graph = graph_builder.compile(checkpointer=checkpointer)
+graph = graph_builder.compile(checkpointer=checkpointer, store=store)

@@ -1,21 +1,23 @@
 import logging
-from typing import Any
+from typing import Annotated, Any
 
 from langchain_core.messages import BaseMessage, SystemMessage
+from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langgraph.prebuilt import ToolNode
+from langgraph.prebuilt import InjectedStore, ToolNode
+from langgraph.store.base import BaseStore
 from langsmith import traceable
 
 from app.agent.constants import (
     CV_TEXT_KEY,
     MESSAGES_KEY,
 )
+from app.agent.memory_schema import Preference, UserProfile
 from app.agent.prompts.agent_prompts import SYSTEM_PROMPT
 from app.agent.schemas import AgentResponse, JobListing
 from app.agent.state import AgentState
 from app.core.config import settings
-from app.core.database import get_all_preferences, get_profile
 from app.tools.adzuna_api import adzuna_api_search
 from app.tools.memory import delete_preference, save_preference, update_my_profile
 from app.tools.scraper import scrape_website
@@ -49,20 +51,46 @@ llm_with_tools = llm.bind_tools(tools)
 
 
 # Nodes
-def fetch_profile(state: AgentState) -> dict[str, Any]:
+def fetch_profile(
+    state: AgentState, config: RunnableConfig, store: Annotated[BaseStore, InjectedStore]
+) -> dict[str, Any]:
     """
-    Read user profile and preferences from SQLite and inject into state.
+    Read user profile and preferences from Store and inject into state.
     """
-    profile = get_profile()
-    preferences = get_all_preferences()
-    logger.info(f"Fetched profile: {profile}")
+    user_id = config.get("configurable", {}).get("user_id", "default_user")
+
+    # Fetch Profile
+    namespace_profile = (user_id, "profile")
+    profile_item = store.get(namespace_profile, "data")
+    profile = UserProfile(**profile_item.value) if profile_item else UserProfile()
+    profile_dict = profile.model_dump()
+
+    # Fetch Preferences
+    namespace_prefs = (user_id, "preferences")
+    # Fetch all preferences in user's namespace.
+    prefs_items = store.search(namespace_prefs)
+
+    preferences = {}
+    for item in prefs_items:
+        # item.key is the preference key, item.value is the dict or model dump
+        # We can validate it back to Preference model if needed, but for state injection dict is fine.
+        # But let's be safe and validate.
+        if item.value:
+            try:
+                # If it was saved as dict from model_dump
+                pref = Preference(**item.value)
+                preferences[item.key] = pref.model_dump()
+            except Exception:
+                logger.warning(f"Skipping invalid preference: {item.key}")
+
+    logger.info(f"Fetched profile: {profile_dict}")
 
     # Hydrate state from DB
-    updates = {"user_profile": profile, "preferences": preferences}
+    updates: dict[str, Any] = {"user_profile": profile_dict, "preferences": preferences}
 
     # If CV exists in DB, ensure it's in the state's main text field
-    if profile and profile.get("cv_text"):
-        updates[CV_TEXT_KEY] = profile["cv_text"]
+    if profile.cv_text:
+        updates[CV_TEXT_KEY] = profile.cv_text
 
     return updates
 

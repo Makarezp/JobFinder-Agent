@@ -10,8 +10,8 @@ class UserProfile(BaseModel):
 
     id: int = 1
     name: str | None = None
-    role: str | None = Field(None, description="Current job title, e.g. 'Senior Backend Engineer'")
-    cv_text: str | None = Field(None, description="Raw text of the CV")
+    role: str | None = Field(default=None, description="Current job title, e.g. 'Senior Backend Engineer'")
+    cv_text: str | None = Field(default=None, description="Raw text of the CV")
 
 
 class Preference(BaseModel):

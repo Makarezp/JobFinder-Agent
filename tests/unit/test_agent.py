@@ -38,10 +38,11 @@ async def test_chatbot_node_adds_system_prompt() -> None:
         chatbot(state)
 
         # Check that invoke was called with SystemMessage first
-        # call_args of invoke: (args, kwargs)
-        # args[0] is the input to invoke, which should be the list of messages
         call_args = mock_llm.invoke.call_args[0][0]
         assert len(call_args) == 2
         assert isinstance(call_args[0], SystemMessage)
-        assert call_args[0].content == SYSTEM_PROMPT
+
+        # The chatbot node formats the system prompt with defaults if no profile is present
+        expected_prompt = SYSTEM_PROMPT.format(name="User", role="Job Seeker")
+        assert call_args[0].content == expected_prompt
         assert call_args[1].content == "Hello"

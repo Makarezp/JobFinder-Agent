@@ -12,7 +12,6 @@ from fastapi.templating import Jinja2Templates
 from app.api.middleware import RequestIdMiddleware
 from app.api.routes import router as api_router
 from app.core.config import settings
-from app.core.database import init_db
 from app.core.logging import setup_logging
 
 # Configure structured JSON logging with request correlation
@@ -23,8 +22,7 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Startup
-    logger.info("Initializing Database...")
-    init_db()
+    logger.info("Initializing Application...")
     yield
     # Shutdown
     logger.info("Shutting down...")
