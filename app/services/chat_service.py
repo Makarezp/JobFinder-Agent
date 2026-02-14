@@ -9,14 +9,13 @@ from langgraph.store.base import BaseStore
 from pypdf import PdfReader
 
 from app.agent.constants import (
-    CV_TEXT_KEY,
+    CV_RAW_TEXT_KEY,
     DEFAULT_THREAD_ID,
     DEFAULT_USER_ID,
     FINAL_ANSWER_TOOL_NAME,
     JOBS_KEY,
     TEXT_RESPONSE_KEY,
 )
-from app.agent.memory_schema import UserProfile
 from app.core.logging import log_timing, request_id_var
 
 logger = logging.getLogger(__name__)
@@ -47,41 +46,25 @@ class ChatService:
 
     async def process_cv(self, file_bytes: bytes, filename: str, thread_id: str = DEFAULT_THREAD_ID) -> dict[str, Any]:
         """
-        Extracts text from a PDF, updates agent state, and triggers a response.
+        Extracts text from a PDF and injects it into the graph as cv_raw_text.
+        The onboarding agent will analyze it and store a structured summary.
         """
         logger.info("Processing CV upload", extra={"cv_filename": filename, "thread_id": thread_id})
 
         cv_text = self._extract_text_from_pdf(file_bytes)
 
-        # PERSISTENCE: Save to Store so it survives restarts and appears in Profile UI
-        # Use default user for now
-        user_id = DEFAULT_USER_ID
-        namespace = (user_id, "profile")
-
-        # Merge with existing
-        existing = self._store.get(namespace, "data")
-        # Load into Pydantic model
-        profile = UserProfile(**existing.value) if existing else UserProfile()
-        profile.cv_text = cv_text
-        self._store.put(namespace, "data", profile.model_dump())
-
         config: RunnableConfig = {
-            "configurable": {"thread_id": thread_id, "user_id": user_id},
+            "configurable": {"thread_id": thread_id, "user_id": DEFAULT_USER_ID},
             "metadata": {"request_id": request_id_var.get()},
             "tags": ["upload-cv"],
         }
 
-        # Update state with CV text
-        self._graph.update_state(config, {CV_TEXT_KEY: cv_text})
-
-        # Trigger follow-up
-        inputs = {
-            "messages": [
-                HumanMessage(
-                    content="I just uploaded my CV. Please analyze it and tell me what kind of jobs I should look for."
-                )
-            ]
+        # Inject CV text as state + user message — onboarding agent handles the rest
+        inputs: dict[str, Any] = {
+            "messages": [HumanMessage(content=f"I just uploaded my CV ({filename}). Please analyze it.")],
+            CV_RAW_TEXT_KEY: cv_text,
         }
+
         with log_timing("graph.ainvoke", logger):
             result = await self._graph.ainvoke(inputs, config=config)
         return self._parse_agent_result(result, f"Uploaded CV: {filename}")
@@ -89,9 +72,10 @@ class ChatService:
     def _parse_agent_result(self, result: dict[str, Any], user_message: str) -> dict[str, Any]:
         """
         Parses the LangGraph result to extract the final answer and jobs.
+        Handles both onboarding (plain AI messages) and main agent (final_answer tool).
         """
         last_message = result["messages"][-1]
-        jobs = []
+        jobs: list[Any] = []
         ai_content = ""
 
         if (

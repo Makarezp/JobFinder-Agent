@@ -6,7 +6,7 @@ from langchain_core.tools import tool
 from langgraph.prebuilt import InjectedStore
 from langgraph.store.base import BaseStore
 
-from app.agent.memory_schema import Preference, UserProfile
+from app.agent.memory_schema import CVSummary, Preference, UserProfile
 
 logger = logging.getLogger(__name__)
 
@@ -17,10 +17,12 @@ def update_my_profile(
     store: Annotated[BaseStore, InjectedStore],
     name: Annotated[str | None, "Your name"] = None,
     role: Annotated[str | None, "Your current or desired job title"] = None,
+    cv_summary: Annotated[dict[str, Any] | None, "Structured CV summary as a dictionary"] = None,
 ) -> str:
     """
-    Update your core profile information (Name, Role).
+    Update your core profile information (Name, Role, CV Summary).
     Use this when the user explicitly tells you who they are or what they do.
+    Also use this to store the structured CV analysis after processing a CV.
     Example: User says "I am a Senior Python Dev", call update_my_profile(role="Senior Python Dev").
     """
     try:
@@ -36,6 +38,10 @@ def update_my_profile(
             profile.name = name
         if role:
             profile.role = role
+        if cv_summary:
+            # Validate through Pydantic model
+            profile.cv_summary = CVSummary(**cv_summary)
+            profile.cv_uploaded = True
 
         store.put(namespace, "data", profile.model_dump())
         return f"Profile updated successfully: {profile.model_dump()}"
@@ -101,3 +107,30 @@ def delete_preference(
     except Exception as e:
         logger.error("Failed to delete preference", exc_info=True, extra={"preference_key": key})
         return f"Error deleting preference: {str(e)}"
+
+
+@tool
+def finalize_profile(
+    config: RunnableConfig,
+    store: Annotated[BaseStore, InjectedStore],
+) -> str:
+    """
+    Signal that onboarding is complete and hand off to the main job-hunting agent.
+    Call this ONLY after you have gathered enough information about the user
+    via update_my_profile and save_preference.
+    """
+    try:
+        user_id = config.get("configurable", {}).get("user_id", "default_user")
+        namespace = (user_id, "profile")
+
+        # Verify profile has minimum data before finalizing
+        existing = store.get(namespace, "data")
+        profile = UserProfile(**existing.value) if existing else UserProfile()
+
+        if not profile.name and not profile.role:
+            return "Cannot finalize: please set at least a name or role first."
+
+        return "Profile finalized. Onboarding complete — handing off to job hunting agent."
+    except Exception as e:
+        logger.error("Failed to finalize profile", exc_info=True)
+        return f"Error finalizing profile: {str(e)}"

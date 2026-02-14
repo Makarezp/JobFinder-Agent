@@ -13,8 +13,18 @@ JOBS_KEY: Final[str] = "jobs"
 
 # State Keys
 MESSAGES_KEY: Final[str] = "messages"
-CV_TEXT_KEY: Final[str] = "cv_text"
+CV_RAW_TEXT_KEY: Final[str] = "cv_raw_text"
+ONBOARDING_COMPLETE_KEY: Final[str] = "onboarding_complete"
+ACTIVE_AGENT_KEY: Final[str] = "active_agent"
 
 # Default Thread
 DEFAULT_THREAD_ID: Final[str] = "default_user_session"
 DEFAULT_USER_ID: Final[str] = "default_user"
+
+# Node Names
+ROUTER_NODE: Final[str] = "router"
+ONBOARDING_CHATBOT_NODE: Final[str] = "onboarding_chatbot"
+ONBOARDING_TOOLS_NODE: Final[str] = "onboarding_tools"
+FETCH_PROFILE_NODE: Final[str] = "fetch_profile"
+MAIN_CHATBOT_NODE: Final[str] = "main_chatbot"
+MAIN_TOOLS_NODE: Final[str] = "main_tools"

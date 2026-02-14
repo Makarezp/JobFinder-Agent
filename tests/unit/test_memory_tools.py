@@ -4,7 +4,7 @@ from typing import Any, Literal
 from langchain_core.runnables import RunnableConfig
 from langgraph.store.memory import InMemoryStore
 
-from app.tools.memory import delete_preference, save_preference, update_my_profile
+from app.tools.memory import delete_preference, finalize_profile, save_preference, update_my_profile
 
 
 class FailingPutStore(InMemoryStore):
@@ -46,6 +46,30 @@ class TestMemoryTools(unittest.TestCase):
             self.fail("Item not found in store")
         self.assertEqual(item.value["name"], "Test User")
         self.assertEqual(item.value["role"], "Tester")
+
+    def test_update_my_profile_with_cv_summary(self) -> None:
+        """Test that update_my_profile accepts and stores a cv_summary."""
+        cv_data = {
+            "professional_summary": "Experienced dev",
+            "seniority_level": "Senior",
+            "years_of_experience": 5,
+            "primary_domain": "Backend",
+            "skills": {"primary": ["Python"], "secondary": [], "tools": []},
+            "experience": [],
+            "education": [],
+        }
+        result = update_my_profile.invoke(
+            {"name": "CV User", "cv_summary": cv_data, "store": self.store}, config=self.config
+        )
+
+        self.assertIn("Profile updated successfully", result)
+
+        namespace = ("test_user", "profile")
+        item = self.store.get(namespace, "data")
+        if item is None:
+            self.fail("Item not found in store")
+        self.assertTrue(item.value["cv_uploaded"])
+        self.assertEqual(item.value["cv_summary"]["seniority_level"], "Senior")
 
     def test_save_preference_success(self) -> None:
         # Act
@@ -122,3 +146,23 @@ class TestMemoryTools(unittest.TestCase):
         # Assert
         self.assertIn("Error deleting preference", result)
         self.assertIn("Delete error", result)
+
+    def test_finalize_profile_success(self) -> None:
+        """Test finalize_profile succeeds when profile has name/role."""
+        # Arrange: seed a profile with name and role
+        namespace = ("test_user", "profile")
+        self.store.put(namespace, "data", {"id": 1, "name": "Alice", "role": "Dev"})
+
+        # Act
+        result = finalize_profile.invoke({"store": self.store}, config=self.config)
+
+        # Assert
+        self.assertIn("Onboarding complete", result)
+
+    def test_finalize_profile_rejects_empty(self) -> None:
+        """Test finalize_profile rejects when no name or role is set."""
+        # Act — no profile seeded
+        result = finalize_profile.invoke({"store": self.store}, config=self.config)
+
+        # Assert
+        self.assertIn("Cannot finalize", result)
