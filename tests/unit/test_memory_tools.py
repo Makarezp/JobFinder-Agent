@@ -32,9 +32,7 @@ class TestMemoryTools(unittest.TestCase):
 
     def test_update_my_profile_success(self) -> None:
         # Act
-        result = update_my_profile.invoke(
-            {"name": "Test User", "role": "Tester", "store": self.store}, config=self.config
-        )
+        result = update_my_profile.invoke({"name": "Test User", "role": "Tester", "store": self.store}, config=self.config)
 
         # Assert
         self.assertIn("Profile updated successfully", result)
@@ -50,9 +48,7 @@ class TestMemoryTools(unittest.TestCase):
     def test_update_my_profile_with_cv_summary(self) -> None:
         """Test that update_my_profile accepts and stores a cv_summary."""
         cv_text = "Experienced Senior Backend Dev with 5 years experience in Python."
-        result = update_my_profile.invoke(
-            {"name": "CV User", "cv_summary": cv_text, "store": self.store}, config=self.config
-        )
+        result = update_my_profile.invoke({"name": "CV User", "cv_summary": cv_text, "store": self.store}, config=self.config)
 
         self.assertIn("Profile updated successfully", result)
 
@@ -65,9 +61,7 @@ class TestMemoryTools(unittest.TestCase):
 
     def test_save_preference_success(self) -> None:
         # Act
-        result = save_preference.invoke(
-            {"key": "loc", "value": "rem", "category": "hard", "store": self.store}, config=self.config
-        )
+        result = save_preference.invoke({"key": "loc", "value": "rem", "category": "hard", "store": self.store}, config=self.config)
 
         # Assert
         self.assertIn("Preference saved", result)

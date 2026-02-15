@@ -57,9 +57,7 @@ def save_preference(
     store: Annotated[BaseStore, InjectedStore],
     key: Annotated[str, "The preference key (e.g., 'min_salary', 'location', 'tech_stack')"],
     value: Annotated[Any, "The value (string, number, boolean, or list)"],
-    category: Annotated[
-        Literal["hard", "soft"], "Is this a strict requirement ('hard') or just nice to have ('soft')?"
-    ] = "soft",
+    category: Annotated[Literal["hard", "soft"], "Is this a strict requirement ('hard') or just nice to have ('soft')?"] = "soft",
 ) -> str:
     """
     Save a user preference or constraint.

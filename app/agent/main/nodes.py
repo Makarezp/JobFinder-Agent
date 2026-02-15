@@ -11,6 +11,7 @@ from langsmith import traceable
 
 from app.agent.constants import (
     FINAL_ANSWER_TOOL_NAME,
+    JOB_SPECIALIST_NODE,
     MAIN_TOOLS_NODE,
     MESSAGES_KEY,
 )
@@ -131,7 +132,10 @@ def route_main(state: AgentState) -> str:
 
     if isinstance(ai_message, AIMessage) and hasattr(ai_message, "tool_calls") and len(ai_message.tool_calls) > 0:
         first_tool_call = ai_message.tool_calls[0]
-        if first_tool_call["name"] == FINAL_ANSWER_TOOL_NAME:
+        name = first_tool_call["name"]
+        if name == FINAL_ANSWER_TOOL_NAME:
             return str(END)
+        if name == "job_specialist_tool":
+            return JOB_SPECIALIST_NODE
         return MAIN_TOOLS_NODE
     return str(END)

@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 
 import httpx
 from langchain_core.tools import tool
@@ -37,16 +38,16 @@ def adzuna_api_search(
     part_time: bool | None = None,
     permanent: bool | None = None,
     contract: bool | None = None,
-) -> str:
+) -> list[dict[str, Any]]:
     """
     Searches for jobs using the Adzuna API.
-    Returns a structured list of jobs including title, company, location, salary, and link.
+    Returns a list of JobSummary dictionaries.
     """
     app_id = settings.ADZUNA_APP_ID
     app_key = settings.ADZUNA_APP_KEY
 
     if not app_id or not app_key:
-        return "Error: Adzuna API credentials (ADZUNA_APP_ID, ADZUNA_APP_KEY) not found."
+        return [{"error": "Adzuna API credentials (ADZUNA_APP_ID, ADZUNA_APP_KEY) not found."}]
 
     # Adzuna API endpoint: https://api.adzuna.com/v1/api/jobs/{country}/search/1
     base_url = f"https://api.adzuna.com/v1/api/jobs/{country}/search/1"
@@ -90,59 +91,53 @@ def adzuna_api_search(
                 response = client.get(base_url, params=params, timeout=10.0)
 
             if response.status_code != 200:
-                return f"Error: Adzuna API returned status code {response.status_code}. Details: {response.text}"
+                return [{"error": f"Adzuna API returned status code {response.status_code}. Details: {response.text}"}]
 
             data = response.json()
             results = data.get("results", [])
 
             if not results:
-                return f"No jobs found for '{what}' in '{where}'."
-
-            # Get total count
-            total_count = data.get("count", 0)
+                return []
 
             # Format results
-            formatted_jobs = [f"Found {total_count} total jobs (showing top {results_per_page}):\n"]
+            job_summaries = []
             for job in results:
+                # Basic fields
                 title = job.get("title", "N/A")
                 company = job.get("company", {}).get("display_name", "N/A")
                 location = job.get("location", {}).get("display_name", "N/A")
-                salary_min = job.get("salary_min")
-                salary_max = job.get("salary_max")
-                url = job.get("redirect_url")
-                description = job.get("description", "")[:200] + "..."  # Truncate description
+                url = job.get("redirect_url", "")
+                job_id = str(job.get("id", "")) or url
+                created = job.get("created", None)
 
-                # Extra fields
-                category = job.get("category", {}).get("label", "N/A")
-                created = job.get("created", "N/A")
+                # Description snippet
+                description = job.get("description", "")
+                snippet = description[:200] + "..." if len(description) > 200 else description
 
-                # Format Contract/Time info
-                c_time = job.get("contract_time", "").replace("_", " ").title()
-                c_type = job.get("contract_type", "").replace("_", " ").title()
-                type_info = ", ".join(filter(None, [c_type, c_time])) or "N/A"
-
+                # Salary
+                salary_min_val = job.get("salary_min")
+                salary_max_val = job.get("salary_max")
                 salary_str = "Negotiable"
-                if salary_min and salary_max:
-                    salary_str = f"£{salary_min} - £{salary_max}"
-                elif salary_min:
-                    salary_str = f"From £{salary_min}"
+                if salary_min_val and salary_max_val:
+                    salary_str = f"£{salary_min_val} - £{salary_max_val}"
+                elif salary_min_val:
+                    salary_str = f"From £{salary_min_val}"
 
-                job_card = (
-                    f"**Title:** {title}\n"
-                    f"**Company:** {company}\n"
-                    f"**Location:** {location}\n"
-                    f"**Salary:** {salary_str}\n"
-                    f"**Type:** {type_info}\n"
-                    f"**Category:** {category}\n"
-                    f"**Posted:** {created}\n"
-                    f"**Link:** [Apply Here]({url})\n"
-                    f"**Summary:** {description}\n"
-                    "---"
-                )
-                formatted_jobs.append(job_card)
+                # Construct JobSummary dict (avoiding full Pydantic validation for speed in tool, but matching schema)
+                summary = {
+                    "id": job_id,
+                    "title": title,
+                    "company": company,
+                    "location": location,
+                    "salary": salary_str,
+                    "snippet": snippet,
+                    "url": url,
+                    "created": created,
+                }
+                job_summaries.append(summary)
 
-            return "\n".join(formatted_jobs)
+            return job_summaries
 
     except Exception as e:
         logger.error(f"Adzuna API Error: {e}")
-        return f"Error: {str(e)}"
+        return [{"error": str(e)}]

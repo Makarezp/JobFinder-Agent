@@ -1,13 +1,29 @@
+from typing import Any
+
 from langchain_core.tools import tool
 
-from app.agent.schemas import AgentResponse, JobListing
-from app.tools.adzuna_api import adzuna_api_search
+from app.agent.schemas import AgentResponse, JobListing, JobSpecialistInput
 from app.tools.memory import (
     delete_preference,
     save_preference,
     update_my_profile,
 )
-from app.tools.scraper import scrape_website
+
+
+@tool(args_schema=JobSpecialistInput)
+def job_specialist_tool(
+    mode: str,
+    query: str | None = None,
+    location: str | None = None,
+    url: str | None = None,
+    summary_context: dict[str, Any] | None = None,
+) -> str:
+    """
+    Delegates job search and inspection tasks to the Job Specialist Agent.
+    - Mode 'search': Finds jobs based on query/location. Returns a list of summaries.
+    - Mode 'inspect': Fetches full details for a specific job URL. Returns a detailed description.
+    """
+    return "Job Specialist invoked."
 
 
 # --- Tool: final_answer ---
@@ -20,8 +36,7 @@ def final_answer(text_response: str, jobs: list[JobListing] | None = None) -> st
 
 
 main_tools = [
-    adzuna_api_search,
-    scrape_website,
+    job_specialist_tool,
     final_answer,
     update_my_profile,
     save_preference,

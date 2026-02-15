@@ -17,9 +17,7 @@ def ensure_single_string(v: str | list[str]) -> str:
 
 
 class ScrapeArgs(BaseModel):
-    url: Annotated[str, BeforeValidator(ensure_single_string)] = Field(
-        ..., description="The full URL of the website to scrape."
-    )
+    url: Annotated[str, BeforeValidator(ensure_single_string)] = Field(..., description="The full URL of the website to scrape.")
 
 
 @tool(args_schema=ScrapeArgs)

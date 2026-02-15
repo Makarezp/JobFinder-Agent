@@ -11,9 +11,7 @@ class UserProfile(BaseModel):
     id: int = 1
     name: str | None = None
     role: str | None = Field(default=None, description="Current job title, e.g. 'Senior Backend Engineer'")
-    cv_summary: str | None = Field(
-        default=None, description="Detailed text summary of the CV (experience, skills, etc)."
-    )
+    cv_summary: str | None = Field(default=None, description="Detailed text summary of the CV (experience, skills, etc).")
     cv_uploaded: bool = Field(default=False, description="Whether a CV has been uploaded")
 
 
@@ -24,6 +22,4 @@ class Preference(BaseModel):
 
     key: str = Field(..., description="The setting name, e.g. 'min_salary', 'remote', 'tech_stack'")
     value: Any = Field(..., description="The value. Can be string, int, list, or boolean.")
-    category: Literal["hard", "soft"] = Field(
-        "soft", description="'hard' for strict filters (must have), 'soft' for preferences (nice to have)"
-    )
+    category: Literal["hard", "soft"] = Field("soft", description="'hard' for strict filters (must have), 'soft' for preferences (nice to have)")
