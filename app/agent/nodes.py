@@ -110,6 +110,24 @@ def _format_preferences_summary(preferences: dict[str, Any] | None) -> str:
     return "\n".join(lines) if lines else "No preferences set yet."
 
 
+# --- Node: check_onboarding_status (graph entry) ---
+def check_onboarding_status(
+    state: AgentState, config: RunnableConfig, store: Annotated[BaseStore, InjectedStore]
+) -> dict[str, Any]:
+    """
+    Read onboarding status from Store and hydrate into graph state.
+    Runs at graph entry on every invocation to bridge store → state.
+    """
+    user_id = config.get("configurable", {}).get("user_id", "default_user")
+    status_item = store.get((user_id, "onboarding"), "status")
+
+    if status_item and status_item.value.get("onboarding_complete"):
+        logger.info("User has completed onboarding")
+        return {"onboarding_complete": True}
+
+    return {"onboarding_complete": False}
+
+
 # --- Node: fetch_profile (main agent entry) ---
 def fetch_profile(
     state: AgentState, config: RunnableConfig, store: Annotated[BaseStore, InjectedStore]

@@ -23,6 +23,7 @@ DEFAULT_USER_ID: Final[str] = "default_user"
 
 # Node Names
 ROUTER_NODE: Final[str] = "router"
+CHECK_ONBOARDING_NODE: Final[str] = "check_onboarding_status"
 ONBOARDING_CHATBOT_NODE: Final[str] = "onboarding_chatbot"
 ONBOARDING_TOOLS_NODE: Final[str] = "onboarding_tools"
 FETCH_PROFILE_NODE: Final[str] = "fetch_profile"

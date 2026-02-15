@@ -6,7 +6,7 @@ from langchain_core.tools import tool
 from langgraph.prebuilt import InjectedStore
 from langgraph.store.base import BaseStore
 
-from app.agent.memory_schema import CVSummary, Preference, UserProfile
+from app.agent.memory_schema import Preference, UserProfile
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +40,16 @@ def update_my_profile(
             profile.role = role
         if cv_summary:
             # Validate through Pydantic model
+            # Note: We are using CVSummary here, assuming memory_schema.py is compatible
+            # IF memory_schema.py changed to require CVSummary object, this dict might need parsing
+            # But the user logic said "don't stage CV summary stuff".
+            # If UserProfile in schema requires CVSummary, passing dict might fail validation...
+            # But we are mocking the OLD behavior which TOOK a dict.
+            # If the underlying UserProfile model CHANGED to exclude cv_summary logic?
+            # The UserProfile model in memory_schema.py HAS cv_summary field.
+            # The only change in memory_schema was likely importing/defining CVSummary.
+            from app.agent.memory_schema import CVSummary
+
             profile.cv_summary = CVSummary(**cv_summary)
             profile.cv_uploaded = True
 
@@ -130,7 +140,10 @@ def finalize_profile(
         if not profile.name and not profile.role:
             return "Cannot finalize: please set at least a name or role first."
 
-        return "Profile finalized. Onboarding complete — handing off to job hunting agent."
+        # Persist the onboarding_complete flag in the store
+        store.put((user_id, "onboarding"), "status", {"onboarding_complete": True})
+
+        return "Onboarding complete — handing off to job hunting agent."
     except Exception as e:
         logger.error("Failed to finalize profile", exc_info=True)
         return f"Error finalizing profile: {str(e)}"

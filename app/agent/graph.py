@@ -1,3 +1,4 @@
+import functools
 import logging
 from typing import cast
 
@@ -7,6 +8,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.store.memory import InMemoryStore
 
 from app.agent.constants import (
+    CHECK_ONBOARDING_NODE,
     FETCH_PROFILE_NODE,
     FINAL_ANSWER_TOOL_NAME,
     MAIN_CHATBOT_NODE,
@@ -16,6 +18,7 @@ from app.agent.constants import (
     ONBOARDING_TOOLS_NODE,
 )
 from app.agent.nodes import (
+    check_onboarding_status,
     fetch_profile,
     main_chatbot,
     main_tool_node,
@@ -42,11 +45,6 @@ def route_onboarding(state: AgentState) -> str:
     ai_message = messages[-1] if messages else None
 
     if isinstance(ai_message, AIMessage) and hasattr(ai_message, "tool_calls") and len(ai_message.tool_calls) > 0:
-        # Check if finalize_profile was called
-        for tc in ai_message.tool_calls:
-            if tc["name"] == "finalize_profile":
-                # Still need to execute the tool, then end
-                return ONBOARDING_TOOLS_NODE
         return ONBOARDING_TOOLS_NODE
     return str(END)
 
@@ -67,14 +65,17 @@ def route_main(state: AgentState) -> str:
 
 # --- After onboarding tools: check if finalize was called ---
 def route_after_onboarding_tools(state: AgentState) -> str:
-    """After onboarding tools execute, check if we should end or continue."""
+    """
+    After onboarding tools execute, check if we should continue onboarding
+    or hand off to the main agent immediately.
+    """
     messages = cast(list[BaseMessage], state.get(MESSAGES_KEY, []))
 
-    # Look at tool results — if finalize_profile was just executed, end turn
-    # The finalize_profile tool returns a specific message
+    # Check if finalize_profile was just executed (its return message contains this)
     for msg in reversed(messages):
         if hasattr(msg, "content") and "Onboarding complete" in str(msg.content):
-            return str(END)
+            # Immediate handoff: go to fetch_profile → main_chatbot
+            return FETCH_PROFILE_NODE
         # Stop searching after we pass non-tool messages
         if isinstance(msg, AIMessage):
             break
@@ -86,16 +87,18 @@ def route_after_onboarding_tools(state: AgentState) -> str:
 store = InMemoryStore()
 graph_builder = StateGraph(AgentState)
 
-# Nodes
+# Nodes — store-dependent nodes need functools.partial (InjectedStore only works for tools)
+graph_builder.add_node(CHECK_ONBOARDING_NODE, functools.partial(check_onboarding_status, store=store))
 graph_builder.add_node(ONBOARDING_CHATBOT_NODE, onboarding_chatbot)
 graph_builder.add_node(ONBOARDING_TOOLS_NODE, onboarding_tool_node)
-graph_builder.add_node(FETCH_PROFILE_NODE, fetch_profile)
+graph_builder.add_node(FETCH_PROFILE_NODE, functools.partial(fetch_profile, store=store))
 graph_builder.add_node(MAIN_CHATBOT_NODE, main_chatbot)
 graph_builder.add_node(MAIN_TOOLS_NODE, main_tool_node)
 
-# Entry: router decides which path
+# Entry: check onboarding status first, then route
+graph_builder.add_edge(START, CHECK_ONBOARDING_NODE)
 graph_builder.add_conditional_edges(
-    START,
+    CHECK_ONBOARDING_NODE,
     router,
     {FETCH_PROFILE_NODE: FETCH_PROFILE_NODE, ONBOARDING_CHATBOT_NODE: ONBOARDING_CHATBOT_NODE},
 )
@@ -109,7 +112,7 @@ graph_builder.add_conditional_edges(
 graph_builder.add_conditional_edges(
     ONBOARDING_TOOLS_NODE,
     route_after_onboarding_tools,
-    {ONBOARDING_CHATBOT_NODE: ONBOARDING_CHATBOT_NODE, END: END},
+    {ONBOARDING_CHATBOT_NODE: ONBOARDING_CHATBOT_NODE, FETCH_PROFILE_NODE: FETCH_PROFILE_NODE},
 )
 
 # Main agent path
