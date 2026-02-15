@@ -16,6 +16,7 @@
 - **Mocking**: Unit tests (`tests/unit`) MUST mock external services (LLM, Adzuna API, Crawl4AI).
 - **Async**: Use `@pytest.mark.asyncio` for async test functions.
 - **Fixtures**: Use `conftest.py` for shared fixtures (if available).
+- **Coverage**: Aim for >80% coverage. Run `pytest --cov=app` to verify.
 
 ## 4. Logging
 - Use standard `logging` library: `logger = logging.getLogger(__name__)`.

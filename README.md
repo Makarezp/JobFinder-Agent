@@ -42,6 +42,7 @@ Detailed documentation is available in the `documents/` directory:
 - **Format**: `ruff format .`
 - **Type Check**: `mypy .`
 - **Test**: `./.venv/bin/pytest`
+- **Coverage**: `pytest --cov=app --cov-report=term-missing`
 
 ## 🤝 Committing
 

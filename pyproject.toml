@@ -30,7 +30,8 @@ dev = [
     "pytest-asyncio",
     "mypy",
     "ruff",
-    "pre-commit"
+    "pre-commit",
+    "pytest-cov",
 ]
 
 [build-system]
@@ -74,3 +75,20 @@ disallow_subclassing_any = false
 ignore_missing_imports = true
 explicit_package_bases = true
 plugins = ["pydantic.mypy"]
+
+[tool.coverage.run]
+source = ["app"]
+omit = [
+    "tests/*",
+    "*/__init__.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+]
+show_missing = true
