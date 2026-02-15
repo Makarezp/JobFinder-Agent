@@ -33,7 +33,7 @@
             </div>
             <div class="md:col-span-2">
                 <label class="block text-sm font-medium text-gray-500 mb-1">CV Status</label>
-                {% if profile.cv_text %}
+                {% if profile.cv_summary %}
                 <div
                     class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
                     <svg class="mr-1.5 h-4 w-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -41,9 +41,9 @@
                     </svg>
                     Uploaded
                 </div>
-                <p class="mt-2 text-xs text-gray-400 line-clamp-3 font-mono bg-gray-50 p-2 rounded">
-                    {{ profile.cv_text[:300] }}...
-                </p>
+                <div class="mt-4 prose prose-sm max-w-none text-gray-600 bg-gray-50 p-4 rounded-lg">
+                    {{ profile.cv_summary | markdown | safe }}
+                </div>
                 {% else %}
                 <div
                     class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800">

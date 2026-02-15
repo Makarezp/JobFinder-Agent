@@ -1,41 +1,26 @@
 import logging
-from typing import Annotated, Any
+from typing import Annotated, Any, cast
 
-from langchain_core.messages import BaseMessage, SystemMessage
+from langchain_core.messages import AIMessage, BaseMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
-from langchain_core.tools import tool
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langgraph.prebuilt import InjectedStore, ToolNode
+from langgraph.graph import END
+from langgraph.prebuilt import InjectedStore
 from langgraph.store.base import BaseStore
 from langsmith import traceable
 
-from app.agent.constants import MESSAGES_KEY
+from app.agent.constants import (
+    FINAL_ANSWER_TOOL_NAME,
+    MAIN_TOOLS_NODE,
+    MESSAGES_KEY,
+)
+from app.agent.main.prompts import SYSTEM_PROMPT
+from app.agent.main.tools import main_tools
 from app.agent.memory_schema import Preference, UserProfile
-from app.agent.prompts.agent_prompts import SYSTEM_PROMPT
-from app.agent.prompts.onboarding_prompts import ONBOARDING_PROMPT
-from app.agent.schemas import AgentResponse, JobListing
 from app.agent.state import AgentState
 from app.core.config import settings
-from app.tools.adzuna_api import adzuna_api_search
-from app.tools.memory import (
-    delete_preference,
-    finalize_profile,
-    save_preference,
-    update_my_profile,
-)
-from app.tools.scraper import scrape_website
 
 logger = logging.getLogger(__name__)
-
-
-# --- Tool: final_answer ---
-@tool(args_schema=AgentResponse)
-def final_answer(text_response: str, jobs: list[JobListing] | None = None) -> str:
-    """Present the final response to the user with optional job listings."""
-    if jobs is None:
-        jobs = []
-    return "Final Answer Processed"
-
 
 # --- LLM initialization ---
 llm = ChatGoogleGenerativeAI(
@@ -44,24 +29,6 @@ llm = ChatGoogleGenerativeAI(
     google_api_key=settings.GEMINI_API_KEY,
 )
 
-# Onboarding agent tools (profile building + finalize)
-onboarding_tools = [
-    update_my_profile,
-    save_preference,
-    delete_preference,
-    finalize_profile,
-]
-onboarding_llm = llm.bind_tools(onboarding_tools)
-
-# Main agent tools (job hunting + memory)
-main_tools = [
-    adzuna_api_search,
-    scrape_website,
-    final_answer,
-    update_my_profile,
-    save_preference,
-    delete_preference,
-]
 main_llm = llm.bind_tools(main_tools)
 
 
@@ -101,28 +68,8 @@ def _format_preferences_summary(preferences: dict[str, Any] | None) -> str:
     return "\n".join(lines) if lines else "No preferences set yet."
 
 
-# --- Node: check_onboarding_status (graph entry) ---
-def check_onboarding_status(
-    state: AgentState, config: RunnableConfig, store: Annotated[BaseStore, InjectedStore]
-) -> dict[str, Any]:
-    """
-    Read onboarding status from Store and hydrate into graph state.
-    Runs at graph entry on every invocation to bridge store → state.
-    """
-    user_id = config.get("configurable", {}).get("user_id", "default_user")
-    status_item = store.get((user_id, "onboarding"), "status")
-
-    if status_item and status_item.value.get("onboarding_complete"):
-        logger.info("User has completed onboarding")
-        return {"onboarding_complete": True}
-
-    return {"onboarding_complete": False}
-
-
 # --- Node: fetch_profile (main agent entry) ---
-def fetch_profile(
-    state: AgentState, config: RunnableConfig, store: Annotated[BaseStore, InjectedStore]
-) -> dict[str, Any]:
+def fetch_profile(state: AgentState, config: RunnableConfig, store: Annotated[BaseStore, InjectedStore]) -> dict[str, Any]:
     """
     Read user profile and preferences from Store and inject into state.
     Used as the entry point for the main agent path.
@@ -153,29 +100,6 @@ def fetch_profile(
     return {"user_profile": profile_dict, "preferences": preferences}
 
 
-# --- Node: onboarding_chatbot ---
-@traceable
-def onboarding_chatbot(state: AgentState) -> dict[str, list[BaseMessage]]:
-    """Onboarding agent node — builds user profile through conversation."""
-    logger.info("Invoking onboarding_chatbot node")
-
-    messages = state[MESSAGES_KEY]  # type: ignore
-
-    system_parts = [ONBOARDING_PROMPT]
-
-    # If CV raw text is available, add it as context
-    cv_raw = state.get("cv_raw_text")
-    if cv_raw:
-        system_parts.append(
-            f"\n\n**CV TEXT (uploaded by user — analyze this and store structured summary "
-            f"via update_my_profile):**\n{cv_raw}"
-        )
-
-    system_messages = [SystemMessage(content="\n".join(system_parts))]
-    all_messages = system_messages + messages
-    return {"messages": [onboarding_llm.invoke(all_messages)]}
-
-
 # --- Node: main_chatbot ---
 @traceable
 def main_chatbot(state: AgentState) -> dict[str, list[BaseMessage]]:
@@ -199,6 +123,15 @@ def main_chatbot(state: AgentState) -> dict[str, list[BaseMessage]]:
     return {"messages": [main_llm.invoke(all_messages)]}
 
 
-# --- Tool Nodes ---
-onboarding_tool_node = ToolNode(tools=onboarding_tools)
-main_tool_node = ToolNode(tools=main_tools)
+# --- Routing: main agent ---
+def route_main(state: AgentState) -> str:
+    """Route main agent output: tool calls, final_answer, or end."""
+    messages = cast(list[BaseMessage], state.get(MESSAGES_KEY, []))
+    ai_message = messages[-1] if messages else None
+
+    if isinstance(ai_message, AIMessage) and hasattr(ai_message, "tool_calls") and len(ai_message.tool_calls) > 0:
+        first_tool_call = ai_message.tool_calls[0]
+        if first_tool_call["name"] == FINAL_ANSWER_TOOL_NAME:
+            return str(END)
+        return MAIN_TOOLS_NODE
+    return str(END)

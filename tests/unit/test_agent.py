@@ -11,7 +11,8 @@ from app.agent.constants import (
     ONBOARDING_TOOLS_NODE,
 )
 from app.agent.graph import graph
-from app.agent.nodes import main_chatbot, onboarding_chatbot
+from app.agent.main.nodes import main_chatbot
+from app.agent.onboarding.nodes import onboarding_chatbot
 from app.agent.state import AgentState
 
 
@@ -40,7 +41,7 @@ async def test_main_chatbot_node_adds_system_prompt() -> None:
         "preferences": None,
     }
 
-    with patch("app.agent.nodes.main_llm") as mock_llm:
+    with patch("app.agent.main.nodes.main_llm") as mock_llm:
         mock_llm.invoke.return_value = AIMessage(content="Response")
 
         main_chatbot(state)
@@ -62,7 +63,7 @@ async def test_onboarding_chatbot_uses_onboarding_prompt() -> None:
         "cv_raw_text": None,
     }
 
-    with patch("app.agent.nodes.onboarding_llm") as mock_llm:
+    with patch("app.agent.onboarding.nodes.onboarding_llm") as mock_llm:
         mock_llm.invoke.return_value = AIMessage(content="Welcome!")
 
         onboarding_chatbot(state)
@@ -81,7 +82,7 @@ async def test_onboarding_chatbot_includes_cv_raw_text() -> None:
         "cv_raw_text": "John Doe\nSenior Developer\n5 years experience",
     }
 
-    with patch("app.agent.nodes.onboarding_llm") as mock_llm:
+    with patch("app.agent.onboarding.nodes.onboarding_llm") as mock_llm:
         mock_llm.invoke.return_value = AIMessage(content="I see your CV!")
 
         onboarding_chatbot(state)
