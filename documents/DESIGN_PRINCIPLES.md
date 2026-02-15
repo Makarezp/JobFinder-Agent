@@ -32,3 +32,8 @@ This document defines the core engineering philosophy and architectural constrai
 ## 7. No dead code
 - **No orphan modules**: Superseded or unused files are removed, not left alongside active code.
 - **No phantom state**: Unused fields in state models (e.g., agent state) are pruned. Every field must be read and written by at least one active code path.
+
+## 8. Testable Architecture
+- **Centralized Testing**: Tests reside in a dedicated `tests/` directory, mirroring the source structure. This ensures clean separation of concerns and prevents test code from leaking into production builds.
+- **Coverage as a Metric**: High test coverage (>80%) is a requirement, not a bonus. It serves as a safety net for refactoring and a quality gate for new features.
+- **Mock Externalities**: All external I/O (APIs, Databases, LLMs) must be mocked in unit tests to ensure deterministic execution. Integration tests may hit real services but must be explicitly marked.
