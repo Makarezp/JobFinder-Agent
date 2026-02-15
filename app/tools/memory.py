@@ -17,13 +17,15 @@ def update_my_profile(
     store: Annotated[BaseStore, InjectedStore],
     name: Annotated[str | None, "Your name"] = None,
     role: Annotated[str | None, "Your current or desired job title"] = None,
-    cv_summary: Annotated[dict[str, Any] | None, "Structured CV summary as a dictionary"] = None,
+    cv_summary: Annotated[str | None, "Comprehensive text summary of the CV (skills, experience, etc)"] = None,
 ) -> str:
     """
     Update your core profile information (Name, Role, CV Summary).
     Use this when the user explicitly tells you who they are or what they do.
     Also use this to store the structured CV analysis after processing a CV.
     Example: User says "I am a Senior Python Dev", call update_my_profile(role="Senior Python Dev").
+
+    cv_summary is now a single string containing the full analysis.
     """
     try:
         user_id = config.get("configurable", {}).get("user_id", "default_user")
@@ -39,18 +41,7 @@ def update_my_profile(
         if role:
             profile.role = role
         if cv_summary:
-            # Validate through Pydantic model
-            # Note: We are using CVSummary here, assuming memory_schema.py is compatible
-            # IF memory_schema.py changed to require CVSummary object, this dict might need parsing
-            # But the user logic said "don't stage CV summary stuff".
-            # If UserProfile in schema requires CVSummary, passing dict might fail validation...
-            # But we are mocking the OLD behavior which TOOK a dict.
-            # If the underlying UserProfile model CHANGED to exclude cv_summary logic?
-            # The UserProfile model in memory_schema.py HAS cv_summary field.
-            # The only change in memory_schema was likely importing/defining CVSummary.
-            from app.agent.memory_schema import CVSummary
-
-            profile.cv_summary = CVSummary(**cv_summary)
+            profile.cv_summary = cv_summary
             profile.cv_uploaded = True
 
         store.put(namespace, "data", profile.model_dump())

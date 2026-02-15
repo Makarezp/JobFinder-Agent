@@ -79,17 +79,8 @@ def _format_profile_summary(profile: dict[str, Any] | None) -> str:
 
     cv = profile.get("cv_summary")
     if cv:
-        parts.append(f"Summary: {cv.get('professional_summary', 'N/A')}")
-        parts.append(f"Seniority: {cv.get('seniority_level', 'N/A')}")
-        parts.append(f"Experience: {cv.get('years_of_experience', 'N/A')} years")
-        parts.append(f"Domain: {cv.get('primary_domain', 'N/A')}")
-        skills = cv.get("skills", {})
-        if skills.get("primary"):
-            parts.append(f"Primary Skills: {', '.join(skills['primary'])}")
-        if skills.get("secondary"):
-            parts.append(f"Secondary Skills: {', '.join(skills['secondary'])}")
-        if skills.get("tools"):
-            parts.append(f"Tools: {', '.join(skills['tools'])}")
+        # cv is now just a string
+        parts.append(f"CV Summary:\n{cv}")
 
     return "\n".join(parts) if parts else "No profile information available yet."
 

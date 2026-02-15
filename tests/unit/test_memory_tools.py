@@ -49,17 +49,9 @@ class TestMemoryTools(unittest.TestCase):
 
     def test_update_my_profile_with_cv_summary(self) -> None:
         """Test that update_my_profile accepts and stores a cv_summary."""
-        cv_data = {
-            "professional_summary": "Experienced dev",
-            "seniority_level": "Senior",
-            "years_of_experience": 5,
-            "primary_domain": "Backend",
-            "skills": {"primary": ["Python"], "secondary": [], "tools": []},
-            "experience": [],
-            "education": [],
-        }
+        cv_text = "Experienced Senior Backend Dev with 5 years experience in Python."
         result = update_my_profile.invoke(
-            {"name": "CV User", "cv_summary": cv_data, "store": self.store}, config=self.config
+            {"name": "CV User", "cv_summary": cv_text, "store": self.store}, config=self.config
         )
 
         self.assertIn("Profile updated successfully", result)
@@ -69,7 +61,7 @@ class TestMemoryTools(unittest.TestCase):
         if item is None:
             self.fail("Item not found in store")
         self.assertTrue(item.value["cv_uploaded"])
-        self.assertEqual(item.value["cv_summary"]["seniority_level"], "Senior")
+        self.assertEqual(item.value["cv_summary"], cv_text)
 
     def test_save_preference_success(self) -> None:
         # Act
