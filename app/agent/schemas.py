@@ -20,7 +20,7 @@ class JobSummary(BaseModel):
     title: str = Field(..., description="The job title.")
     company: str = Field(..., description="The name of the company.")
     location: str = Field(..., description="The job location.")
-    salary: str = Field(default="Negotiable", description="The salary range or amount.")
+    salary: str = Field(default="Negotiable", description="The salary range or amount. If it contains '(Predicted)', it is an AI estimate")
     snippet: str = Field(..., description="A very brief snippet/preview of the description.")
     url: str = Field(..., description="The URL to apply or view details.")
     created: str | None = Field(None, description="Date posted.")
@@ -41,7 +41,7 @@ class JobListing(BaseModel):
     title: str = Field(..., description="The job title.")
     company: str = Field(..., description="The name of the company.")
     location: str = Field(..., description="The job location.")
-    salary: str | None = Field(None, description="The salary range or amount, if available.")
+    salary: str | None = Field(None, description="The salary range or amount. May contain '(Predicted)' for AI estimates.")
     description: str = Field(..., description="A brief summary of the job.")
     apply_link: str = Field(..., description="The URL to apply for the job.")
 

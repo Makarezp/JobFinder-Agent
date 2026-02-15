@@ -91,9 +91,11 @@ def adzuna_api_search(
                 response = client.get(base_url, params=params, timeout=10.0)
 
             if response.status_code != 200:
+                logger.error(f"Adzuna API Error: Status {response.status_code}. Raw Response: {response.text}")
                 return [{"error": f"Adzuna API returned status code {response.status_code}. Details: {response.text}"}]
 
             data = response.json()
+            logger.debug(f"Adzuna Raw Response Data: {data}")
             results = data.get("results", [])
 
             if not results:
@@ -117,11 +119,15 @@ def adzuna_api_search(
                 # Salary
                 salary_min_val = job.get("salary_min")
                 salary_max_val = job.get("salary_max")
+                is_predicted = job.get("salary_is_predicted")
                 salary_str = "Negotiable"
                 if salary_min_val and salary_max_val:
                     salary_str = f"£{salary_min_val} - £{salary_max_val}"
                 elif salary_min_val:
                     salary_str = f"From £{salary_min_val}"
+
+                if is_predicted:
+                    salary_str += " (Predicted)"
 
                 # Construct JobSummary dict (avoiding full Pydantic validation for speed in tool, but matching schema)
                 summary = {

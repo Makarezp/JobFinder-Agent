@@ -21,6 +21,7 @@ def job_specialist_tool(
     """
     Delegates job search and inspection tasks to the Job Specialist Agent.
     - Mode 'search': Finds jobs based on query/location. Returns a list of summaries.
+      Note: Salaries may be tagged as '(Predicted)' if they are AI estimates.
     - Mode 'inspect': Fetches full details for a specific job URL. Returns a detailed description.
     """
     return "Job Specialist invoked."
