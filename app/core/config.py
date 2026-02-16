@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     ADZUNA_APP_ID: str | None = None
     ADZUNA_APP_KEY: str | None = None
 
+    # Database
+    DATABASE_URL: str | None = None
+
     # Data
     DATA_DIR: Path = Path("data")
 

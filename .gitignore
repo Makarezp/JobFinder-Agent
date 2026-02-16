@@ -52,6 +52,6 @@ list_models.py
 Thumbs.db
 
 # Data
-data/user_memory.db
+data/
 
 .coverage
