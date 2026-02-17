@@ -25,6 +25,11 @@ class Settings(BaseSettings):
 
     # Database
     DATABASE_URL: str | None = None
+    POSTGRES_USER: str = "postgres"
+    POSTGRES_PASSWORD: str = "postgres"
+    POSTGRES_DB: str = "cvviewer"
+    POSTGRES_HOST: str = "localhost"
+    POSTGRES_PORT: int = 5432
 
     # Data
     DATA_DIR: Path = Path("data")

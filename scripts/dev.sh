@@ -18,6 +18,10 @@ if [ ! -d ".venv" ]; then
     exit 1
 fi
 
+# Free up port 8000 if it is already in use
+echo "🧹 Cleaning up port 8000..."
+lsof -ti:8000 | xargs kill -9 2>/dev/null
+
 # Activate venv and run server
 echo "🚀 Starting FastAPI server..."
 source .venv/bin/activate
