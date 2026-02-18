@@ -1,14 +1,14 @@
-import logging
 from typing import Any
 
 import httpx
+import structlog
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
 from app.core.config import settings
 from app.core.logging import log_timing
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class AdzunaApiArgs(BaseModel):
@@ -45,6 +45,8 @@ def adzuna_api_search(
     """
     app_id = settings.ADZUNA_APP_ID
     app_key = settings.ADZUNA_APP_KEY
+
+    logger.info("Tool Started: adzuna_api_search", query=what, location=where)
 
     if not app_id or not app_key:
         return [{"error": "Adzuna API credentials (ADZUNA_APP_ID, ADZUNA_APP_KEY) not found."}]
@@ -142,6 +144,7 @@ def adzuna_api_search(
                 }
                 job_summaries.append(summary)
 
+            logger.info("Tool Completed: adzuna_api_search", result_count=len(job_summaries))
             return job_summaries
 
     except Exception as e:

@@ -1,6 +1,6 @@
-import logging
 from typing import Annotated, Any, cast
 
+import structlog
 from langchain_core.messages import AIMessage, BaseMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -20,7 +20,7 @@ from app.agent.onboarding.tools import onboarding_tools
 from app.agent.state import AgentState
 from app.core.config import settings
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # --- LLM initialization ---
 llm = ChatGoogleGenerativeAI(
@@ -38,21 +38,23 @@ def check_onboarding_status(state: AgentState, config: RunnableConfig, store: An
     Read onboarding status from Store and hydrate into graph state.
     Runs at graph entry on every invocation to bridge store → state.
     """
+    logger.info("Node Started: check_onboarding_status")
     user_id = config.get("configurable", {}).get("user_id", "default_user")
     status_item = store.get((user_id, "onboarding"), "status")
 
+    is_complete = False
     if status_item and status_item.value.get("onboarding_complete"):
-        logger.info("User has completed onboarding")
-        return {"onboarding_complete": True}
+        is_complete = True
 
-    return {"onboarding_complete": False}
+    logger.info("Node Completed: check_onboarding_status", extra={"onboarding_complete": is_complete})
+    return {"onboarding_complete": is_complete}
 
 
 # --- Node: onboarding_chatbot ---
 @traceable
 def onboarding_chatbot(state: AgentState) -> dict[str, list[BaseMessage]]:
     """Onboarding agent node — builds user profile through conversation."""
-    logger.info("Invoking onboarding_chatbot node")
+    logger.info("Node Started: onboarding_chatbot")
 
     messages = state[MESSAGES_KEY]  # type: ignore
 
@@ -65,7 +67,11 @@ def onboarding_chatbot(state: AgentState) -> dict[str, list[BaseMessage]]:
 
     system_messages = [SystemMessage(content="\n".join(system_parts))]
     all_messages = system_messages + messages
-    return {"messages": [onboarding_llm.invoke(all_messages)]}
+    response = onboarding_llm.invoke(all_messages)
+    logger.debug("LLM Response", content=response.content)
+
+    logger.info("Node Completed: onboarding_chatbot", extra={"response_preview": str(response.content)[:100]})
+    return {"messages": [response]}
 
 
 # --- Routing: onboarding agent ---

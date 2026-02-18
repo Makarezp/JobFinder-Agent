@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     # App
     APP_NAME: str = "AI Scraper Bot"
     APP_ENV: str = "development"
+    LOG_LEVEL: str = "INFO"
     DEBUG: bool = True
 
     # LLM

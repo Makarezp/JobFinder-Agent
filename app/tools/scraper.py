@@ -1,11 +1,11 @@
-import logging
 from typing import Annotated
 
+import structlog
 from crawl4ai import AsyncWebCrawler
 from langchain_core.tools import tool
 from pydantic import BaseModel, BeforeValidator, Field
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 def ensure_single_string(v: str | list[str]) -> str:
@@ -26,7 +26,7 @@ async def scrape_website(url: str) -> str:
     Scrapes the content of a website and returns the markdown representation.
     Use this tool when you need to read the content of a URL to answer a question.
     """
-    logger.info(f"Scraping URL: {url}")
+    logger.info("Tool Started: scrape_website", url=str(url))
 
     # Handle potential list input for url
     if isinstance(url, list):
@@ -39,6 +39,10 @@ async def scrape_website(url: str) -> str:
 
         if result.success:
             # Limit content size to avoid context window issues (simple truncation for now)
-            return str(result.markdown)[:20000]
+            markdown = str(result.markdown)[:20000]
+            logger.info("Tool Completed: scrape_website", success=True, content_length=len(markdown))
+            logger.debug("Scraped Content", content=markdown)
+            return markdown
         else:
+            logger.error("Tool Failed: scrape_website", url=str(url), error=result.error_message)
             return f"Failed to scrape {url}: {result.error_message}"

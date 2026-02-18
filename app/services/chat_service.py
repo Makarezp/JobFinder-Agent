@@ -1,7 +1,7 @@
-import logging
 from io import BytesIO
 from typing import Any
 
+import structlog
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph.state import CompiledStateGraph
@@ -17,8 +17,9 @@ from app.agent.constants import (
     TEXT_RESPONSE_KEY,
 )
 from app.core.logging import log_timing, request_id_var
+from app.core.logging_utils import log_state_snapshot
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class ChatService:
@@ -40,9 +41,13 @@ class ChatService:
             "tags": ["chat"],
         }
 
-        with log_timing("graph.ainvoke", logger):
-            result = await self._graph.ainvoke(inputs, config=config)
-        return self._parse_agent_result(result, message)
+        final_state = inputs
+        with log_timing("graph.astream", logger):
+            async for state in self._graph.astream(inputs, config=config, stream_mode="values"):
+                log_state_snapshot(logger, state, truncate_keys=[CV_RAW_TEXT_KEY])
+                final_state = state
+
+        return self._parse_agent_result(final_state, message)
 
     async def process_cv(self, file_bytes: bytes, filename: str, thread_id: str = DEFAULT_THREAD_ID) -> dict[str, Any]:
         """
@@ -65,9 +70,13 @@ class ChatService:
             CV_RAW_TEXT_KEY: cv_text,
         }
 
-        with log_timing("graph.ainvoke", logger):
-            result = await self._graph.ainvoke(inputs, config=config)
-        return self._parse_agent_result(result, f"Uploaded CV: {filename}")
+        final_state = inputs
+        with log_timing("graph.astream", logger):
+            async for state in self._graph.astream(inputs, config=config, stream_mode="values"):
+                log_state_snapshot(logger, state, truncate_keys=[CV_RAW_TEXT_KEY])
+                final_state = state
+
+        return self._parse_agent_result(final_state, f"Uploaded CV: {filename}")
 
     def _parse_agent_result(self, result: dict[str, Any], user_message: str) -> dict[str, Any]:
         """

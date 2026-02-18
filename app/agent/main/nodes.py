@@ -1,6 +1,6 @@
-import logging
 from typing import Annotated, Any, cast
 
+import structlog
 from langchain_core.messages import AIMessage, BaseMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -21,7 +21,7 @@ from app.agent.memory_schema import Preference, UserProfile
 from app.agent.state import AgentState
 from app.core.config import settings
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # --- LLM initialization ---
 llm = ChatGoogleGenerativeAI(
@@ -75,6 +75,7 @@ def fetch_profile(state: AgentState, config: RunnableConfig, store: Annotated[Ba
     Read user profile and preferences from Store and inject into state.
     Used as the entry point for the main agent path.
     """
+    logger.info("Node Started: fetch_profile")
     user_id = config.get("configurable", {}).get("user_id", "default_user")
 
     # Fetch Profile
@@ -96,8 +97,7 @@ def fetch_profile(state: AgentState, config: RunnableConfig, store: Annotated[Ba
             except Exception:
                 logger.warning(f"Skipping invalid preference: {item.key}")
 
-    logger.info(f"Fetched profile: {profile_dict}")
-
+    logger.info("Node Completed: fetch_profile", extra={"profile": profile_dict, "pref_count": len(preferences)})
     return {"user_profile": profile_dict, "preferences": preferences}
 
 
@@ -105,7 +105,7 @@ def fetch_profile(state: AgentState, config: RunnableConfig, store: Annotated[Ba
 @traceable
 def main_chatbot(state: AgentState) -> dict[str, list[BaseMessage]]:
     """Main job-hunting agent node — uses structured profile and preferences."""
-    logger.info("Invoking main_chatbot node")
+    logger.info("Node Started: main_chatbot")
 
     messages = state[MESSAGES_KEY]  # type: ignore
 
@@ -121,7 +121,11 @@ def main_chatbot(state: AgentState) -> dict[str, list[BaseMessage]]:
 
     system_messages = [SystemMessage(content=formatted_prompt)]
     all_messages = system_messages + messages
-    return {"messages": [main_llm.invoke(all_messages)]}
+    response = main_llm.invoke(all_messages)
+    logger.debug("LLM Response", content=response.content)
+
+    logger.info("Node Completed: main_chatbot", extra={"response_preview": str(response.content)[:100]})
+    return {"messages": [response]}
 
 
 # --- Routing: main agent ---

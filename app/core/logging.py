@@ -1,51 +1,91 @@
-"""Structured logging with request correlation and timing."""
+"""Structured logging with structlog and request correlation."""
 
 import logging
+import sys
 import time
 from collections.abc import Generator
 from contextlib import contextmanager
-from contextvars import ContextVar
-
-from pythonjsonlogger.json import JsonFormatter
 
 # ── ContextVar for request correlation ──────────────────────────────
+from contextvars import ContextVar
+from typing import Any
+
+import structlog
+from structlog.types import EventDict, Processor
+
+from app.core.config import settings
+
 request_id_var: ContextVar[str] = ContextVar("request_id", default="-")
 
 
-class RequestIdFilter(logging.Filter):
-    """Injects the current request_id into every log record."""
-
-    def filter(self, record: logging.LogRecord) -> bool:
-        record.request_id = request_id_var.get()  # type: ignore[attr-defined]
-        return True
+def add_request_id_from_context(logger: Any, method_name: str, event_dict: EventDict) -> EventDict:
+    """Add request_id to the event dict if present in context."""
+    return event_dict
 
 
 # ── Timing helper ───────────────────────────────────────────────────
 @contextmanager
-def log_timing(operation: str, logger: logging.Logger | None = None) -> Generator[None, None, None]:
+def log_timing(operation: str, logger: Any | None = None) -> Generator[None, None, None]:
     """Context manager that logs the duration of an operation in ms."""
-    _logger = logger or logging.getLogger(__name__)
+    # Support both structlog loggers and standard library loggers
+    _logger = logger or structlog.get_logger()
     start = time.perf_counter()
     try:
         yield
     finally:
         duration_ms = round((time.perf_counter() - start) * 1000)
-        _logger.info("%s completed", operation, extra={"duration_ms": duration_ms})
+        if isinstance(_logger, logging.Logger):
+            _logger.info(f"{operation} completed", extra={"duration_ms": duration_ms})
+        else:
+            _logger.info(f"{operation} completed", duration_ms=duration_ms)
 
 
 # ── Bootstrap ───────────────────────────────────────────────────────
-def setup_logging(*, level: int = logging.INFO) -> None:
-    """Configure structured JSON logging with request-id correlation."""
-    handler = logging.StreamHandler()
+def setup_logging(*, level: int | str | None = None) -> None:
+    """Configure structlog to intercept standard library logging."""
+    if level is None:
+        level = settings.LOG_LEVEL.upper()
 
-    formatter = JsonFormatter(
-        fmt="%(asctime)s %(name)s %(levelname)s %(request_id)s %(message)s",
-        rename_fields={"asctime": "timestamp", "name": "logger", "levelname": "level"},
+    shared_processors: list[Processor] = [
+        structlog.contextvars.merge_contextvars,
+        structlog.stdlib.add_logger_name,
+        structlog.stdlib.add_log_level,
+        structlog.stdlib.PositionalArgumentsFormatter(),
+        structlog.stdlib.ExtraAdder(),
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.StackInfoRenderer(),
+        structlog.processors.UnicodeDecoder(),
+    ]
+
+    structlog.configure(
+        processors=shared_processors
+        + [
+            structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
+        ],
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        cache_logger_on_first_use=True,
     )
+
+    if settings.APP_ENV == "development":
+        renderer = structlog.dev.ConsoleRenderer()
+    else:
+        renderer = structlog.processors.JSONRenderer()
+
+    formatter = structlog.stdlib.ProcessorFormatter(
+        foreign_pre_chain=shared_processors,
+        processors=[
+            structlog.stdlib.ProcessorFormatter.remove_processors_meta,
+            renderer,
+        ],
+    )
+
+    handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(formatter)
 
-    root = logging.getLogger()
-    root.setLevel(level)
-    root.handlers.clear()
-    root.addHandler(handler)
-    root.addFilter(RequestIdFilter())
+    root_logger = logging.getLogger()
+    root_logger.addHandler(handler)
+    root_logger.setLevel(level)
+
+    # Silence noisy libraries
+    logging.getLogger("uvicorn.access").handlers = []
+    logging.getLogger("uvicorn.access").propagate = True

@@ -1,6 +1,6 @@
-import logging
 from typing import Annotated, Any, Literal
 
+import structlog
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 from langgraph.prebuilt import InjectedStore
@@ -8,7 +8,7 @@ from langgraph.store.base import BaseStore
 
 from app.agent.memory_schema import Preference, UserProfile
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 @tool
@@ -31,6 +31,8 @@ def update_my_profile(
         user_id = config.get("configurable", {}).get("user_id", "default_user")
         namespace = (user_id, "profile")
 
+        logger.info("Tool Started: update_my_profile", name=name, role=role, has_cv=bool(cv_summary))
+
         # Get existing profile to merge updates
         existing = store.get(namespace, "data")
         # Load into Pydantic model
@@ -45,6 +47,7 @@ def update_my_profile(
             profile.cv_uploaded = True
 
         store.put(namespace, "data", profile.model_dump())
+        logger.info("Tool Completed: update_my_profile", success=True)
         return f"Profile updated successfully: {profile.model_dump()}"
     except Exception as e:
         logger.error("Failed to update profile", exc_info=True)
@@ -69,6 +72,8 @@ def save_preference(
     try:
         user_id = config.get("configurable", {}).get("user_id", "default_user")
         namespace = (user_id, "preferences")
+
+        logger.info("Tool Started: save_preference", key=key, value=value, category=category)
 
         # Use Pydantic model for validation
         pref = Preference(key=key, value=value, category=category)
@@ -96,12 +101,15 @@ def delete_preference(
         user_id = config.get("configurable", {}).get("user_id", "default_user")
         namespace = (user_id, "preferences")
 
+        logger.info("Tool Started: delete_preference", key=key)
+
         # Check if exists first to match legacy behavior
         existing = store.get(namespace, key)
         if not existing:
             return f"Preference '{key}' not found."
 
         store.delete(namespace, key)
+        logger.info("Tool Completed: delete_preference", key=key)
         return f"Preference '{key}' deleted."
     except Exception as e:
         logger.error("Failed to delete preference", exc_info=True, extra={"preference_key": key})
@@ -121,6 +129,8 @@ def finalize_profile(
     try:
         user_id = config.get("configurable", {}).get("user_id", "default_user")
         namespace = (user_id, "profile")
+
+        logger.info("Tool Started: finalize_profile")
 
         # Verify profile has minimum data before finalizing
         existing = store.get(namespace, "data")

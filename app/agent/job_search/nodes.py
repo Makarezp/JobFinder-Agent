@@ -1,18 +1,20 @@
-import logging
 from typing import Any
+
+import structlog
 
 from app.agent.job_search.state import JobSpecialistState
 from app.agent.schemas import JobDetail, JobSummary
 from app.tools.adzuna_api import adzuna_api_search
 from app.tools.scraper import scrape_website
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 def search_jobs(state: JobSpecialistState) -> dict[str, Any]:
     """
     Execute the search using Adzuna API.
     """
+    logger.info("Node Started: search_jobs")
     input_data = state["input"]
     # We trust the input mode is verified by router, but we can double check
     if input_data.mode != "search":
@@ -29,6 +31,7 @@ def search_jobs(state: JobSpecialistState) -> dict[str, Any]:
                 "results_per_page": 10,  # Default
             }
         )
+        logger.debug("Adzuna Raw Results", results=raw_results)
     except Exception as e:
         logger.error(f"Adzuna search failed: {e}")
         return {"search_results": []}
@@ -45,6 +48,7 @@ def search_jobs(state: JobSpecialistState) -> dict[str, Any]:
         except Exception as e:
             logger.warning(f"Failed to parse JobSummary: {e}. Data: {r}")
 
+    logger.info("Node Completed: search_jobs", extra={"result_count": len(summaries)})
     return {"search_results": summaries}
 
 
@@ -52,6 +56,7 @@ async def inspect_job(state: JobSpecialistState) -> dict[str, Any]:
     """
     Inspect a specific job URL by scraping it.
     """
+    logger.info("Node Started: inspect_job")
     input_data = state["input"]
     if input_data.mode != "inspect" or not input_data.url:
         return {}
@@ -85,6 +90,7 @@ async def inspect_job(state: JobSpecialistState) -> dict[str, Any]:
         benefits=[],  # Placeholder
     )
 
+    logger.info("Node Completed: inspect_job", extra={"url": input_data.url, "has_content": bool(scraped_content)})
     return {"inspect_result": detail}
 
 
