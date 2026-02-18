@@ -70,7 +70,7 @@ def _format_preferences_summary(preferences: dict[str, Any] | None) -> str:
 
 
 # --- Node: fetch_profile (main agent entry) ---
-def fetch_profile(state: AgentState, config: RunnableConfig, store: Annotated[BaseStore, InjectedStore]) -> dict[str, Any]:
+async def fetch_profile(state: AgentState, config: RunnableConfig, store: Annotated[BaseStore, InjectedStore]) -> dict[str, Any]:
     """
     Read user profile and preferences from Store and inject into state.
     Used as the entry point for the main agent path.
@@ -80,13 +80,13 @@ def fetch_profile(state: AgentState, config: RunnableConfig, store: Annotated[Ba
 
     # Fetch Profile
     namespace_profile = (user_id, "profile")
-    profile_item = store.get(namespace_profile, "data")
+    profile_item = await store.aget(namespace_profile, "data")
     profile = UserProfile(**profile_item.value) if profile_item else UserProfile()
     profile_dict = profile.model_dump()
 
     # Fetch Preferences
     namespace_prefs = (user_id, "preferences")
-    prefs_items = store.search(namespace_prefs)
+    prefs_items = await store.asearch(namespace_prefs)
 
     preferences: dict[str, Any] = {}
     for item in prefs_items:

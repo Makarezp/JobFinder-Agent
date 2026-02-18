@@ -33,14 +33,14 @@ onboarding_llm = llm.bind_tools(onboarding_tools)
 
 
 # --- Node: check_onboarding_status (graph entry) ---
-def check_onboarding_status(state: AgentState, config: RunnableConfig, store: Annotated[BaseStore, InjectedStore]) -> dict[str, Any]:
+async def check_onboarding_status(state: AgentState, config: RunnableConfig, store: Annotated[BaseStore, InjectedStore]) -> dict[str, Any]:
     """
     Read onboarding status from Store and hydrate into graph state.
     Runs at graph entry on every invocation to bridge store → state.
     """
     logger.info("Node Started: check_onboarding_status")
     user_id = config.get("configurable", {}).get("user_id", "default_user")
-    status_item = store.get((user_id, "onboarding"), "status")
+    status_item = await store.aget((user_id, "onboarding"), "status")
 
     is_complete = False
     if status_item and status_item.value.get("onboarding_complete"):

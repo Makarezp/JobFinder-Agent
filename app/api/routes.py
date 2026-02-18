@@ -34,13 +34,13 @@ async def profile_page(request: Request, store: StoreDep) -> Response:  # type: 
     user_id = DEFAULT_USER_ID
 
     # Fetch Profile
-    profile_item = store.get((user_id, "profile"), "data")
+    profile_item = await store.aget((user_id, "profile"), "data")
     profile = UserProfile(**profile_item.value) if profile_item else UserProfile()
     # Return as dict for template
     profile_dict = profile.model_dump()
 
     # Fetch Preferences
-    prefs_items = store.search((user_id, "preferences"))
+    prefs_items = await store.asearch((user_id, "preferences"))
     preferences = {}
     for item in prefs_items:
         if item.value:

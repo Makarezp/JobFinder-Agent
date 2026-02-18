@@ -67,7 +67,7 @@ def setup_logging(*, level: int | str | None = None) -> None:
     )
 
     if settings.APP_ENV == "development":
-        renderer = structlog.dev.ConsoleRenderer()
+        renderer: Processor = structlog.dev.ConsoleRenderer()
     else:
         renderer = structlog.processors.JSONRenderer()
 

@@ -4,10 +4,9 @@ import logging
 from typing import Any, cast
 
 from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
-from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.prebuilt import ToolNode
-from langgraph.store.memory import InMemoryStore
+from langgraph.store.base import BaseStore
 
 from app.agent.constants import (
     CHECK_ONBOARDING_NODE,
@@ -99,49 +98,51 @@ def router(state: AgentState) -> str:
     return ONBOARDING_CHATBOT_NODE
 
 
-# --- Graph Definition ---
-store = InMemoryStore()
-graph_builder = StateGraph(AgentState)
-
-# Nodes — store-dependent nodes need functools.partial (InjectedStore only works for tools)
-graph_builder.add_node(CHECK_ONBOARDING_NODE, functools.partial(check_onboarding_status, store=store))
-graph_builder.add_node(ONBOARDING_CHATBOT_NODE, onboarding_chatbot)
-graph_builder.add_node(ONBOARDING_TOOLS_NODE, ToolNode(tools=onboarding_tools))
-graph_builder.add_node(FETCH_PROFILE_NODE, functools.partial(fetch_profile, store=store))
-graph_builder.add_node(MAIN_CHATBOT_NODE, main_chatbot)
-graph_builder.add_node(MAIN_TOOLS_NODE, ToolNode(tools=main_tools))
-graph_builder.add_node(JOB_SPECIALIST_NODE, call_job_specialist)
-
-# Entry: check onboarding status first, then route
-graph_builder.add_edge(START, CHECK_ONBOARDING_NODE)
-graph_builder.add_conditional_edges(
-    CHECK_ONBOARDING_NODE,
-    router,
-    {FETCH_PROFILE_NODE: FETCH_PROFILE_NODE, ONBOARDING_CHATBOT_NODE: ONBOARDING_CHATBOT_NODE},
-)
-
-# Onboarding path
-graph_builder.add_conditional_edges(
-    ONBOARDING_CHATBOT_NODE,
-    route_onboarding,
-    {ONBOARDING_TOOLS_NODE: ONBOARDING_TOOLS_NODE, END: END},
-)
-graph_builder.add_conditional_edges(
-    ONBOARDING_TOOLS_NODE,
-    route_after_onboarding_tools,
-    {ONBOARDING_CHATBOT_NODE: ONBOARDING_CHATBOT_NODE, FETCH_PROFILE_NODE: FETCH_PROFILE_NODE},
-)
-
-# Main agent path
-graph_builder.add_edge(FETCH_PROFILE_NODE, MAIN_CHATBOT_NODE)
-graph_builder.add_conditional_edges(
-    MAIN_CHATBOT_NODE,
-    route_main,
-    {MAIN_TOOLS_NODE: MAIN_TOOLS_NODE, JOB_SPECIALIST_NODE: JOB_SPECIALIST_NODE, END: END},
-)
-graph_builder.add_edge(MAIN_TOOLS_NODE, MAIN_CHATBOT_NODE)
-graph_builder.add_edge(JOB_SPECIALIST_NODE, MAIN_CHATBOT_NODE)
-
 # Compile
-checkpointer = MemorySaver()
-graph = graph_builder.compile(checkpointer=checkpointer, store=store)
+def get_compiled_graph(checkpointer: Any, store: BaseStore) -> Any:
+    """
+    Compiles the graph with the provided checkpointer and store.
+    """
+    # Nodes — store-dependent nodes need functools.partial (InjectedStore only works for tools)
+    builder = StateGraph(AgentState)
+
+    # Nodes
+    builder.add_node(CHECK_ONBOARDING_NODE, functools.partial(check_onboarding_status, store=store))
+    builder.add_node(ONBOARDING_CHATBOT_NODE, onboarding_chatbot)
+    builder.add_node(ONBOARDING_TOOLS_NODE, ToolNode(tools=onboarding_tools))
+    builder.add_node(FETCH_PROFILE_NODE, functools.partial(fetch_profile, store=store))
+    builder.add_node(MAIN_CHATBOT_NODE, main_chatbot)
+    builder.add_node(MAIN_TOOLS_NODE, ToolNode(tools=main_tools))
+    builder.add_node(JOB_SPECIALIST_NODE, call_job_specialist)
+
+    # Entry
+    builder.add_edge(START, CHECK_ONBOARDING_NODE)
+    builder.add_conditional_edges(
+        CHECK_ONBOARDING_NODE,
+        router,
+        {FETCH_PROFILE_NODE: FETCH_PROFILE_NODE, ONBOARDING_CHATBOT_NODE: ONBOARDING_CHATBOT_NODE},
+    )
+
+    # Onboarding path
+    builder.add_conditional_edges(
+        ONBOARDING_CHATBOT_NODE,
+        route_onboarding,
+        {ONBOARDING_TOOLS_NODE: ONBOARDING_TOOLS_NODE, END: END},
+    )
+    builder.add_conditional_edges(
+        ONBOARDING_TOOLS_NODE,
+        route_after_onboarding_tools,
+        {ONBOARDING_CHATBOT_NODE: ONBOARDING_CHATBOT_NODE, FETCH_PROFILE_NODE: FETCH_PROFILE_NODE},
+    )
+
+    # Main agent path
+    builder.add_edge(FETCH_PROFILE_NODE, MAIN_CHATBOT_NODE)
+    builder.add_conditional_edges(
+        MAIN_CHATBOT_NODE,
+        route_main,
+        {MAIN_TOOLS_NODE: MAIN_TOOLS_NODE, JOB_SPECIALIST_NODE: JOB_SPECIALIST_NODE, END: END},
+    )
+    builder.add_edge(MAIN_TOOLS_NODE, MAIN_CHATBOT_NODE)
+    builder.add_edge(JOB_SPECIALIST_NODE, MAIN_CHATBOT_NODE)
+
+    return builder.compile(checkpointer=checkpointer, store=store)

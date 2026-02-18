@@ -1,7 +1,8 @@
 import pytest
 from httpx import ASGITransport, AsyncClient
+from langgraph.store.postgres import AsyncPostgresStore
 
-from app.agent.graph import store
+from app.core.database import get_connection_pool
 from app.main import app
 
 
@@ -19,7 +20,11 @@ async def test_cv_persistence() -> None:
         "cv_uploaded": True,
     }
 
-    store.put(namespace, "data", data)
+    # Seed the store directly
+    async with get_connection_pool() as pool:
+        store = AsyncPostgresStore(pool)  # type: ignore[arg-type]
+        await store.setup()
+        await store.aput(namespace, "data", data)
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         response = await ac.get("/profile")

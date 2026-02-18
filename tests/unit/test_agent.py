@@ -2,6 +2,8 @@ from unittest.mock import patch
 
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langgraph.checkpoint.memory import MemorySaver
+from langgraph.store.memory import InMemoryStore
 
 from app.agent.constants import (
     FETCH_PROFILE_NODE,
@@ -10,10 +12,13 @@ from app.agent.constants import (
     ONBOARDING_CHATBOT_NODE,
     ONBOARDING_TOOLS_NODE,
 )
-from app.agent.graph import graph
+from app.agent.graph import get_compiled_graph
 from app.agent.main.nodes import main_chatbot
 from app.agent.onboarding.nodes import onboarding_chatbot
 from app.agent.state import AgentState
+
+# Initialize graph for testing with in-memory storage
+graph = get_compiled_graph(checkpointer=MemorySaver(), store=InMemoryStore())
 
 
 @pytest.mark.asyncio

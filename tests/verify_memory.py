@@ -1,56 +1,78 @@
+import asyncio
 import sys
 from pathlib import Path
+from uuid import uuid4
 
 # Add project root to sys.path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
-from app.core.database import get_all_preferences, get_profile, init_db
+from langchain_core.runnables import RunnableConfig
+from langgraph.store.postgres import AsyncPostgresStore
+
+from app.core.database import get_connection_pool, init_db
 from app.tools.memory import delete_preference, save_preference, update_my_profile
 
+# Mock config
+USER_ID = f"test_user_{uuid4()}"
+CONFIG = RunnableConfig(configurable={"user_id": USER_ID})
 
-def test_memory_system() -> None:
-    print("--- 1. Initializing DB ---")
-    init_db()
-    print("DB Initialized.")
 
-    print("\n--- 2. Testing Profile Update ---")
-    # update_my_profile is a structured tool, so we call it directly or via .invoke if using LangChain wrapper,
-    # but here we imported the function-like tool. Let's see how @tool decorates it.
-    # The @tool decorator makes it a BaseTool. We can call .invoke or .run or direct implementation if accessible.
-    # For testing simpler logic, we can call the underlying function if available, or just use the tool's run method.
+async def get_test_store() -> AsyncPostgresStore:
+    # Quick dirty way to get a store instance for verification
+    async with get_connection_pool() as pool:
+        return AsyncPostgresStore(pool)  # type: ignore[arg-type]
 
-    # LangChain tools can be called with .invoke({"arg": val})
-    res = update_my_profile.invoke({"name": "Alice Code", "role": "Senior Architect"})
-    print(f"Update Result: {res}")
 
-    profile = get_profile()
-    print(f"Fetched Profile: {profile}")
-    assert profile is not None
-    assert profile["name"] == "Alice Code"
-    assert profile["role"] == "Senior Architect"
+async def verify_memory_system() -> None:
+    print(f"--- 0. Setup (User: {USER_ID}) ---")
+    await init_db()
 
-    print("\n--- 3. Testing Preferences ---")
-    res = save_preference.invoke({"key": "location", "value": "Berlin", "category": "hard"})
-    print(f"Save Result: {res}")
+    # We need a store instance to pass to the tools manually for this script,
+    # or rely on the tool's injection if we were running via graph.
+    # The tools in memory.py take `store: Annotated[BaseStore, InjectedStore]`.
+    # When calling manually, we must pass `store`.
 
-    res = save_preference.invoke({"key": "salary", "value": 120000, "category": "hard"})
-    print(f"Save Result: {res}")
+    async with get_connection_pool() as pool:
+        store = AsyncPostgresStore(pool)  # type: ignore[arg-type]
+        await store.setup()
 
-    prefs = get_all_preferences()
-    print(f"Fetched Preferences: {prefs}")
-    assert prefs["location"] == "Berlin"
-    assert prefs["salary"] == 120000
+        print("\n--- 1. Testing Profile Update ---")
+        # Call tool directly
+        res = await update_my_profile.ainvoke({"name": "Alice Code", "role": "Senior Architect", "store": store}, config=CONFIG)
+        print(f"Update Result: {res}")
 
-    print("\n--- 4. Testing Preference Deletion ---")
-    res = delete_preference.invoke({"key": "location"})
-    print(f"Delete Result: {res}")
+        # Verify
+        namespace = (USER_ID, "profile")
+        item = await store.aget(namespace, "data")
+        print(f"Fetched Profile Item: {item}")
+        assert item is not None
+        assert item.value["name"] == "Alice Code"
+        assert item.value["role"] == "Senior Architect"
 
-    prefs = get_all_preferences()
-    print(f"Fetched Preferences: {prefs}")
-    assert "location" not in prefs
+        print("\n--- 2. Testing Preferences ---")
+        res = await save_preference.ainvoke({"key": "location", "value": "Berlin", "category": "hard", "store": store}, config=CONFIG)
+        print(f"Save Result: {res}")
 
-    print("\n--- ✅ Verification Successful ---")
+        res = await save_preference.ainvoke({"key": "salary", "value": 120000, "category": "hard", "store": store}, config=CONFIG)
+        print(f"Save Result: {res}")
+
+        # Verify
+        namespace_prefs = (USER_ID, "preferences")
+        pref_item = await store.aget(namespace_prefs, "location")
+        print(f"Fetched Preference: {pref_item}")
+        assert pref_item is not None
+        assert pref_item.value["value"] == "Berlin"
+
+        print("\n--- 3. Testing Preference Deletion ---")
+        res = await delete_preference.ainvoke({"key": "location", "store": store}, config=CONFIG)
+        print(f"Delete Result: {res}")
+
+        pref_item = await store.aget(namespace_prefs, "location")
+        print(f"Fetched Preference after delete: {pref_item}")
+        assert pref_item is None
+
+        print("\n--- Verification Successful ---")
 
 
 if __name__ == "__main__":
-    test_memory_system()
+    asyncio.run(verify_memory_system())

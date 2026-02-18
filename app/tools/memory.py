@@ -12,7 +12,7 @@ logger = structlog.get_logger(__name__)
 
 
 @tool
-def update_my_profile(
+async def update_my_profile(
     config: RunnableConfig,
     store: Annotated[BaseStore, InjectedStore],
     name: Annotated[str | None, "Your name"] = None,
@@ -34,9 +34,12 @@ def update_my_profile(
         logger.info("Tool Started: update_my_profile", name=name, role=role, has_cv=bool(cv_summary))
 
         # Get existing profile to merge updates
-        existing = store.get(namespace, "data")
+        existing = await store.aget(namespace, "data")
         # Load into Pydantic model
-        profile = UserProfile(**existing.value) if existing else UserProfile()
+        if existing:
+            profile = UserProfile(**existing.value)
+        else:
+            profile = UserProfile()
 
         if name:
             profile.name = name
@@ -46,7 +49,7 @@ def update_my_profile(
             profile.cv_summary = cv_summary
             profile.cv_uploaded = True
 
-        store.put(namespace, "data", profile.model_dump())
+        await store.aput(namespace, "data", profile.model_dump())
         logger.info("Tool Completed: update_my_profile", success=True)
         return f"Profile updated successfully: {profile.model_dump()}"
     except Exception as e:
@@ -55,7 +58,7 @@ def update_my_profile(
 
 
 @tool
-def save_preference(
+async def save_preference(
     config: RunnableConfig,
     store: Annotated[BaseStore, InjectedStore],
     key: Annotated[str, "The preference key (e.g., 'min_salary', 'location', 'tech_stack')"],
@@ -79,7 +82,7 @@ def save_preference(
         pref = Preference(key=key, value=value, category=category)
 
         # Store using model_dump
-        store.put(namespace, key, pref.model_dump())
+        await store.aput(namespace, key, pref.model_dump())
 
         return f"Preference saved: {key} = {value} ({category})"
     except Exception as e:
@@ -88,7 +91,7 @@ def save_preference(
 
 
 @tool
-def delete_preference(
+async def delete_preference(
     config: RunnableConfig,
     store: Annotated[BaseStore, InjectedStore],
     key: Annotated[str, "The preference key to remove"],
@@ -104,11 +107,11 @@ def delete_preference(
         logger.info("Tool Started: delete_preference", key=key)
 
         # Check if exists first to match legacy behavior
-        existing = store.get(namespace, key)
+        existing = await store.aget(namespace, key)
         if not existing:
             return f"Preference '{key}' not found."
 
-        store.delete(namespace, key)
+        await store.adelete(namespace, key)
         logger.info("Tool Completed: delete_preference", key=key)
         return f"Preference '{key}' deleted."
     except Exception as e:
@@ -117,7 +120,7 @@ def delete_preference(
 
 
 @tool
-def finalize_profile(
+async def finalize_profile(
     config: RunnableConfig,
     store: Annotated[BaseStore, InjectedStore],
 ) -> str:
@@ -133,14 +136,14 @@ def finalize_profile(
         logger.info("Tool Started: finalize_profile")
 
         # Verify profile has minimum data before finalizing
-        existing = store.get(namespace, "data")
+        existing = await store.aget(namespace, "data")
         profile = UserProfile(**existing.value) if existing else UserProfile()
 
         if not profile.name and not profile.role:
             return "Cannot finalize: please set at least a name or role first."
 
         # Persist the onboarding_complete flag in the store
-        store.put((user_id, "onboarding"), "status", {"onboarding_complete": True})
+        await store.aput((user_id, "onboarding"), "status", {"onboarding_complete": True})
 
         return "Onboarding complete — handing off to job hunting agent."
     except Exception as e:
