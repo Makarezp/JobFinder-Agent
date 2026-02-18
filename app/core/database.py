@@ -60,3 +60,18 @@ async def init_db() -> None:
         logger.info("Store tables initialized.")
 
     logger.info("Database initialization complete.")
+
+
+async def reset_db_state() -> None:
+    """
+    CRITICAL: Completely wipes the database state.
+    Used for the 'Reset Application' feature.
+    """
+    logger.warning("EXECUTING HARD RESET: Wiping all database tables.")
+    async with get_connection_pool() as pool:
+        async with pool.connection() as conn:
+            async with conn.cursor() as cur:
+                # Truncate all tables managed by LangGraph and our app
+                # checkpoints, checkpoint_blobs, checkpoint_writes, store
+                await cur.execute("TRUNCATE TABLE store, checkpoints, checkpoint_blobs, checkpoint_writes RESTART IDENTITY CASCADE;")
+    logger.info("Database reset complete.")

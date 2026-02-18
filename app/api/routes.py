@@ -10,7 +10,8 @@ from langgraph.store.base import BaseStore
 
 from app.agent.constants import DEFAULT_USER_ID
 from app.agent.memory_schema import Preference, UserProfile
-from app.api.dependencies import get_chat_service, get_store
+from app.api.dependencies import get_admin_service, get_chat_service, get_store
+from app.services.admin_service import AdminService
 from app.services.chat_service import ChatService
 
 logger = logging.getLogger(__name__)
@@ -25,6 +26,7 @@ templates.env.filters["markdown"] = lambda text: md.markdown(text) if text else 
 # Type alias for injected ChatService dependency
 ChatServiceDep = Annotated[ChatService, Depends(get_chat_service)]
 StoreDep = Annotated[BaseStore, Depends(get_store)]
+AdminServiceDep = Annotated[AdminService, Depends(get_admin_service)]
 
 
 @router.get("/profile")
@@ -59,6 +61,21 @@ async def profile_page(request: Request, store: StoreDep) -> Response:  # type: 
             "preferences": preferences,
         },
     )
+
+
+@router.delete("/profile/reset")
+async def reset_profile(
+    request: Request,  # type: ignore[type-arg]
+    admin_service: AdminServiceDep,
+) -> Response:
+    """
+    Hard reset of the application state.
+    """
+    await admin_service.reset_system()
+    # HX-Redirect tells HTMX to perform a full page redirect
+    response = Response(status_code=200)
+    response.headers["HX-Redirect"] = "/"
+    return response
 
 
 @router.post("/chat")

@@ -10,6 +10,7 @@ from psycopg_pool import AsyncConnectionPool
 
 from app.agent.graph import get_compiled_graph
 from app.core.database import get_db_connection_uri
+from app.services.admin_service import AdminService
 from app.services.chat_service import ChatService
 
 # Singleton-like storage for the pool/checkpointer/store
@@ -95,3 +96,11 @@ async def get_chat_service() -> AsyncGenerator[ChatService, None]:
 
     service = ChatService(g, s)
     yield service
+
+
+async def get_admin_service() -> AsyncGenerator[AdminService, None]:
+    """
+    Dependency to get AdminService.
+    Currently stateless, but prepared for future expansion (e.g. logging, auth).
+    """
+    yield AdminService()
