@@ -120,3 +120,81 @@ class ChatService:
         """Extract text content from raw PDF bytes."""
         pdf = PdfReader(BytesIO(file_bytes))
         return "\n".join(page.extract_text() for page in pdf.pages)
+
+    async def get_history(self, thread_id: str = DEFAULT_THREAD_ID) -> list[dict[str, Any]]:
+        """
+        Retrieves the chat history for a given thread, formatted for the UI.
+        Returns a list of message turns (User -> AI).
+        """
+        logger.info("Fetching chat history", extra={"thread_id": thread_id})
+
+        config: RunnableConfig = {
+            "configurable": {"thread_id": thread_id, "user_id": DEFAULT_USER_ID},
+        }
+
+        # fetch current state
+        state = await self._graph.aget_state(config)
+        if not state.values:
+            return []
+
+        messages = state.values.get("messages", [])
+        history: list[dict[str, Any]] = []
+
+        # Simple pairing strategy: iterate and group Human -> AI
+        # We skip SystemMessages.
+        # This assumes a somewhat strict turn-taking (Human -> AI -> Human -> AI)
+        # adaptable if we have multiple tool calls in between.
+
+        current_turn: dict[str, Any] | None = None
+
+        for msg in messages:
+            if isinstance(msg, HumanMessage):
+                # Start a new turn
+                if current_turn:
+                    # if we had a previous turn pending, add it
+                    history.append(current_turn)
+
+                current_turn = {"user_message": msg.content, "ai_message": "", "jobs": []}
+
+            elif isinstance(msg, AIMessage):
+                # This is the response to the current turn
+                if current_turn is None:
+                    # AI message without preceding Human? (Maybe greeting or system initiated)
+                    continue
+
+                # Parse the AI message
+                ai_content = ""
+                jobs = []
+
+                if hasattr(msg, "tool_calls") and len(msg.tool_calls) > 0 and msg.tool_calls[0]["name"] == FINAL_ANSWER_TOOL_NAME:
+                    final_args = msg.tool_calls[0]["args"]
+                    ai_content = final_args.get(TEXT_RESPONSE_KEY, "")
+                    jobs = final_args.get(JOBS_KEY, [])
+                else:
+                    content = msg.content
+                    if isinstance(content, list):
+                        text_parts = []
+                        for part in content:
+                            if isinstance(part, str):
+                                text_parts.append(part)
+                            elif isinstance(part, dict) and "text" in part:
+                                text_parts.append(part["text"])
+                        ai_content = "\n".join(text_parts)
+                    else:
+                        ai_content = str(content)
+
+                # Append content (if multiple AI messages in one turn)
+                if ai_content:
+                    if current_turn["ai_message"]:
+                        current_turn["ai_message"] += "\n" + ai_content
+                    else:
+                        current_turn["ai_message"] = ai_content
+
+                if jobs:
+                    current_turn["jobs"].extend(jobs)
+
+        # If there's a dangling turn, add it
+        if current_turn:
+            history.append(current_turn)
+
+        return history

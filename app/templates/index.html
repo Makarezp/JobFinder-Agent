@@ -24,7 +24,32 @@
                 </div>
             </div>
         </div>
+
+        <!-- Render History -->
+        {% if chat_history %}
+        {% for turn in chat_history %}
+        {% with user_message=turn.user_message, ai_message=turn.ai_message, jobs=turn.jobs %}
+        {% include 'components/chat_message.html' %}
+        {% endwith %}
+        {% endfor %}
+        {% endif %}
     </div>
+
+    <script>
+        // Auto-scroll to bottom on load
+        window.addEventListener('load', function () {
+            var chatHistory = document.getElementById('chat-history');
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        });
+
+        // Also scroll on new messages (HTMX triggers)
+        document.body.addEventListener('htmx:afterSwap', function (evt) {
+            if (evt.detail.target.id === 'chat-history') {
+                var chatHistory = document.getElementById('chat-history');
+                chatHistory.scrollTop = chatHistory.scrollHeight;
+            }
+        });
+    </script>
 
     <!-- Input Area -->
     <div class="mt-auto">

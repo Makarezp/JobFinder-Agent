@@ -63,6 +63,25 @@ async def profile_page(request: Request, store: StoreDep) -> Response:  # type: 
     )
 
 
+@router.get("/", response_class=Response)
+async def read_root(
+    request: Request,  # type: ignore[type-arg]
+    chat_service: ChatServiceDep,
+) -> Response:
+    """Render the landing page with chat history."""
+    # TODO: Get thread_id from session/cookie. Default for now.
+    history = await chat_service.get_history()
+
+    return templates.TemplateResponse(
+        request,
+        "index.html",
+        {
+            "app_name": "CVviewer",  # hardcoded or from settings? Routes doesn't import settings yet.
+            "chat_history": history,
+        },
+    )
+
+
 @router.delete("/profile/reset")
 async def reset_profile(
     request: Request,  # type: ignore[type-arg]
