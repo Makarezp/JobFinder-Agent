@@ -44,6 +44,27 @@ def test_sanitize_payload() -> None:
     assert "signature" not in sanitized["nested_dict"]["deep_list"][0]
 
 
+def test_sanitize_payload_truncates_long_strings() -> None:
+    """Verify that long strings are truncated."""
+    limit = 50
+    long_string = "a" * 200
+    dirty_payload = {
+        "short": "short",
+        "long": long_string,
+        "nested": {"long": long_string},
+        "list": [long_string],
+    }
+
+    sanitized = sanitize_payload(dirty_payload, max_string_length=limit)
+
+    assert sanitized["short"] == "short"
+    # 50 chars + len("... <truncated>") = 66 chars
+    assert len(sanitized["long"]) < len(long_string)
+    assert sanitized["long"].endswith("... <truncated>")
+    assert sanitized["nested"]["long"].endswith("... <truncated>")
+    assert sanitized["list"][0].endswith("... <truncated>")
+
+
 def test_log_timing_structlog(caplog: LogCaptureFixture) -> None:
     """Verify log_timing works with structlog loggers."""
     logger = structlog.get_logger("test_structlog")

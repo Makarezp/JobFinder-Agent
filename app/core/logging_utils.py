@@ -10,26 +10,31 @@ SENSITIVE_KEYS = {
 }
 
 
-def sanitize_payload(data: Any) -> Any:
+def sanitize_payload(data: Any, max_string_length: int | None = None) -> Any:
     """
     Recursively sanitizes the payload by removing sensitive keys.
     Also converts LangChain messages to dicts for cleaner logging.
+    Optionally truncates long strings.
     """
     if isinstance(data, dict):
-        return {k: sanitize_payload(v) for k, v in data.items() if k not in SENSITIVE_KEYS}
+        return {k: sanitize_payload(v, max_string_length) for k, v in data.items() if k not in SENSITIVE_KEYS}
     elif isinstance(data, list):
-        return [sanitize_payload(item) for item in data]
+        return [sanitize_payload(item, max_string_length) for item in data]
+    elif isinstance(data, str):
+        if max_string_length and len(data) > max_string_length:
+            return f"{data[:max_string_length]}... <truncated>"
+        return data
     elif hasattr(data, "model_dump"):
         # Pydantic v2 / LangChain objects
-        return sanitize_payload(data.model_dump())
+        return sanitize_payload(data.model_dump(), max_string_length)
     elif hasattr(data, "dict"):
         # Pydantic v1
-        return sanitize_payload(data.dict())
+        return sanitize_payload(data.dict(), max_string_length)
     else:
         return data
 
 
-def log_state_snapshot(logger: Any, state: dict[str, Any], truncate_keys: list[str] | None = None) -> None:
+def log_state_snapshot(logger: Any, state: dict[str, Any], truncate_keys: list[str] | None = None, max_string_length: int = 500) -> None:
     """
     Logs a snapshot of the current state, truncating specified keys to avoid noise.
     """
@@ -41,5 +46,5 @@ def log_state_snapshot(logger: Any, state: dict[str, Any], truncate_keys: list[s
             val_len = len(str(snapshot[key]))
             snapshot[key] = f"<truncated string of length {val_len}>"
 
-    sanitized_snapshot = sanitize_payload(snapshot)
+    sanitized_snapshot = sanitize_payload(snapshot, max_string_length=max_string_length)
     logger.info("Graph State Update", extra={"state_snapshot": sanitized_snapshot})

@@ -19,8 +19,11 @@
 - **Coverage**: Aim for >80% coverage. Run `pytest --cov=app` to verify.
 
 ## 4. Logging
-- Use standard `logging` library: `logger = logging.getLogger(__name__)`.
-- **Structured JSON**: All logs emit JSON via `python-json-logger`. Setup lives in `app/core/logging.py`.
-- **Request correlation**: Every log line includes `request_id` (injected via `RequestIdFilter` from a `ContextVar`). No manual passing needed.
-- **Timing**: Wrap slow operations with `log_timing("operation_name", logger)` context manager.
-- **Extra fields**: Use `extra={}` for structured data, but **never** use Python LogRecord reserved names (`filename`, `funcName`, `module`, `name`, `msg`). Prefix with context instead (e.g., `cv_filename`).
+- **Library**: Use `structlog`: `logger = structlog.get_logger(__name__)`.
+- **Mandatory Tracing**:
+    - Every **Tool** execution and **Graph Node** run **MUST** log its start and completion.
+    - **Start**: Log inputs/arguments (redacted if verbose).
+    - **End**: Log outputs/results (truncated to 500 chars if large).
+- **Timing**: Wrap significant operations (external API calls, DB ops) with `with log_timing("operation_name", logger):`.
+- **Request ID**: Automatically injected. No manual handling needed.
+- **Structured Data**: Pass context as keyword arguments. e.g. `logger.info("event", user_id=123)`.
