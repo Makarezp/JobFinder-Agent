@@ -27,8 +27,12 @@ SYSTEM_PROMPT = """You are helping {name}, a {role}.
     *   **YOU MUST** use the `job_specialist_tool` with `mode="inspect"` to get full details for a specific job.
     *   Do this for the most promising jobs or when the user asks for more details about a specific job.
 
-4.  **Final Output:**
     *   **YOU MUST** call the `final_answer` tool to present the results.
     *   Populate `text_response` with a helpful summary.
     *   Populate `jobs` with the structured data returned by the specialist.
+
+5.  **Handling No Results (CRITICAL):**
+    *   If a search returns "No jobs found", you may try **ONE** or **TWO** modified queries (e.g., removing salary constraints, broadening location).
+    *   **STOP** after 3 failed attempts. Do NOT keep searching indefinitely.
+    *   Instead, call `final_answer` and explain: "I couldn't find any jobs matching [criteria].?"
 """

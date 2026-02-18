@@ -15,3 +15,4 @@ class AgentState(TypedDict):
     onboarding_complete: bool
     cv_raw_text: str | None
     active_agent: str
+    search_attempts: int

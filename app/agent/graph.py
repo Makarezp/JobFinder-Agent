@@ -3,7 +3,7 @@ import json
 import logging
 from typing import Any, cast
 
-from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
+from langchain_core.messages import AIMessage, ToolMessage
 from langgraph.graph import END, START, StateGraph
 from langgraph.prebuilt import ToolNode
 from langgraph.store.base import BaseStore
@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 
 
 # --- Node: call_job_specialist ---
-async def call_job_specialist(state: AgentState) -> dict[str, list[BaseMessage]]:
+async def call_job_specialist(state: AgentState) -> dict[str, Any]:
     """
     Invokes the Job Specialist subgraph based on the last tool call.
     """
@@ -56,6 +56,27 @@ async def call_job_specialist(state: AgentState) -> dict[str, list[BaseMessage]]
         input_data = JobSpecialistInput(**args)
     except Exception as e:
         return {"messages": [ToolMessage(content=f"Error parsing input: {e}", tool_call_id=tool_call_id)]}
+
+    # Check search attempts if searching
+    if input_data.mode == "search":
+        current_attempts = state.get("search_attempts", 0)
+        if current_attempts >= 3:
+            return {
+                "messages": [
+                    ToolMessage(
+                        content=(
+                            "SYSTEM ALERT: Maximum search attempts (3) reached for this turn. "
+                            "You MUST stop searching now. Please provide a final answer to the user "
+                            "explaining what you found so far and asking for clarification."
+                        ),
+                        tool_call_id=tool_call_id,
+                    )
+                ]
+            }
+        # Increment attempts
+        new_attempts = current_attempts + 1
+    else:
+        new_attempts = state.get("search_attempts", 0)
 
     # Invoke subgraph
     subgraph_state: JobSpecialistState = {
@@ -87,7 +108,10 @@ async def call_job_specialist(state: AgentState) -> dict[str, list[BaseMessage]]
     if not output_content:
         output_content = "Job Specialist completed with no output."
 
-    return {"messages": [ToolMessage(content=output_content, tool_call_id=tool_call_id)]}
+    return {
+        "messages": [ToolMessage(content=output_content, tool_call_id=tool_call_id)],
+        "search_attempts": new_attempts,
+    }
 
 
 # --- Router: pure conditional, no LLM ---

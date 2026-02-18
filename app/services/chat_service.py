@@ -34,11 +34,15 @@ class ChatService:
         """
         logger.info("Processing chat message", extra={"thread_id": thread_id})
 
-        inputs: dict[str, Any] = {"messages": [HumanMessage(content=message)]}
+        inputs: dict[str, Any] = {
+            "messages": [HumanMessage(content=message)],
+            "search_attempts": 0,
+        }
         config: RunnableConfig = {
             "configurable": {"thread_id": thread_id, "user_id": DEFAULT_USER_ID},
             "metadata": {"request_id": request_id_var.get()},
             "tags": ["chat"],
+            "recursion_limit": 30,  # Safety valve: prevent infinite loops
         }
 
         final_state = inputs
