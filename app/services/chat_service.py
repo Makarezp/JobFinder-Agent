@@ -112,6 +112,9 @@ class ChatService:
                         text_parts.append(part["text"])
                 ai_content = "\n".join(text_parts)
 
+        if not ai_content and not jobs:
+            ai_content = "I apologize, but I couldn't generate a response. Please try asking again."
+
         # Return dict for Jinja2 template
         return {
             "user_message": user_message,

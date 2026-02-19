@@ -15,10 +15,12 @@
                 class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-xs shrink-0">
                 AI
             </div>
+            {% if ai_message %}
             <div
                 class="bg-white border border-gray-100 dark:border-gray-800 text-gray-800 p-4 rounded-2xl rounded-tl-none max-w-[90%] shadow-sm prose prose-sm">
                 {{ ai_message | markdown | safe }}
             </div>
+            {% endif %}
         </div>
 
         <!-- Job Cards -->
