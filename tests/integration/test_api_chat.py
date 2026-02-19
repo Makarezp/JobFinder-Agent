@@ -1,33 +1,46 @@
-from unittest.mock import AsyncMock, patch
+from typing import Any
+from unittest.mock import AsyncMock
 
 import pytest
 from fastapi.testclient import TestClient
-from langchain_core.messages import AIMessage
 
+from app.api.dependencies import get_chat_service
 from app.main import app
 
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def mock_chat_dependencies() -> Any:
+    """Fixture to mock chat dependencies for all tests in this module."""
+    mock_service = AsyncMock()
+    mock_response = {
+        "user_message": "Test Message",
+        "ai_message": "Hello from AI",
+    }
+    mock_service.process_message.return_value = mock_response
+
+    # Use dependency overrides to mock the service
+    app.dependency_overrides[get_chat_service] = lambda: mock_service
+    yield mock_service
+    # Clean up overrides
+    app.dependency_overrides.clear()
 
 
 @pytest.mark.asyncio
 async def test_chat_endpoint_success() -> None:
     """
     Test the /chat endpoint validates input and returns HTML.
-    Mocks the agent graph to avoid real LLM calls.
+    Mocks the chat service to avoid real LLM/DB calls.
     """
-    mock_response = {"messages": [AIMessage(content="Hello from AI")]}
+    response = client.post("/chat", data={"message": "Test Message"})
 
-    with patch("app.api.dependencies.graph") as mock_graph:
-        mock_graph.ainvoke = AsyncMock(return_value=mock_response)
-
-        response = client.post("/chat", data={"message": "Test Message"})
-
-        assert response.status_code == 200
-        content = response.text
-        assert "Test Message" in content
-        assert "Hello from AI" in content
-        assert "bg-blue-600" in content
-        assert "bg-indigo-100" in content
+    assert response.status_code == 200
+    content = response.text
+    assert "Test Message" in content
+    assert "Hello from AI" in content
+    assert "bg-blue-600" in content
+    assert "bg-indigo-100" in content
 
 
 @pytest.mark.asyncio

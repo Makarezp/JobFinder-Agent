@@ -1,14 +1,9 @@
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
 from fastapi.testclient import TestClient
-from langchain_core.messages import AIMessage
 
-from app.agent.constants import (
-    FINAL_ANSWER_TOOL_NAME,
-    JOBS_KEY,
-    TEXT_RESPONSE_KEY,
-)
+from app.api.dependencies import get_chat_service
 from app.main import app
 
 client = TestClient(app)
@@ -17,32 +12,29 @@ client = TestClient(app)
 @pytest.mark.asyncio
 async def test_chat_endpoint_structured_response() -> None:
     """
-    Test the /chat endpoint when the agent returns a structured response via final_answer tool.
+    Test the /chat endpoint when the agent returns a structured response.
     """
-    # Mock graph at the DI wiring point
-    with patch("app.api.dependencies.graph") as mock_graph:
-        # Create a mock AIMessage mimicking a tool call to final_answer
-        mock_tool_call = {
-            "name": FINAL_ANSWER_TOOL_NAME,
-            "args": {
-                TEXT_RESPONSE_KEY: "Here are some jobs.",
-                JOBS_KEY: [
-                    {
-                        "title": "Python Dev",
-                        "company": "Tech Corp",
-                        "location": "London",
-                        "salary": "60k",
-                        "description": "Great job",
-                        "apply_link": "http://example.com",
-                    }
-                ],
-            },
-            "id": "call_123",
-        }
+    mock_service = AsyncMock()
+    mock_response = {
+        "user_message": "find jobs",
+        "ai_message": "Here are some jobs.",
+        "jobs": [
+            {
+                "title": "Python Dev",
+                "company": "Tech Corp",
+                "location": "London",
+                "salary": "60k",
+                "description": "Great job",
+                "apply_link": "http://example.com",
+            }
+        ],
+    }
+    mock_service.process_message.return_value = mock_response
 
-        mock_message = AIMessage(content="", tool_calls=[mock_tool_call])
-        mock_graph.ainvoke = AsyncMock(return_value={"messages": [mock_message]})
+    # Use dependency overrides to mock the service
+    app.dependency_overrides[get_chat_service] = lambda: mock_service
 
+    try:
         # Make the request
         response = client.post("/chat", data={"message": "find jobs"})
 
@@ -51,3 +43,5 @@ async def test_chat_endpoint_structured_response() -> None:
         assert "Python Dev" in response.text
         assert "Tech Corp" in response.text
         assert "Great job" in response.text
+    finally:
+        app.dependency_overrides.clear()

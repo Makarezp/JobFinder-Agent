@@ -28,7 +28,15 @@ def search_jobs(state: JobSpecialistState) -> dict[str, Any]:
             {
                 "what": input_data.query or "",  # Handle None
                 "where": input_data.location,
-                "results_per_page": 10,  # Default
+                "country": input_data.country,
+                "results_per_page": input_data.results_per_page,
+                "sort_by": input_data.sort_by,
+                "max_days_old": input_data.max_days_old,
+                "salary_min": input_data.salary_min,
+                "full_time": input_data.full_time,
+                "part_time": input_data.part_time,
+                "permanent": input_data.permanent,
+                "contract": input_data.contract,
             }
         )
         logger.debug("Adzuna Raw Results", results=raw_results)
