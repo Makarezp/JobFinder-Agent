@@ -38,10 +38,16 @@ Detailed documentation is available in the `documents/` directory:
 
 ## 🛠️ Development
 
+The easiest way to run all checks (formatting, linting, typing, and tests) is using the unified test runner:
+```bash
+./scripts/test.sh
+```
+
+You can also run individual checks manually:
 - **Lint**: `ruff check .`
 - **Format**: `ruff format .`
 - **Type Check**: `mypy .`
-- **Test**: `./.venv/bin/pytest`
+- **Test**: `pytest`
 - **Coverage**: `pytest --cov=app --cov-report=term-missing`
 
 ## 🤝 Committing

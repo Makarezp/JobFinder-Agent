@@ -78,7 +78,7 @@ async def test_call_job_specialist_blocks_fourth_attempt() -> None:
 @pytest.mark.asyncio
 async def test_inspect_does_not_increment_attempts() -> None:
     """Test that 'inspect' mode does NOT increment search_attempts."""
-    from unittest.mock import AsyncMock, patch
+    from unittest.mock import AsyncMock, MagicMock, patch
 
     from langchain_core.messages import AIMessage
 
@@ -88,7 +88,9 @@ async def test_inspect_does_not_increment_attempts() -> None:
     state = {"search_attempts": 1, "messages": [msg]}  # type: ignore
 
     with patch("app.agent.graph.job_search_graph") as mock_graph:
-        mock_graph.ainvoke = AsyncMock(return_value={"search_results": [], "inspect_result": "content"})
+        mock_inspect_result = MagicMock()
+        mock_inspect_result.model_dump_json.return_value = '{"detail": "content"}'
+        mock_graph.ainvoke = AsyncMock(return_value={"search_results": [], "inspect_result": mock_inspect_result})
 
         # ACT
         result = await call_job_specialist(state)  # type: ignore
