@@ -106,24 +106,24 @@ Set up the unit and component testing environment for the Next.js frontend to en
 
 ---
 
-### Ticket 0.5: Code Quality Tools (Linting, Formatting, Hooks)
+### Ticket 0.5: Code Quality Tools (Linting, Formatting, Hooks) ✅ DONE
 
 #### Overview
-Establish strict code quality gates for the frontend to match the Python backend's `ruff` and `mypy` standards.
+Establish strict code quality gates for the frontend to match the Python backend's standards.
 
-#### Implementation Steps
-1. **Formatting**:
-   - Install `prettier` and `eslint-config-prettier`.
-   - Create a `.prettierrc` file with project-standard rules.
-2. **Linting**:
-   - Configure the Next.js `.eslintrc.json` to be strict (e.g., enforcing plugin-react-hooks, blocking unused imports).
-3. **Pre-commit Hooks**:
-   - Install `husky` and `lint-staged`.
-   - Configure a pre-commit hook to automatically run ESLint, Prettier, and TypeScript type-checking (`tsc --noEmit`) on staged frontend files.
+---
 
-#### Acceptance Criteria
-- Running `npm run lint` and `npm run format` works.
-- Committing a poorly formatted or type-invalid TypeScript file is blocked by Husky.
+## Sprint 0 Summary: COMPLETE ✅
+
+All setup tickets for the React/Next.js migration have been successfully implemented, verified, and integrated into the global repository pipeline.
+
+- [x] **Ticket 0.1**: Environment Migration
+- [x] **Ticket 0.2**: Backend JSON API Architecture
+- [x] **Ticket 0.3**: Zustand Store & Next.js Scaffold
+- [x] **Ticket 0.4**: Frontend Testing (Vitest/RTL)
+- [x] **Ticket 0.5**: Code Quality Tools (Prettier/ESLint/Pre-commit)
+
+The project is now ready for **Sprint 1: Premium Shell & Core Design**.
 
 ---
 

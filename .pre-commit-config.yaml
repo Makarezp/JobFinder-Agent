@@ -19,3 +19,18 @@ repos:
     hooks:
       - id: mypy
         additional_dependencies: [types-requests, pydantic, pydantic-settings, fastapi, types-Markdown, langchain-core, langsmith]
+
+  - repo: local
+    hooks:
+      - id: frontend-lint-staged
+        name: frontend lint-staged
+        entry: bash -c "cd frontend && npx lint-staged"
+        language: system
+        files: ^frontend/
+        pass_filenames: false
+      - id: frontend-type-check
+        name: frontend type-check
+        entry: bash -c "cd frontend && npm run type-check"
+        language: system
+        files: ^frontend/
+        pass_filenames: false

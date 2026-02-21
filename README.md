@@ -71,13 +71,13 @@ Individual checks:
 ### Frontend Checks
 Run inside the `frontend/` directory:
 - **Lint**: `npm run lint`
-- **Format**: `npm run format` *(added in Sprint 0.5)*
-- **Type Check**: `npm run typecheck` *(added in Sprint 0.5)*
-- **Test**: `npm run test` *(added in Sprint 0.4)*
+- **Format**: `npm run format`
+- **Type Check**: `npm run type-check`
+- **Test**: `npm run test`
 
 ## 🤝 Committing
 
-This project uses **pre-commit** hooks (backend) and **Husky** hooks (frontend) to ensure quality.
+This project uses **pre-commit** hooks to ensure quality across both backend and frontend.
 
 ### Commit Conventions
 Keep it simple, **lowercase**, and **short**:

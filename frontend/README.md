@@ -28,6 +28,9 @@ src/
 npm run dev       # Start dev server at http://localhost:3000
 npm run build     # Production build
 npm run lint      # ESLint
+npm run format    # Prettier (auto-fix)
+npm run type-check # TypeScript compiler check
+npm run test      # Vitest run
 ```
 
 > The dev server proxies all `/api/*` requests to the FastAPI backend on `http://localhost:8000` via `next.config.ts` rewrites. Both servers must be running concurrently.

@@ -12,12 +12,17 @@ export default function Home() {
 
   // Hydrate history on mount and avoid SSR hydration mismatch
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsMounted(true);
     fetchHistory();
   }, [fetchHistory]);
 
   if (!isMounted) {
-    return <main style={{ padding: "2rem", fontFamily: "sans-serif" }}><h1>Loading...</h1></main>;
+    return (
+      <main style={{ padding: "2rem", fontFamily: "sans-serif" }}>
+        <h1>Loading...</h1>
+      </main>
+    );
   }
 
   const handleSend = () => {
@@ -70,7 +75,11 @@ export default function Home() {
             ))}
           </ul>
         )}
-        {isPending && <p><em>Agent is typing...</em></p>}
+        {isPending && (
+          <p>
+            <em>Agent is typing...</em>
+          </p>
+        )}
       </div>
 
       <div style={{ display: "flex", gap: "0.5rem" }}>

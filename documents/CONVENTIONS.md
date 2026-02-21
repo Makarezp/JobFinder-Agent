@@ -1,8 +1,10 @@
 # CONVENTIONS.md - The Rules
 
 ## 1. Coding Standards
-- **Strict Typing**: All code must pass `mypy --strict`. No `Any` unless absolutely unavoidable. All functions **MUST** have return type annotations, including `-> None`.
-- **Pydantic**: Use Pydantic models for all data exchange, configuration, and tool arguments.
+- **Strict Typing**:
+  - **Backend**: All code must pass `mypy --strict`. No `Any` unless unavoidable. All functions must have return types.
+  - **Frontend**: All code must pass `tsc --noEmit`. Avoid `any` at all costs. Prefer interfaces over types for public APIs.
+- **Pydantic / TS Interfaces**: Use Pydantic models for backend exchange and corresponding TypeScript interfaces in `frontend/src/core/types/`.
 - **Input Sanitization**: Use `Annotated[T, BeforeValidator(ensure_string)]` for flexible LLM inputs (handling list vs string ambiguity).
 
 ## 2. Error Handling (CRITICAL)
@@ -13,10 +15,14 @@
     - *Reason*: Raising exceptions crashes the Agent's graph execution. Returning a string allows the LLM to read the error and try a different approach.
 
 ## 3. Testing
-- **Mocking**: Unit tests (`tests/unit`) MUST mock external services (LLM, Adzuna API, Crawl4AI).
-- **Async**: Use `@pytest.mark.asyncio` for async test functions.
-- **Fixtures**: Use `conftest.py` for shared fixtures (if available).
-- **Coverage**: Aim for >80% coverage. Run `pytest --cov=app` to verify.
+- **Backend (Pytest)**:
+    - **Mocking**: Unit tests MUST mock external services (LLM, Adzuna API).
+    - **Async**: Use `@pytest.mark.asyncio`.
+    - **Coverage**: Aim for >80%. Run `pytest --cov=app`.
+- **Frontend (Vitest)**:
+    - **Isolated Logic**: All business logic in `src/core/` must have companion `.test.ts` files.
+    - **Mocking**: Use `vi.mock()` for API modules and `vi.fn()` for global fetch.
+    - **Store Tests**: Test Zustand stores via `getState()` specifically for state transitions.
 
 ## 4. Logging
 - **Library**: Use `structlog`: `logger = structlog.get_logger(__name__)`.
