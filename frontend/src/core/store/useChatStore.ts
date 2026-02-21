@@ -6,7 +6,7 @@ import {
   uploadCVRequest,
 } from "../api/chat";
 
-interface ChatState {
+export interface ChatState {
   messages: ChatResponse[];
   isPending: boolean;
   fetchHistory: () => Promise<void>;
