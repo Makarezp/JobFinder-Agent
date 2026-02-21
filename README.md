@@ -4,6 +4,8 @@
 
 ## 🚀 Quick Start
 
+### Backend (FastAPI)
+
 1.  **Clone & Install**:
     ```bash
     python3 -m venv .venv
@@ -18,11 +20,26 @@
 
 3.  **Run**:
     ```bash
-    # IMPORTANT: Always activate the virtual environment first!
     source .venv/bin/activate
     uvicorn app.main:app --reload
     ```
-    Visit `http://localhost:8000` to chat.
+    Backend API available at `http://localhost:8000`.
+
+### Frontend (Next.js)
+
+1.  **Install**:
+    ```bash
+    cd frontend
+    npm install
+    ```
+
+2.  **Run**:
+    ```bash
+    npm run dev
+    ```
+    Visit `http://localhost:3000` to use the app.
+
+> **Note**: Both backend and frontend must be running concurrently. The Next.js dev server proxies all `/api/*` requests to the FastAPI backend on port 8000.
 
 ## 📚 Documentation
 
@@ -38,23 +55,29 @@ Detailed documentation is available in the `documents/` directory:
 
 ## 🛠️ Development
 
-The easiest way to run all checks (formatting, linting, typing, and tests) is using the unified test runner:
+### Backend Checks
+Run all backend checks (formatting, linting, typing, and tests) using the unified test runner:
 ```bash
 ./scripts/test.sh
 ```
 
-You can also run individual checks manually:
+Individual checks:
 - **Lint**: `ruff check .`
 - **Format**: `ruff format .`
 - **Type Check**: `mypy .`
 - **Test**: `pytest`
 - **Coverage**: `pytest --cov=app --cov-report=term-missing`
 
+### Frontend Checks
+Run inside the `frontend/` directory:
+- **Lint**: `npm run lint`
+- **Format**: `npm run format` *(added in Sprint 0.5)*
+- **Type Check**: `npm run typecheck` *(added in Sprint 0.5)*
+- **Test**: `npm run test` *(added in Sprint 0.4)*
+
 ## 🤝 Committing
 
-This project uses **pre-commit** hooks to ensure quality. When you run `git commit`, it will automatically run:
-- **Ruff** (Linting & Formatting)
-- **Mypy** (Type Checking)
+This project uses **pre-commit** hooks (backend) and **Husky** hooks (frontend) to ensure quality.
 
 ### Commit Conventions
 Keep it simple, **lowercase**, and **short**:
@@ -63,7 +86,30 @@ Keep it simple, **lowercase**, and **short**:
 - `docs: ...`
 - `refactor: ...`
 
+## Project Structure
+
+```
+CVviewer/
+├── app/                  # FastAPI backend
+│   ├── api/              # Routes, Dependencies, Middleware
+│   ├── agent/            # LangGraph Agent (Graph, Nodes, State)
+│   ├── core/             # Config, Logging
+│   ├── services/         # ChatService, AdminService
+│   └── tools/            # Adzuna API, Scraper
+├── frontend/             # Next.js frontend
+│   └── src/
+│       ├── app/          # Next.js App Router (pages, layout)
+│       └── core/         # Business logic boundary
+│           ├── api/      # API client functions
+│           ├── store/    # Zustand state management
+│           └── types/    # Shared TypeScript types
+├── tests/                # Python backend tests
+└── documents/            # Project documentation
+```
+
 ## Status
-**Phase 1: The Interactive Headhunter**
-- Active: Adzuna Search, Gemini Agent, HTMX UI, Memory Profile View.
-- Next: SQLite Persistence, Cron Jobs.
+**Phase 2: React Native Migration**
+- Sprint 0 (In Progress): Next.js scaffold, Backend JSON API refactor, Zustand store.
+- Sprint 1: Stitch design system integration.
+- Sprint 2: Full agent chat UI.
+- Sprint 3: Interactivity loop (Pass/Pursue feedback).

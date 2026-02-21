@@ -1,6 +1,8 @@
 # AGENTS.md - The AI Manual
 
 ## 1. Codebase Map
+
+### Backend (`app/`)
 - **Ingress**: `app/api/` (Routes, Dependencies, Middleware).
 - **Service**: `app/services/chat_service.py` (Graph orchestration, PDF parsing).
 - **Agent**: `app/agent/` (Graph, Nodes, State, Schemas, Prompts).
@@ -9,9 +11,17 @@
 - **Logging**: `app/core/logging.py` (Structured JSON, ContextVar, Timing).
 - **Tests**: `tests/` (Unit & Integration).
 
+### Frontend (`frontend/`)
+- **Pages**: `frontend/src/app/` (Next.js App Router — pages and layouts).
+- **API Client**: `frontend/src/core/api/` (fetch wrappers for backend REST endpoints).
+- **State**: `frontend/src/core/store/` (Zustand stores).
+- **Types**: `frontend/src/core/types/` (Shared TypeScript interfaces and types).
+
+> The `core/` boundary is strict: presentation logic lives in `app/`, business/state logic lives in `core/`. Components in `app/` import from `core/`, never the reverse.
+
 ## 2. Workflows
 
-### How to Add a New Tool
+### How to Add a New Backend Tool
 1.  **Create File**: Add `app/tools/my_new_tool.py`.
 2.  **Define Args**: Create a Pydantic model `MyToolArgs` with `Annotated` validators if input is flexible.
 3.  **Implement**: Write the `@tool` decorated function.
@@ -23,10 +33,16 @@
 2.  **Logic**: Edit `app/agent/nodes.py` to change prompt construction or tool invocation.
 3.  **State**: Edit `app/agent/state.py` if you need to store new data across steps.
 
-### How to Add a New Route
+### How to Add a New Backend Route
 1.  Add endpoint in `app/api/routes.py`.
 2.  Inject `ChatService` via `ChatServiceDep = Annotated[ChatService, Depends(get_chat_service)]`.
 3.  Never instantiate `ChatService` directly — always use `Depends()`.
+4.  All routes must be under the `/api` prefix (e.g. `POST /api/chat`).
+
+### How to Add a New Frontend Store Action
+1.  Add the action to the relevant Zustand store in `frontend/src/core/store/`.
+2.  The action calls a fetch wrapper from `frontend/src/core/api/` — never `fetch()` directly in components.
+3.  Write a unit test in `*.test.ts` alongside the store file.
 
 ## 3. Gotchas (Known Pitfalls)
 
