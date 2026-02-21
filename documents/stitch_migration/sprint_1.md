@@ -9,7 +9,7 @@
 ### Ticket 1.1: Base Layout Infrastructure
 
 #### Overview
-Extract the global "shell" from the Stitch HTML and apply it to the Next.js `src/app/layout.tsx` and `src/app/page.tsx`.
+Extract the global "shell" from the Stitch Design reference (`documents/stitch_migration/stitch_design.html`) and apply it to the Next.js `src/app/layout.tsx` and `src/app/page.tsx`.
 
 #### Implementation Steps
 1. **Translate Shell**:
@@ -21,7 +21,7 @@ Extract the global "shell" from the Stitch HTML and apply it to the Next.js `src
 ### Ticket 1.2: Command Center Component
 
 #### Overview
-Translate the Stitch dark-mode chat input form into a reusable Next.js Server/Client component.
+Translate the Stitch dark-mode chat input form from the design reference (`documents/stitch_migration/stitch_design.html`) into a reusable Next.js Server/Client component.
 
 #### Implementation Steps
 1. **Create Component**: Create `frontend/src/components/CommandCenter.tsx` (using `"use client"`).
@@ -35,7 +35,7 @@ Translate the Stitch dark-mode chat input form into a reusable Next.js Server/Cl
 ### Ticket 1.3: Advisory Feed & Chat Bubbles
 
 #### Overview
-Translate the premium chat bubbles from Stitch into Next.js components that consume the Zustand `messages` array.
+Translate the premium chat bubbles from the Stitch design reference (`documents/stitch_migration/stitch_design.html`) into Next.js components that consume the Zustand `messages` array.
 
 #### Implementation Steps
 1. **Create Bubble Component**: Create `frontend/src/components/ChatMessage.tsx`.

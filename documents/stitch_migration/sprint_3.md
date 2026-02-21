@@ -39,7 +39,7 @@ Implement the orchestration logic purely inside the `src/core/` boundary.
 ### Ticket 3.3: Pass/Pursue UI & The Reactive Pulse Banner
 
 #### Overview
-Wire the UI interactions in Next.js back to the newly created core logic.
+Wire the UI interactions in Next.js back to the newly created core logic. Refer to the Stitch design document (`documents/stitch_migration/stitch_design.html`) for the visual reference of the Pulse Banner.
 
 #### Implementation Steps
 1. **Interactive Elements**:

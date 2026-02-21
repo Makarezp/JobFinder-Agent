@@ -20,7 +20,7 @@ Ensure the `src/core` accurately models the data coming from the LangGraph backe
 ### Ticket 2.2: Job Card Component
 
 #### Overview
-Translate the HTML `<div class="job-card">` from Stitch into a React component.
+Translate the job card design from the Stitch reference (`documents/stitch_migration/stitch_design.html`) into a React component.
 
 #### Implementation Steps
 1. **Create Component**: Create `frontend/src/components/JobCard.tsx`.
