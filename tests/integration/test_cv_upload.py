@@ -12,17 +12,20 @@ client = TestClient(app)
 @pytest.mark.asyncio
 async def test_upload_cv_endpoint() -> None:
     """
-    Test the /upload-cv endpoint.
+    Test the /api/upload-cv endpoint.
     Mocks PdfReader and chat service.
-    Verifies CV text is parsed and processed.
+    Verifies CV text is parsed and processed, and JSON is returned.
     """
     pdf_content = b"%PDF-1.4 dummy content"
     file = {"file": ("resume.pdf", pdf_content, "application/pdf")}
 
     mock_service = AsyncMock()
-    mock_service.process_cv.return_value = {"user_message": "CV Uploaded", "ai_message": "I received your CV."}
+    mock_service.process_cv.return_value = {
+        "user_message": "CV Uploaded",
+        "ai_message": "I received your CV.",
+        "jobs": [],
+    }
 
-    # Use dependency overrides to mock the service
     app.dependency_overrides[get_chat_service] = lambda: mock_service
 
     try:
@@ -35,10 +38,12 @@ async def test_upload_cv_endpoint() -> None:
             mock_instance = mock_pdf_reader.return_value
             mock_instance.pages = [mock_page]
 
-            response = client.post("/upload-cv", files=file)
+            response = client.post("/api/upload-cv", files=file)
 
             assert response.status_code == 200
-            assert "I received your CV" in response.text
+            data = response.json()
+            assert data["ai_message"] == "I received your CV."
+            assert data["user_message"] == "CV Uploaded"
 
             # Verify process_cv was called with the correct bytes
             assert mock_service.process_cv.called

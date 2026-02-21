@@ -1,12 +1,11 @@
 [project]
 name = "ai-scraper-bot"
 version = "0.1.0"
-description = "Production-ready AI Chatbot with FastAPI, LangGraph, and HTMX"
+description = "Production-ready AI Chatbot with FastAPI, LangGraph, and Next.js"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi",
     "uvicorn[standard]",
-    "jinja2",
     "python-multipart",
     "httpx",
     "langchain",
@@ -18,7 +17,6 @@ dependencies = [
     "crawl4ai",
     "pydantic-settings",
     "beautifulsoup4",
-    "markdown",
     "python-dotenv",
     "python-json-logger",
     "pypdf",

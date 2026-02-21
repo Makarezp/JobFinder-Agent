@@ -12,7 +12,7 @@ client = TestClient(app)
 @pytest.mark.asyncio
 async def test_chat_endpoint_structured_response() -> None:
     """
-    Test the /chat endpoint when the agent returns a structured response.
+    Test the /api/chat endpoint when the agent returns a structured response with jobs.
     """
     mock_service = AsyncMock()
     mock_response = {
@@ -31,17 +31,19 @@ async def test_chat_endpoint_structured_response() -> None:
     }
     mock_service.process_message.return_value = mock_response
 
-    # Use dependency overrides to mock the service
     app.dependency_overrides[get_chat_service] = lambda: mock_service
 
     try:
-        # Make the request
-        response = client.post("/chat", data={"message": "find jobs"})
+        response = client.post("/api/chat", json={"message": "find jobs"})
 
         assert response.status_code == 200
-        # Check if the job title is rendered in the HTML
-        assert "Python Dev" in response.text
-        assert "Tech Corp" in response.text
-        assert "Great job" in response.text
+        data = response.json()
+        assert data["user_message"] == "find jobs"
+        assert data["ai_message"] == "Here are some jobs."
+        assert len(data["jobs"]) == 1
+        job = data["jobs"][0]
+        assert job["title"] == "Python Dev"
+        assert job["company"] == "Tech Corp"
+        assert job["description"] == "Great job"
     finally:
         app.dependency_overrides.clear()

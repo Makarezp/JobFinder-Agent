@@ -8,7 +8,7 @@ from app.main import app
 
 @pytest.mark.asyncio
 async def test_cv_persistence() -> None:
-    """Test that profile with cv_summary is persisted and visible on /profile."""
+    """Test that profile with cv_summary is persisted and visible via GET /api/profile."""
     user_id = "default_user"
     namespace = (user_id, "profile")
 
@@ -27,7 +27,9 @@ async def test_cv_persistence() -> None:
         await store.aput(namespace, "data", data)
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
-        response = await ac.get("/profile")
+        response = await ac.get("/api/profile")
 
     assert response.status_code == 200
-    assert "Persistence Test" in response.text
+    data_response = response.json()
+    assert data_response["profile"]["name"] == "Persistence Test"
+    assert data_response["profile"]["role"] == "Senior Python Developer"

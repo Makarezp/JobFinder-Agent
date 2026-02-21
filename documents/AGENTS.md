@@ -3,7 +3,7 @@
 ## 1. Codebase Map
 
 ### Backend (`app/`)
-- **Ingress**: `app/api/` (Routes, Dependencies, Middleware).
+- **Ingress**: `app/api/` (Routes, Dependencies, Middleware, Schemas).
 - **Service**: `app/services/chat_service.py` (Graph orchestration, PDF parsing).
 - **Agent**: `app/agent/` (Graph, Nodes, State, Schemas, Prompts).
 - **Tools**: `app/tools/` (Adzuna API, Scraper).
@@ -35,9 +35,10 @@
 
 ### How to Add a New Backend Route
 1.  Add endpoint in `app/api/routes.py`.
-2.  Inject `ChatService` via `ChatServiceDep = Annotated[ChatService, Depends(get_chat_service)]`.
-3.  Never instantiate `ChatService` directly — always use `Depends()`.
-4.  All routes must be under the `/api` prefix (e.g. `POST /api/chat`).
+2.  Define request/response Pydantic models in `app/api/schemas.py` — never inline them in `routes.py`.
+3.  Inject `ChatService` via `ChatServiceDep = Annotated[ChatService, Depends(get_chat_service)]`.
+4.  Never instantiate `ChatService` directly — always use `Depends()`.
+5.  All routes must be under the `/api` prefix (e.g. `POST /api/chat`).
 
 ### How to Add a New Frontend Store Action
 1.  Add the action to the relevant Zustand store in `frontend/src/core/store/`.

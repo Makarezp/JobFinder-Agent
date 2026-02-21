@@ -1,12 +1,9 @@
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from pathlib import Path
 
-import markdown as md
 from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.middleware import RequestIdMiddleware
 from app.api.routes import router as api_router
@@ -28,22 +25,19 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title=settings.APP_NAME, debug=settings.DEBUG, lifespan=lifespan)
+
+# CORS: allow the Next.js dev server to call the backend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 app.add_middleware(RequestIdMiddleware)
 
-# Setup Paths
-BASE_DIR = Path(__file__).resolve().parent.parent
-STATIC_DIR = BASE_DIR / "static"
-TEMPLATES_DIR = BASE_DIR / "app" / "templates"
-
-# Mount Static
-app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
-
-# Include Router
+# Include Router (all routes are under /api prefix)
 app.include_router(api_router)
-
-# Setup Templates
-templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
-templates.env.filters["markdown"] = lambda text: md.markdown(text) if text else ""
 
 
 @app.get("/health")

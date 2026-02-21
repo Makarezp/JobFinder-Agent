@@ -8,8 +8,8 @@ from app.main import app
 
 
 @pytest.mark.asyncio
-async def test_get_profile_page() -> None:
-    # 1. Setup Store with Seed Data
+async def test_get_profile_json() -> None:
+    """GET /api/profile returns profile and preferences as JSON."""
     store = InMemoryStore()
     user_id = DEFAULT_USER_ID
 
@@ -19,21 +19,21 @@ async def test_get_profile_page() -> None:
     # Seed Preference
     store.put((user_id, "preferences"), "test_pref", {"value": "test_value", "category": "hard"})
 
-    # 2. Override Dependency
     app.dependency_overrides[get_store] = lambda: store
 
     try:
-        # 3. Request page
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
-            response = await ac.get("/profile")
+            response = await ac.get("/api/profile")
 
-        # 4. Verify response
         assert response.status_code == 200
-        assert "My Profile" in response.text
-        assert "Test User" in response.text
-        assert "Test Role" in response.text
-        assert "test_pref" in response.text
-        assert "test_value" in response.text
-        assert "Hard Constraints" in response.text
+        data = response.json()
+
+        # Profile assertions
+        assert data["profile"]["name"] == "Test User"
+        assert data["profile"]["role"] == "Test Role"
+
+        # Preference assertions
+        assert "test_pref" in data["preferences"]
+        assert data["preferences"]["test_pref"]["value"] == "test_value"
     finally:
         app.dependency_overrides = {}
