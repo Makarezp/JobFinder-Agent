@@ -26,8 +26,11 @@ Translate the Stitch dark-mode chat input form into a reusable Next.js Server/Cl
 #### Implementation Steps
 1. **Create Component**: Create `frontend/src/components/CommandCenter.tsx` (using `"use client"`).
 2. **Apply Tailwind**: Style the text input with the rounded corners, background colors, and padding from the Stitch HTML.
-3. **SVG Icons**: Utilize standard SVG tags for the paperclip and send icons, styling their hover states with Tailwind.
-4. **Zustand Wiring**: Wire the input's `onSubmit` directly to the `useChatStore().sendMessage()` action from `src/core/store/useChatStore`.
+3. **SVG Icons**: Utilize standard SVG tags for the paperclip and send icons, styling their hover states with Tailwind. **Crucial:** The paperclip SVG must wrap a visually hidden `<input type="file" accept="application/pdf" />`.
+4. **Zustand Wiring & Loading State**:
+   - Wire the text input's `onSubmit` to `useChatStore().sendMessage()`.
+   - Wire the hidden file input's `onChange` to `useChatStore().uploadCV()`.
+   - **Loading UI**: Read a new `isPending` state from `useChatStore`. While true, disable both inputs, change the "send" icon to a loading spinner or pulsing animation, and dim the input area.
 
 ### Ticket 1.3: Advisory Feed & Chat Bubbles
 
@@ -37,8 +40,9 @@ Translate the premium chat bubbles from Stitch into Next.js components that cons
 #### Implementation Steps
 1. **Create Bubble Component**: Create `frontend/src/components/ChatMessage.tsx`.
 2. **Role Styling**: Accept a `role` prop. Use Tailwind template literals to apply styles conditionally (e.g., User gets `bg-indigo-600`, AI gets the premium `#564be7` glassmorphism styling).
-3. **Markdown Handling**: Integrate a library like `react-markdown` within the AI bubble to cleanly render the LLM's bolding, lists, and links without clashing with the dark Tailwind theme.
-4. **The Feed**: Create `frontend/src/components/AdvisoryFeed.tsx` that consumes `useChatStore().messages` and maps them out vertically, ensuring scroll auto-pinning to the bottom is handled.
+   - **Error Styling**: If the AI message begins with `**System Error**` (as defined in Sprint 0's soft degradation), apply distinct error styling to the bubble (e.g., a subtle red border or a distinct background tint) to differentiate it from a normal AI response.
+3. **Markdown Handling**: Install `@tailwindcss/typography`. Use a library like `react-markdown` within the AI bubble, wrapped in a `<div className="prose prose-invert max-w-none">` to cleanly render the LLM's bolding, lists, and links without clashing with the dark Tailwind theme.
+4. **The Feed**: Create `frontend/src/components/AdvisoryFeed.tsx` that consumes `useChatStore().messages` and maps them out vertically. Implement a `useRef` pointing to a dummy `div` at the bottom of the list, triggering `.scrollIntoView({ behavior: "smooth" })` in a `useEffect` on message change to ensure reliable auto-pinning.
 
 #### Acceptance Criteria
 - The Next.js dashboard visually mirrors the Stitch prototype perfectly.
@@ -58,8 +62,9 @@ Ensure the new premium UI components render correctly and properly trigger the m
    - Verify that markdown links and bolding render correctly.
 2. **Command Center Tests**:
    - Create `src/components/CommandCenter.test.tsx`.
-   - Mock the `useChatStore` to provide a dummy `sendMessage` and `uploadCV` function.
-   - Fire a `userEvent.click` on the send button and verify the mocked `sendMessage` was called with the correct input text.
+   - Mock the `useChatStore` to provide a dummy `sendMessage` and `uploadCV` function, as well as an `isPending` boolean toggle.
+   - Fire a `userEvent.click` on the send button and verify the mocked `sendMessage` was called.
+   - Set `isPending` to true and verify the inputs become disabled.
 
 #### Acceptance Criteria
 - Vitest/RTL successfully runs the new tests.
@@ -78,13 +83,15 @@ To definitively prove Sprint 1 is complete before moving to Sprint 2 (Discovery 
 
 2. **Command Center Visuals & Interaction**:
    - Inspect the `CommandCenter` component at the bottom of the screen.
-   - Verify the SVG icons (paperclip, send arrow) are present, styled correctly, and show a visual hover state when moused over.
-   - Type a message and successfully trigger the backend `/chat` endpoint (proving Sprint 0 functionality remains unbroken by the new styling).
+   - Verify the SVG icons (paperclip, send arrow) are present.
+   - Type a message and hit enter. Verify the input instantly disables and a loading indicator replaces the send icon while waiting for the response.
+   - Upload a PDF via the paperclip icon and verify the exact same loading state triggers.
 
 3. **Chat Feed Premium Styling**:
    - Review both a "User" bubble and an "AI" bubble in the `AdvisoryFeed`.
-   - Verify the AI bubble utilizes the premium Stitch styling (e.g., `#564be7` base color, glassmorphism `backdrop-blur`).
-   - Trigger the AI to generate a Markdown list or bold text. Verify the typography plugins correctly render the markdown cleanly inside the dark-themed bubble.
+   - Verify the AI bubble utilizes the premium Stitch styling.
+   - Trigger the AI to generate a Markdown list or bold text. Verify the `@tailwindcss/typography` plugin correctly renders the markdown cleanly inside the dark-themed bubble.
+   - Force an error response from the backend. Verify the resulting `**System Error**` message bubble is visually distinct from a normal successful AI bubble.
 
 4. **Scroll Behavior**:
    - Flood the chat with messages to exceed the viewport height.

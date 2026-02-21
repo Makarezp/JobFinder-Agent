@@ -13,7 +13,7 @@ Ensure the `src/core` accurately models the data coming from the LangGraph backe
 
 #### Implementation Steps
 1. **Schema Definitions**:
-   - In `frontend/src/core/types/api.ts`, define `export interface Job { id: string, title: string, company_name: string, description: string ... }` based on the FastAPI `JobModel`.
+   - In `frontend/src/core/types/api.ts`, define `export interface Job { title: string, company: string, location: string, salary: string | null, description: string, apply_link: string }` based strictly on the FastAPI `JobListing` schema. Note that there is no `id` field provided by the backend.
 2. **Update Store Response**:
    - Modify the `useChatStore`'s `sendMessage` action to properly unpack `response.jobs` and dispatch it to a new specialized store `useJobStore.ts` in `src/core/store`.
 
@@ -25,7 +25,8 @@ Translate the HTML `<div class="job-card">` from Stitch into a React component.
 #### Implementation Steps
 1. **Create Component**: Create `frontend/src/components/JobCard.tsx`.
 2. **Tailwind Styling**: Recreate the visual hierarchy (background colors, rounded borders, typography) using Next.js and Tailwind.
-3. **Data Binding**: Map the strictly-typed `Job` prop to the visual UI elements. Write a small helper to iterate over `job.tags` and render them as styled pill badges.
+3. **Data Binding**: Map the strictly-typed `Job` prop to the visual UI elements. Conditionally render Pill Badges for `job.location` and `job.salary` (if it exists).
+4. **Link Wiring**: Use the Next.js `<Link>` component or a standard `<a>` tag pointed to `job.apply_link`.
 
 ### Ticket 2.3: Deck Layout & State Hydration
 
@@ -38,10 +39,14 @@ Populate the Right Pane mapped out in Sprint 1 with the actual job data driven b
 2. **Consume State**:
    - Import the jobs array via `const jobs = useJobStore(state => state.jobs)`.
 3. **Render**:
-   - Map over the array, rendering `JobCard` components. Ensure the container has independent vertical scrolling (`overflow-y-auto`).
+   - When `jobs.length === 0`, render a visually pleasing "Empty State" component (e.g., a faded icon and text encouraging the user to chat with the agent).
+   - Otherwise, map over the array, rendering `JobCard` components. Since there is no `id` field from the backend, use a composite key for the React elements (e.g., `key={`${job.company}-${job.title}`}`). Ensure the container has independent vertical scrolling (`overflow-y-auto`).
 
 #### Acceptance Criteria
 - When a user asks for jobs in the Next.js frontend, the backend processes it, the Zustand store catches the JSON, and the `DiscoveryDeck` perfectly populates with styled job cards representing real Adzuna data. The chat feed simultaneously updates on the left.
+- Before searching, the Deck displays a clear "Empty State" message instead of a buggy broken UI.
+- The React key mapping correctly relies on a composite string (e.g. `company + title`) and does not crash, as `id` injection is specifically deferred to Sprint 3.
+- `JobCard` pills map strictly to `location` and `salary`, not arbitrary tags.
 
 ---
 
@@ -54,11 +59,14 @@ Ensure the `JobCard` accurately renders domain models, and the `useJobStore` eff
 1. **Zustand Logic Tests (`Vitest`)**:
    - Create `src/core/store/useJobStore.test.ts`.
    - Verify the store initializes with an empty jobs array.
-   - Verify that when the store receives a standard `["job1", "job2"]` payload, it correctly maps and sets them in state.
+   - Verify that when the store receives a standard `[Job, Job]` payload, it correctly maps and sets them in state.
 2. **JobCard Component Tests (`RTL`)**:
    - Create `src/components/JobCard.test.tsx`.
-   - Mock a backend `Job` object (with fake title, salary, and tags).
-   - Verify the `JobCard` visually renders the title text, the exact salary string, and maps 3 tags to 3 distinct DOM pill elements.
+   - Mock a backend `Job` object (with fake title, company, location, and salary).
+   - Verify the `JobCard` visually renders the title text, the exact salary string, and maps `location` and `salary` to 2 distinct DOM pill elements.
+3. **DiscoveryDeck Tests (`RTL`)**:
+   - Create `src/components/DiscoveryDeck.test.tsx`.
+   - Toggle the mock Zustand state to return 0 jobs, and verify the the "Empty State" string renders. Toggle it to return 2 dummy jobs, and verify 2 `JobCard` components render.
 
 #### Acceptance Criteria
 - Running `npm run test` executes logic vs. component tests cleanly and coverage remains >80%.
@@ -71,7 +79,7 @@ To definitively prove Sprint 2 is complete, manually test the integration betwee
 
 1. **Live System Test**:
    - Ensure the FastAPI backend is running with a valid `ADZUNA_APP_ID`.
-   - Open `http://localhost:3000`. The Right Pane (`DiscoveryDeck`) should be completely blank.
+   - Open `http://localhost:3000`. The Right Pane (`DiscoveryDeck`) should display the new "Empty State" placeholder visually centered.
    - Run a prompt in the Next.js input: "Show me Python Software Engineering jobs, preferably remote."
 
 2. **Simultaneous UI Hydration**:

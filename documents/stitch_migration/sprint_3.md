@@ -8,15 +8,17 @@
 
 ## Detailed Ticket Breakdown
 
-### Ticket 3.1: The Webhook Route (`routes.py`)
+### Ticket 3.1: Backend Schema Evolution (`schemas.py` & `routes.py`)
 
 #### Overview
-Before wiring the frontend, the FastAPI backend needs an endpoint to receive the learning feedback.
+To facilitate the interactivity loop and accurately track preferences, the backend must uniquely identify parsed jobs, and the Chat endpoint must return the user's current learned preferences on every cycle.
 
 #### Implementation Steps
-1. **The Webhook Route**:
-   - Define `class JobFeedbackRequest(BaseModel): job_id: str; company: str; title: str; action: Literal["pass", "pursue"]; reason: str`.
-   - Create `@router.post("/api/feedback")` that extracts these values, constructs a `Preference` model, updates the LangGraph memory store natively, and returns the newly updated master preferences array.
+1. **Job ID Tracking**:
+   - In `app/agent/schemas.py`, update `JobListing` to include `id: str = Field(..., description="Unique ID for this job listing")`. Ensure the Adzuna search nodes correctly populate this.
+2. **Preference Hydration**:
+   - In `app/api/routes.py`, refactor the `POST /api/chat` response to include a fourth key: `preferences: List[dict]`.
+   - Modify `chat_endpoint` to execute `store.search(("default_user", "preferences"))` alongside the LangGraph invocation, appending the retrieved `Preference` Pydantic models to the final JSON return payload.
 
 ### Ticket 3.2: Zustand Feedback Action
 
@@ -25,12 +27,14 @@ Implement the orchestration logic purely inside the `src/core/` boundary.
 
 #### Implementation Steps
 1. **Zustand Action**:
-   - Inside `src/core/store/useJobStore.ts`, create an action: `submitFeedback(jobId, actionType)`.
+   - Inside `src/core/store/useJobStore.ts`, create an action: `submitFeedback(job: Job, actionType: 'pass' | 'pursue')`.
 2. **Optimistic UI**:
-   - Within this action, synchronously filter the active `jobs` array to remove `jobId`, causing Next.js to immediately unmount the `JobCard`.
-3. **API Orchestration**:
-   - Execute an async `fetch('/api/feedback', ...)` with the correct feedback payload.
-   - Upon receiving the JSON response of updated preferences, write that array to a new Zustand state slice (e.g., `usePreferenceStore.ts`).
+   - Within this action, synchronously filter the active `jobs` array to remove `job.id`, causing Next.js to immediately unmount the `JobCard`.
+3. **Synthetic Chat Invocation**:
+   - We do *not* use a webhook. Instead, we rely on the Agent's existing `save_preference` tool.
+   - Within `submitFeedback`, execute `useChatStore.getState().sendMessage(syntheticPrompt, true)`.
+   - The `syntheticPrompt` should be a structured string like: `[SYSTEM_FEEDBACK]: The user clicked {actionType.toUpperCase()} on the job {job.title} at {job.company}. Do not suggest similar jobs. If it's obvious why, use save_preference to filter future searches. If not, briefly ask them why.` The second parameter `true` should instruct the UI to hide this message from the user's visible chat feed.
+   - When the `/api/chat` fetch resolves, grab the newly appended `response.preferences` array and write it to `usePreferenceStore.ts`.
 
 ### Ticket 3.3: Pass/Pursue UI & The Reactive Pulse Banner
 
@@ -43,10 +47,13 @@ Wire the UI interactions in Next.js back to the newly created core logic.
 2. **The Pulse Banner**:
    - Create `frontend/src/components/PulseBanner.tsx`.
    - Consume the state natively: `const preferences = usePreferenceStore((state) => state.preferences)`.
-   - Render these preferences (e.g., "Excluding: Django") as small styled badges at the top of the `DiscoveryDeck`.
+   - Render these preferences (e.g., "Excluding: Django") as small styled badges at the top of the `DiscoveryDeck`. Ensure it only renders if `preferences.length > 0`.
 
 #### Acceptance Criteria
-- Clicking "Pass" gracefully hides a `JobCard`. The core package successfully updates the Python memory store. A split second later, the Next.js `PulseBanner` naturally re-renders pulling from the centralized Zustand state, showing the Agent learned the new restriction.
+- Clicking "Pass" gracefully hides a `JobCard`.
+- The Zustand store successfully dispatches a hidden synthetic message to `/api/chat`.
+- The backend LangGraph agent processes the context, potentially invokes `save_preference`, and returns the updated `preferences` array.
+- The `PulseBanner` naturally renders the new restriction badge from the Zustand state.
 
 ---
 
@@ -58,7 +65,7 @@ Ensure the Zustand feedback store correctly intercepts UI actions, mutates state
 #### Implementation Steps
 1. **Zustand Logic Tests (`Vitest`)**:
    - Create `src/core/store/useFeedbackStore.test.ts`.
-   - Test the `submitFeedback` action. Mock the `fetch`/API call. Verify that calling `submitFeedback(jobId, 'pass')` correctly updates the optimistic jobs array and triggers the mock `fetch`.
+   - Test the `submitFeedback` action. Verify that calling `submitFeedback(job, 'pass')` correctly updates the optimistic jobs array and triggers the mocked `sendMessage` on the chat store with the required hidden `[SYSTEM_FEEDBACK]` string.
 2. **PulseBanner Component Tests (`RTL`)**:
    - Create `src/components/PulseBanner.test.tsx`.
    - Mock the `usePreferenceStore` to simulate the backend having learned 2 exclusions.
@@ -83,11 +90,12 @@ To definitively prove Sprint 3 (and the complete core MVP) is finished, execute 
    - Verify that specific card instantly unmounts from the UI stack and the next card taking its place.
 
 3. **Pulse Banner Hydration**:
-   - Wait 1-2 seconds for the `/api/feedback` webhook to complete in the background.
-   - Verify the `PulseBanner` elegantly appears/slides down at the top of the `DiscoveryDeck`.
-   - Verify it accurately states what the AI just learned (e.g., "Excluding: This particular company/tech").
+   - Wait for the synthetic `/api/chat` request to complete in the background (you may see a loading indicator).
+   - Verify the agent naturally replies in the chat feed (e.g., "I saw you passed on X, why was that?").
+   - Verify the `PulseBanner` elegantly appears/slides down at the top of the `DiscoveryDeck` once the agent invokes `save_preference`.
+   - Verify it accurately states what the AI just learned.
 
 4. **Network Verification**:
    - Open Chrome DevTools -> Network Tab.
-   - As you click Pass or Pursue on the cards, verify that a `POST /api/feedback` request is being dispatched to the FastAPI backend containing the correct JSON payload (`job_id`, `action`).
-   - Verify this network request does not block the UI or cause the Next.js page to freeze while the backend processes the LangGraph update.
+   - As you click Pass or Pursue on the cards, verify that a `POST /api/chat` request is being dispatched to the FastAPI backend containing the synthetic `[SYSTEM_FEEDBACK]` message payload.
+   - Verify that when the response returns, the `preferences` JSON array contains updated LangGraph constraints, proving the AI tooling correctly fired.

@@ -31,20 +31,29 @@ The FastAPI `/chat` endpoint previously relied on HTMX Form data. We need to mod
 #### Implementation Steps
 1. **Configure CORS (`app/main.py`)**:
    - Add `CORSMiddleware` to allow requests from the Next.js dev server (usually `http://localhost:3000`).
-2. **Update Request Parsing (`app/api/routes.py`)**:
+2. **Update Request Parsing & Prefix (`app/api/routes.py`)**:
+   - Move all endpoints under the `/api` prefix (e.g., `@router.post("/api/chat")`, `@router.post("/api/upload-cv")`, `@router.get("/api/history")`).
    - Create a Pydantic model: `class ChatRequest(BaseModel): message: str`.
    - Modify `chat_endpoint` to accept JSON instead of `Form(...)`.
 3. **Update Response Format**:
-   - Return directly JSON: `{"user_message": "...", "ai_message": "...", "jobs": [...]}` instead of Jinja HTML for the `POST /chat` endpoint.
-4. **CV Upload Endpoint (`POST /upload-cv`)**:
+   - Return directly JSON: `{"user_message": "...", "ai_message": "...", "jobs": [...]}` instead of Jinja HTML for the `POST /api/chat` endpoint.
+   - **Error Handling (Soft Degradation)**: When `try/except` catches an error in `/api/chat` or `/api/upload-cv`, do NOT return HTML strings like `<p class='text-red-500'>Error</p>`. Instead, return a standard 200 OK JSON response where the `ai_message` contains a Markdown-formatted error string (e.g., `f"**System Error**: {str(e)}"`). This ensures the frontend Zustand store always receives a consistent `{user_message, ai_message, jobs}` contract, even during failures.
+4. **CV Upload Endpoint (`POST /api/upload-cv`)**:
    - Refactor `upload_cv` to return identical JSON instead of Jinja HTML. It continues to accept `multipart/form-data` for the file.
 5. **History Endpoint**:
-   - Refactor the existing `GET /` endpoint in `app/api/routes.py` (which currently serves `index.html`) to instead return the array from `await chat_service.get_history()` as pure JSON. We don't need a brand new endpoint since Next.js will be handling the HTML delivery from now on.
+   - Refactor the existing history endpoint (serving `index.html`) to instead be `GET /api/history` returning the array from `await chat_service.get_history()` as pure JSON. We don't need a brand new root endpoint since Next.js will be handling the HTML delivery from now on.
+6. **Code Cleanup (Crucial)**:
+   - Delete the entire `app/templates` directory (HTMX views are no longer needed).
+   - Remove Jinja2 dependencies and static file mounts from `app/main.py`.
+   - Update tests in `tests/` that expect HTML responses to now expect JSON. Remove any tests strictly bound to Jinja rendering.
 
 #### Acceptance Criteria
-- Sending a POST request to `/chat` with JSON via `curl` returns the correct JSON payload.
-- Sending a POST request to `/upload-cv` with a file returns the correct JSON payload.
-- Sending a GET request to `/` returns a JSON array of past messages.
+- Sending a POST request to `/api/chat` with JSON via `curl` returns the correct JSON payload.
+- Sending a POST request to `/api/upload-cv` with a file returns the correct JSON payload.
+- Sending a GET request to `/api/history` returns a JSON array of past messages.
+- Forcing an error in the backend (e.g., throwing a dummy exception in `chat_endpoint`) successfully returns a 200 OK JSON payload where `ai_message` contains the stringified Markdown error, proving HTML error strings are eradicated.
+- The `app/templates` directory is completely removed from the project.
+- Tests pass asserting JSON structure instead of HTML strings.
 
 ---
 
@@ -54,16 +63,18 @@ The FastAPI `/chat` endpoint previously relied on HTMX Form data. We need to mod
 Build the pure Zustand store inside `frontend/src/core/` and integrate it into a bare-bones Next.js screen.
 
 #### Implementation Steps
-1. **Core Store (`frontend/src/core/store/`)**:
+1. **Proxy Configuration (CRITICAL)**:
+   - In `frontend/next.config.ts`, add a rewrite rule mapping `/api/:path*` to `http://localhost:8000/api/:path*`. This prevents all CORS and port-mapping issues by making the backend accessible directly through the Next.js dev server port (3000).
+2. **Core Store (`frontend/src/core/store/`)**:
    - Install `zustand`.
    - Create `useChatStore.ts`. Define state for `messages`.
-   - Add a `sendMessage(text: string)` action that executes a JSON `fetch` to `/chat` and appends the JSON response.
-   - Add an `uploadCV(file: File)` action that builds a `FormData` object, executes a `fetch` to `/upload-cv`, and appends the JSON response.
-   - Add a `fetchHistory()` action that fetches from the refactored `GET /` to initialize the store.
-2. **Next.js Integration (`frontend/src/app/`)**:
+   - Add a `sendMessage(text: string)` action that executes a standard relative JSON `fetch('/api/chat')` and appends the JSON response.
+   - Add an `uploadCV(file: File)` action that builds a `FormData` object, executes a `fetch('/api/upload-cv')`, and appends the JSON response. **CRITICAL:** Do NOT manually set the `Content-Type: multipart/form-data` header when sending `FormData` via JS `fetch`; let the browser set it automatically to handle boundaries.
+   - Add a `fetchHistory()` action that fetches from the refactored `GET /api/history` to initialize the store.
+3. **Next.js Integration (`frontend/src/app/`)**:
    - In `app/page.tsx`, import `useChatStore` and leverage `useEffect` to call the `fetchHistory()` action on component mount.
    - Render a simple bare-bones HTML `<input type="text">`, an `<input type="file">`, and a mapped list of messages from the store.
-3. **Trigger Logic**:
+4. **Trigger Logic**:
    - When the send button or file upload is triggered, it calls the respective Zustand action (`sendMessage` or `uploadCV`). It does not handle fetch logic itself.
 
 #### Acceptance Criteria
@@ -122,13 +133,13 @@ To definitively prove Sprint 0 is complete before moving to styling in Sprint 1,
    - Open `http://localhost:3000`. Verify the page loads cleanly with no console errors and displays a basic unstyled input bar.
 
 2. **History Hydration Test**:
-   - Open the old standard `http://localhost:8000` to verify there is existing chat history in the database.
-   - Refresh the Next.js app (`http://localhost:3000`). Verify that the exact same chat history appears in the unstyled list immediately on page load, proving the `GET /` JSON refactor and the `fetchHistory()` Zustand action work.
+   - Refresh the Next.js app (`http://localhost:3000`). Verify that the exact same chat history appears in the unstyled list immediately on page load, proving the `GET /api/history` JSON refactor and the `fetchHistory()` Zustand action work.
+     Note: Since we use rewrites, the browser connects to `3000/api/history`, which proxy-routes to `8000/api/history`.
 
 3. **Live Chat Flow Test**:
    - Type a prompt (e.g., "Hello Agent") into the Next.js unstyled input and click send.
    - Verify the user's message appears instantly (optimistic UI).
-   - Verify that 2-5 seconds later, the AI's response appears below it, proving the pure JSON JSON API connection `/chat` and Zustand `sendMessage` action are fully wired.
+   - Verify that 2-5 seconds later, the AI's response appears below it, proving the pure JSON API connection `/api/chat` and Zustand `sendMessage` action are fully wired through the proxy.
 
 4. **CV Upload Flow Test**:
    - Use the unstyled file input to upload a dummy PDF.
