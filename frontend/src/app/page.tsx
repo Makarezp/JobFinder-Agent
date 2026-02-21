@@ -1,13 +1,11 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useChatStore } from "../core/store/useChatStore";
+import CommandCenter from "../components/CommandCenter";
 
 export default function Home() {
-  const { messages, isPending, fetchHistory, sendMessage, uploadCV } =
-    useChatStore();
-  const [inputText, setInputText] = useState("");
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { messages, isPending, fetchHistory } = useChatStore();
   const [isMounted, setIsMounted] = useState(false);
 
   // Hydrate history on mount and avoid SSR hydration mismatch
@@ -24,22 +22,6 @@ export default function Home() {
       </main>
     );
   }
-
-  const handleSend = () => {
-    if (!inputText.trim() || isPending) return;
-    sendMessage(inputText);
-    setInputText("");
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || isPending) return;
-    uploadCV(file);
-    // Reset input
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-  };
 
   return (
     <main className="flex-1 flex overflow-hidden relative">
@@ -90,36 +72,8 @@ export default function Home() {
           )}
         </div>
 
-        <div className="p-4 border-t border-glass-border bg-surface-dark/95 backdrop-blur-xl">
-          <div className="flex flex-col gap-2">
-            <input
-              type="text"
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSend()}
-              disabled={isPending}
-              placeholder="Ask Navigator..."
-              className="px-3 py-2 bg-background-dark/50 border border-glass-border rounded text-white"
-            />
-            <div className="flex gap-2">
-              <button
-                onClick={handleSend}
-                disabled={isPending || !inputText.trim()}
-                className="flex-1 bg-primary text-white py-2 rounded hover:bg-primary-hover disabled:opacity-50"
-              >
-                Send
-              </button>
-              <input
-                type="file"
-                accept="application/pdf"
-                onChange={handleFileChange}
-                disabled={isPending}
-                ref={fileInputRef}
-                className="text-xs w-48"
-              />
-            </div>
-          </div>
-        </div>
+        {/* Premium Command Center Component */}
+        <CommandCenter />
       </aside>
 
       {/* Right Pane: Discovery Deck Wrapper */}
