@@ -61,7 +61,7 @@ The FastAPI `/chat` endpoint previously relied on HTMX Form data. We need to mod
 
 ---
 
-### Ticket 0.3: The Zustand Chat Logic & Next.js UI
+### Ticket 0.3: The Zustand Chat Logic & Next.js UI ✅ DONE
 
 #### Overview
 Build the pure Zustand store inside `frontend/src/core/` and integrate it into a bare-bones Next.js screen.
