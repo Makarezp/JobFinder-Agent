@@ -6,7 +6,7 @@
 
 ## Detailed Ticket Breakdown
 
-### Ticket 0.1: Next.js Initialization
+### Ticket 0.1: Next.js Initialization ✅ DONE
 
 #### Overview
 Set up the standard Next.js directory at exactly `frontend/` (the root of all frontend code).
@@ -18,12 +18,13 @@ Set up the standard Next.js directory at exactly `frontend/` (the root of all fr
    - Inside `frontend/src/`, create a `core/` folder to serve as the strict boundary for business logic (subfolders: `api/`, `store/`, `types/`).
 
 #### Acceptance Criteria
-- Running `npm run dev` inside `frontend/` loads the default Next.js starter page.
-- The directory `frontend/src/core/` exists.
+- ✅ Running `npm run dev` inside `frontend/` loads the Next.js starter page (blank page after cleanup).
+- ✅ The directory `frontend/src/core/{api,store,types}` exists.
+- ✅ Committed: `e443d69 feat: add next frontend`
 
 ---
 
-### Ticket 0.2: Backend API & JSON Refactoring
+### Ticket 0.2: Backend API & JSON Refactoring ✅ DONE
 
 #### Overview
 The FastAPI `/chat` endpoint previously relied on HTMX Form data. We need to modernize this to a standard JSON REST API.
@@ -48,12 +49,15 @@ The FastAPI `/chat` endpoint previously relied on HTMX Form data. We need to mod
    - Update tests in `tests/` that expect HTML responses to now expect JSON. Remove any tests strictly bound to Jinja rendering.
 
 #### Acceptance Criteria
-- Sending a POST request to `/api/chat` with JSON via `curl` returns the correct JSON payload.
-- Sending a POST request to `/api/upload-cv` with a file returns the correct JSON payload.
-- Sending a GET request to `/api/history` returns a JSON array of past messages.
-- Forcing an error in the backend (e.g., throwing a dummy exception in `chat_endpoint`) successfully returns a 200 OK JSON payload where `ai_message` contains the stringified Markdown error, proving HTML error strings are eradicated.
-- The `app/templates` directory is completely removed from the project.
-- Tests pass asserting JSON structure instead of HTML strings.
+- ✅ `POST /api/chat` with JSON returns `{user_message, ai_message, jobs}`.
+- ✅ `POST /api/upload-cv` with multipart file returns JSON.
+- ✅ `GET /api/history` returns a JSON array.
+- ✅ `GET /api/profile` returns JSON (profile + preferences).
+- ✅ Backend errors return `200 OK` with `**System Error**: ...` in `ai_message`.
+- ✅ `app/templates/` deleted entirely.
+- ✅ All tests updated to assert JSON structure. `jinja2`/`markdown` removed from deps.
+- ✅ `app/api/schemas.py` created for `ChatRequest` model.
+- ✅ Committed: `07bb212 feat: modify api for return json`
 
 ---
 
