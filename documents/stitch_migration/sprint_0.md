@@ -6,7 +6,7 @@
 
 ## Detailed Ticket Breakdown
 
-### Ticket 0.1: Next.js Initialization
+### Ticket 0.1: Next.js Initialization ✅ DONE
 
 #### Overview
 Set up the standard Next.js directory at exactly `frontend/` (the root of all frontend code).
@@ -18,8 +18,9 @@ Set up the standard Next.js directory at exactly `frontend/` (the root of all fr
    - Inside `frontend/src/`, create a `core/` folder to serve as the strict boundary for business logic (subfolders: `api/`, `store/`, `types/`).
 
 #### Acceptance Criteria
-- Running `npm run dev` inside `frontend/` loads the default Next.js starter page.
-- The directory `frontend/src/core/` exists.
+- ✅ Running `npm run dev` inside `frontend/` loads the Next.js starter page (blank page after cleanup).
+- ✅ The directory `frontend/src/core/{api,store,types}` exists.
+- ✅ Committed: `e443d69 feat: add next frontend`
 
 ---
 
