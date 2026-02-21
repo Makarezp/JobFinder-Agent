@@ -6,7 +6,7 @@
 
 ## Detailed Ticket Breakdown
 
-### Ticket 1.1: Base Layout Infrastructure
+### Ticket 1.1: Base Layout Infrastructure ✅ DONE
 
 #### Overview
 Extract the global "shell" from the Stitch Design reference (`documents/stitch_migration/stitch_design.html`) and apply it to the Next.js `src/app/layout.tsx` and `src/app/page.tsx`.
