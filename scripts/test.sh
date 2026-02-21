@@ -30,6 +30,8 @@ export LANGSMITH_TRACING_V2=false
 # If no arguments are passed, it runs all tests defined in pyproject.toml
 if [ $# -eq 0 ]; then
     pytest -ra
+    echo -e "\n${BLUE}5. Running Frontend Tests (Vitest)...${NC}"
+    cd frontend && npm run test && cd ..
 else
     pytest -ra "$@"
 fi

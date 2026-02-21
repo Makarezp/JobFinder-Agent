@@ -86,7 +86,7 @@ Build the pure Zustand store inside `frontend/src/core/` and integrate it into a
 
 ---
 
-### Ticket 0.4: Frontend Testing Infrastructure
+### Ticket 0.4: Frontend Testing Infrastructure ✅ DONE
 
 #### Overview
 Set up the unit and component testing environment for the Next.js frontend to ensure high coverage and reliable refactoring from the start.
