@@ -1,59 +1,93 @@
-# Sprint 3: The Interactivity Loop (Stateful REST Updates)
-**Goal**: Implement the Feedback loop so the Agent learns from UI swipe/click interactions. React manages the fluid card expulsion animations, while sending standard JSON payloads to a FastAPI webhook to update Agent memory.
+# Sprint 3: The Interactivity Loop (Zustand Feedback Actions)
 
-*   **Ticket 3.1**: *Pass/Pursue Interactive UI.*
-    *   Add `<TouchableOpacity>` buttons to `JobCard.tsx` (and prepare for future Swiping logic).
-    *   Create a REST route `/api/feedback` in `routes.py`.
-*   **Ticket 3.2**: *Memory Integration.*
-    *   Update `ChatService` to accept this JSON feedback and inject it into the LangGraph state.
-*   **Ticket 3.3**: *The Reactive Pulse Banner.*
-    *   Create `components/PulseBanner.tsx`.
-    *   When the `/api/feedback` `fetch` returns successfully, update the global React state so the Pulse Banner re-renders instantly with the new user preferences.
+(in progress do not implement, needs more refinment)
 
-*   **Definition of Done (DoD)**: A user clicks "Pass" on a `JobCard`. The card gracefully animates off the screen (local state update). A background fetch sends the data to `/api/feedback`, updating the memory store. React receives the new preferences JSON and immediately reflects the new constraint in the `PulseBanner` component.
+**Goal**: Implement the core "Tinder for Jobs" learning loop. Actioning a card in the Next.js UI executes logic entirely within the `src/core/store` Zustand store, which handles the optimistic UI removal and the POST webhook to FastAPI.
 
 ---
 
 ## Detailed Ticket Breakdown
 
-### Ticket 3.1: Pass/Pursue UI & The Webhook
+### Ticket 3.1: The Webhook Route (`routes.py`)
 
 #### Overview
-Make the React Native job cards interactive. Clicking "Pass" sends a strict JSON feedback loop to FastAPI.
+Before wiring the frontend, the FastAPI backend needs an endpoint to receive the learning feedback.
+
+#### Implementation Steps
+1. **The Webhook Route**:
+   - Define `class JobFeedbackRequest(BaseModel): job_id: str; company: str; title: str; action: Literal["pass", "pursue"]; reason: str`.
+   - Create `@router.post("/api/feedback")` that extracts these values, constructs a `Preference` model, updates the LangGraph memory store natively, and returns the newly updated master preferences array.
+
+### Ticket 3.2: Zustand Feedback Action
+
+#### Overview
+Implement the orchestration logic purely inside the `src/core/` boundary.
+
+#### Implementation Steps
+1. **Zustand Action**:
+   - Inside `src/core/store/useJobStore.ts`, create an action: `submitFeedback(jobId, actionType)`.
+2. **Optimistic UI**:
+   - Within this action, synchronously filter the active `jobs` array to remove `jobId`, causing Next.js to immediately unmount the `JobCard`.
+3. **API Orchestration**:
+   - Execute an async `fetch('/api/feedback', ...)` with the correct feedback payload.
+   - Upon receiving the JSON response of updated preferences, write that array to a new Zustand state slice (e.g., `usePreferenceStore.ts`).
+
+### Ticket 3.3: Pass/Pursue UI & The Reactive Pulse Banner
+
+#### Overview
+Wire the UI interactions in Next.js back to the newly created core logic.
 
 #### Implementation Steps
 1. **Interactive Elements**:
-   - In `JobCard.tsx`, add `<TouchableOpacity>` elements for "Pass" (red) and "Pursue" (indigo).
-   - Add an `onPress={handlePass}` handler.
-2. **Local UI State Expulsion**:
-   - Immediately filter the `deckJobs` array in the parent state: `setDeckJobs(prev => prev.filter(j => j.id !== job.id))`.
-3. **The Webhook Route (`routes.py`)**:
-   - Define a Pydantic model: `class JobFeedbackRequest(BaseModel): job_id: str; company: str; title: str; action: Literal["pass", "pursue"]; reason: str`.
-   - Create a REST endpoint: `@router.post("/api/feedback")` that accepts `JobFeedbackRequest` and `StoreDep`.
+   - In `frontend/src/components/JobCard.tsx`, wire the "Pass" and "Pursue" buttons directly to `submitFeedback`.
+2. **The Pulse Banner**:
+   - Create `frontend/src/components/PulseBanner.tsx`.
+   - Consume the state natively: `const preferences = usePreferenceStore((state) => state.preferences)`.
+   - Render these preferences (e.g., "Excluding: Django") as small styled badges at the top of the `DiscoveryDeck`.
 
-### Ticket 3.2: Native Memory Integration
+#### Acceptance Criteria
+- Clicking "Pass" gracefully hides a `JobCard`. The core package successfully updates the Python memory store. A split second later, the Next.js `PulseBanner` naturally re-renders pulling from the centralized Zustand state, showing the Agent learned the new restriction.
 
-#### Overview
-We need to map the JSON REST payload directly into the `BaseStore` inside the LangGraph infrastructure so that future queries exclude or target these constraints.
+---
 
-#### Implementation Steps
-1. **Model Instantiation**:
-   - Inside the `/api/feedback` endpoint, take the `JobFeedbackRequest` values and construct an `app.agent.memory_schema.Preference` model. For example, if action is "pass", set `avoid=True` and summarize the reason.
-2. **Update Store**:
-   - Execute an asynchronous put command: `await store.aput((DEFAULT_USER_ID, "preferences", str(uuid.uuid4())), "data", pref.model_dump())`
-3. **Return Context**:
-   - Immediately run an `await store.asearch((DEFAULT_USER_ID, "preferences"))` to fetch the complete updated list of preferences and return it as the JSON response to the `fetch` call.
-
-### Ticket 3.3: The Reactive Pulse Banner
+### Ticket 3.4: Logic Integration Testing
 
 #### Overview
-Users need visual reassurance that the Agent is successfully learning. We replace HTMX OOB swaps with pure React reactivity.
+Ensure the Zustand feedback store correctly intercepts UI actions, mutates state optimistically, and triggers API side effects cleanly.
 
 #### Implementation Steps
-1. **Create the Component**: Create `frontend/components/PulseBanner.tsx`. It displays horizontal pills or text (e.g., "Excluding: Django").
-2. **Global State Context**:
-   - Introduce a `const [preferences, setPreferences] = useState([])` alongside the jobs data.
-3. **Feedback Response Handling**:
-   - When the `fetch` POST to `/api/feedback` succeeds, the FastAPI backend should return the newly updated user preferences list.
-   - React takes this response (`const newPrefs = await response.json()`) and calls `setPreferences(newPrefs)`.
-   - Since `PulseBanner` receives `preferences` as a prop/context, it seamlessly re-renders the new banner tag globally.
+1. **Zustand Logic Tests (`Vitest`)**:
+   - Create `src/core/store/useFeedbackStore.test.ts`.
+   - Test the `submitFeedback` action. Mock the `fetch`/API call. Verify that calling `submitFeedback(jobId, 'pass')` correctly updates the optimistic jobs array and triggers the mock `fetch`.
+2. **PulseBanner Component Tests (`RTL`)**:
+   - Create `src/components/PulseBanner.test.tsx`.
+   - Mock the `usePreferenceStore` to simulate the backend having learned 2 exclusions.
+   - Verify the `PulseBanner` component visually renders the 2 distinct restriction badges.
+
+#### Acceptance Criteria
+- Tests ensure the UI buttons for interaction are correctly wired to both state updates and network requests without brittle logic.
+
+---
+
+## Manual Verification (End of Sprint 3)
+
+To definitively prove Sprint 3 (and the complete core MVP) is finished, execute an end-to-end "Tinder for Jobs" graphical session:
+
+1. **Initial Population**:
+   - Open `http://localhost:3000`.
+   - Ask the AI for "Remote junior Node.js jobs". Wait for the `DiscoveryDeck` to populate with results.
+
+2. **Interaction Flow**:
+   - On the top `JobCard`, hover over the "Pass" (X) button. Ensure the interaction ring/color changes.
+   - Click the "Pass" button.
+   - Verify that specific card instantly unmounts from the UI stack and the next card taking its place.
+
+3. **Pulse Banner Hydration**:
+   - Wait 1-2 seconds for the `/api/feedback` webhook to complete in the background.
+   - Verify the `PulseBanner` elegantly appears/slides down at the top of the `DiscoveryDeck`.
+   - Verify it accurately states what the AI just learned (e.g., "Excluding: This particular company/tech").
+
+4. **Network Verification**:
+   - Open Chrome DevTools -> Network Tab.
+   - As you click Pass or Pursue on the cards, verify that a `POST /api/feedback` request is being dispatched to the FastAPI backend containing the correct JSON payload (`job_id`, `action`).
+   - Verify this network request does not block the UI or cause the Next.js page to freeze while the backend processes the LangGraph update.

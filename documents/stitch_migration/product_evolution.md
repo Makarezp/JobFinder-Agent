@@ -1,41 +1,29 @@
-# Product Evolution Strategy: CVviewer
+# Product Evolution Strategy: CVviewer Web (Next.js)
 
 ## 1. The Learning Loop
 Visualizing and using "What I've Learned" in real-time.
 
-*   **The "Advisory Pulse" Widget**: Instead of hiding preferences in a separate profile page, we inject a small `PulseBanner` component above the job results: *"Searching for Python roles, excluding 'Legacy Code', prioritizing 'Remote' because of our last chat."*
-*   **Feedback Integration**: Every `JobCard` (Sprint 3) has an explicit "Pass" or "Pursue" action. When a user clicks "Pass", the card is instantly removed from local React state and a background `fetch` call fires to `/api/feedback`, asking the LangGraph backend to learn the preference.
-*   **Code Implementation**: In `app/api/routes.py`, the `/api/feedback` endpoint accepts a `JobFeedbackRequest` Pydantic model and writes a `Preference` entry into the `AsyncPostgresStore`. The `MemoryStore` re-weights future Adzuna API parameters on the next query.
+*   **The "Advisory Pulse" Widget**: Instead of hiding preferences in a separate profile page, we inject a small `PulseBanner` component above the job results. It reads directly from a global Zustand store in the `src/core/store` directory.
+*   **Feedback Integration**: Every `JobCard` has an explicit "Pass" or "Pursue" action. When "Pass" is clicked, the Zustand `useJobStore` instantly removes the card from local state and orchestrates a background API call to `/api/feedback`.
+*   **Code Implementation**: The `src/core/api` folder handles the API client logic, completely decoupled from the Next.js UI tier.
 
-## 2. Interactivity & Screens: The React Native MVP Flow
-The UI is structured around five distinct functional panels, each a React Native component managed by local state (no page reloads):
+## 2. Interactivity & Screens: The Next.js UI Flow
+The Next.js UI is structured around distinct functional panels, each consuming specific slices of the Zustand store:
 
-1.  **`CommandCenter` (The Chat Input)**: A persistent `<TextInput>` bar at the bottom. Sends JSON to `/chat` via `fetch`. Stays static while updating other panels.
-2.  **`AdvisoryFeed` (The Agent's Voice)**: A `<FlatList>` of `ChatMessage` components scrolling the agent's explanations — *why* it found certain jobs, clarifying questions, and pivot justifications.
-3.  **`DiscoveryDeck` (The Job Cards)**: A `<FlatList>` of `JobCard` components. When the `/chat` response includes `"jobs": [...]`, the parent `index.tsx` calls `setDeckJobs(data.jobs)`, re-rendering this panel independently from the chat feed.
-4.  **`PulseBanner` (Memory Drawer)**: A slim banner component at the top of the Deck whose props are driven by a global `preferences` state. Whenever `/api/feedback` returns the updated preference list, `setPreferences(newPrefs)` triggers an instant re-render.
-5.  **`DeepDiveModal` (Detail View)**: When the user requests full scrape detail on a job, this modal overlay renders the result. Managed by a `const [activeJob, setActiveJob] = useState(null)` controlled by the parent screen.
+1.  **`CommandCenter` (The Chat Input)**: A persistent bar at the bottom. Triggers the `sendMessage` action in the Zustand store.
+2.  **`AdvisoryFeed` (The Agent's Voice)**: Consumes the message history from `useChatStore` to render conversational explanations.
+3.  **`DiscoveryDeck` (The Job Cards)**: Consumes the active jobs array from `useJobStore`. Re-renders independently from the chat feed when new jobs arrive via JSON.
+4.  **`PulseBanner` (Memory Drawer)**: Consumes the preferences array from the core store. Automatically responds when the feedback webhook returns updated learning variables.
 
 ## 3. Agent Organization: Searching vs. Advising
-In `app/agent/graph.py`, we need two distinct conceptual gears:
+In the Python backend `app/agent/graph.py`, we maintain two gears:
 
-*   **The Executor (Searching)**: Highly constrained to `app/tools/adzuna_api.py`. It takes structured parameters, fetches results, and returns raw data as part of the `final_answer` tool call.
-*   **The Navigator (Advising)**: A routing layer in the LangGraph. Before returning jobs, the Navigator node evaluates the raw Adzuna results against the `MemoryStore`. If it detects a mismatch or pivot opportunity, it injects a conversational message into the `ai_message` of the JSON response alongside the jobs.
+*   **The Executor (Searching)**: Highly constrained to `app/tools/adzuna_api.py`.
+*   **The Navigator (Advising)**: A routing layer in LangGraph that evaluates raw results against the `MemoryStore` and injects narrative explanations into the `ai_message` alongside the JSON jobs array.
 
-## 4. Universal Discovery: CV as the Entry Point
-The CV provides the baseline vector, but the agent must challenge it.
+## 4. UI/UX Design System: Stitch Integration
+*   The premium visual layout designed by Stitch (with its dark-themed indigo accents) will be implemented using TailwindCSS in the `frontend` Next.js project.
+*   The Left Pane (60%) will house the `AdvisoryFeed`, and the Right Pane (40%) will house the `DiscoveryDeck`. The Next.js framework will easily handle the responsive flexbox layouts provided by the Stitch prototypes.
 
-*   **The "Out-of-CV" Justification**: If the user's CV says "Backend Engineer" but recent preferences suggest interest in "AI Agents", the agent periodically injects a wildcard job card into the `DiscoveryDeck`.
-*   **UI Execution**: A wildcard `JobCard` receives a `isWildcard` prop, rendering a special "Navigator Suggestion" badge: *"You didn't ask for this, but your Python skills translate well to this prompt engineering role."*
-*   **Graph Logic**: The Adzuna tool supports a `strict=True/False` flag. The Navigator node routinely runs a background `strict=False` search using semantic synonyms from the CV to find adjacent roles, tagging results accordingly.
-
-## 5. UI/UX Design System: Stitch MCP Integration
-To achieve a premium, production-ready aesthetic for the React Native Web application, CVviewer leverages the **Stitch MCP** (Model Context Protocol) server.
-
-*   **Rapid Prototyping**: Stitch MCP is used to generate high-fidelity UI screens, interactive components, and cohesive design systems via iterative LLM prompting.
-*   **The Target Layout (The "Pilot/Navigator" Dashboard)**: Stitch successfully generated the foundational layout we are migrating to. It features a dark-themed, premium aesthetic with deep violet/indigo accents (`#564be7`), utilizing a distinct two-pane split:
-    *   **Left Pane (60%)**: Houses the `AdvisoryFeed`, allowing the agent ample horizontal breathing room for detailed conversational explanations without feeling cramped.
-    *   **Right Pane (40%)**: Houses the `DiscoveryDeck`, where `JobCard` components stack vertically. This pane acts as a dedicated workspace for the tangible results of the agent's labor.
-    *   **Bottom Bar**: A unified `CommandCenter` input spans the bottom, anchoring the interface.
-*   **Visual Blueprint**: The HTML/Tailwind prototypes generated by Stitch serve as the exact visual blueprint for the React Native components implemented in the migration (particularly Sprint 1).
-*   **Aesthetic Consistency**: By translating the Stitch-generated Tailwind CSS into NativeWind, the project ensures the exact color palettes, glassmorphism effects (e.g., `backdrop-blur` on chat bubbles), and layout spacing defined by the Stitch MCP are faithfully and effortlessly reproduced in the React Native Expo environment.
+## 5. Maximum Logic Reuse (Unified Architecture)
+By strictly keeping all business logic (Zustand, types, fetch clients) inside `frontend/src/core/`, we ensure it remains 100% independent of React UI rendering. If we migrate to React Native later, the `src/core/` folder can be copied identically to the mobile app without requiring any refactoring.
