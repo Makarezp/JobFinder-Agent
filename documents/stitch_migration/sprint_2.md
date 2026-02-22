@@ -17,7 +17,7 @@ Ensure the `src/core` accurately models the data coming from the LangGraph backe
 2. **Update Store Response**:
    - Modify the `useChatStore`'s `sendMessage` action to properly unpack `response.jobs` and dispatch it to a new specialized store `useJobStore.ts` in `src/core/store`.
 
-### Ticket 2.2: Job Card Component
+### Ticket 2.2: Job Card Component ✅ DONE
 
 #### Overview
 Translate the job card design from the Stitch reference (`documents/stitch_migration/stitch_design.html`) into a React component.
