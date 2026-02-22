@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useChatStore } from "../core/store/useChatStore";
 import CommandCenter from "../components/CommandCenter";
 import AdvisoryFeed from "../components/AdvisoryFeed";
+import DiscoveryDeck from "../components/DiscoveryDeck";
 
 export default function Home() {
   const { fetchHistory } = useChatStore();
@@ -49,17 +50,8 @@ export default function Home() {
         <CommandCenter />
       </aside>
 
-      {/* Right Pane: Discovery Deck Wrapper */}
-      <section className="flex-1 flex flex-col bg-transparent z-10 relative">
-        <div className="px-8 py-6 flex flex-col">
-          <h2 className="text-2xl font-bold text-white tracking-tight">
-            Discovery Deck
-          </h2>
-          <p className="text-slate-400 text-sm mt-1">
-            Jobs will appear here shortly...
-          </p>
-        </div>
-      </section>
+      {/* Right Pane: Discovery Deck */}
+      <DiscoveryDeck />
     </main>
   );
 }

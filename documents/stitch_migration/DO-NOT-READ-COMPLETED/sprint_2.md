@@ -28,7 +28,7 @@ Translate the job card design from the Stitch reference (`documents/stitch_migra
 3. **Data Binding**: Map the strictly-typed `Job` prop to the visual UI elements. Conditionally render Pill Badges for `job.location` and `job.salary` (if it exists).
 4. **Link Wiring**: Use the Next.js `<Link>` component or a standard `<a>` tag pointed to `job.apply_link`.
 
-### Ticket 2.3: Deck Layout & State Hydration
+### Ticket 2.3: Deck Layout & State Hydration ✅ DONE
 
 #### Overview
 Populate the Right Pane mapped out in Sprint 1 with the actual job data driven by the Zustand store.
@@ -50,7 +50,7 @@ Populate the Right Pane mapped out in Sprint 1 with the actual job data driven b
 
 ---
 
-### Ticket 2.4: Component & Logic Testing
+### Ticket 2.4: Component & Logic Testing ✅ DONE
 
 #### Overview
 Ensure the `JobCard` accurately renders domain models, and the `useJobStore` effectively manages lists of jobs.
