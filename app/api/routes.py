@@ -1,19 +1,16 @@
 import logging
 import traceback
-from datetime import UTC, datetime
 from typing import Annotated
-from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
-from langgraph.store.base import BaseStore
 
 from app.agent.constants import DEFAULT_USER_ID
-from app.agent.memory_schema import DecisionLog, Preference, UserProfile
-from app.api.dependencies import get_admin_service, get_chat_service, get_store
+from app.api.dependencies import get_admin_service, get_chat_service, get_profile_service
 from app.api.schemas import ChatRequest, FeedbackRequest
 from app.services.admin_service import AdminService
 from app.services.chat_service import ChatService
+from app.services.profile_service import ProfileService
 
 logger = logging.getLogger(__name__)
 
@@ -21,50 +18,28 @@ router = APIRouter(prefix="/api")
 
 # Type aliases for injected dependencies
 ChatServiceDep = Annotated[ChatService, Depends(get_chat_service)]
-StoreDep = Annotated[BaseStore, Depends(get_store)]
+ProfileServiceDep = Annotated[ProfileService, Depends(get_profile_service)]
 AdminServiceDep = Annotated[AdminService, Depends(get_admin_service)]
 
 
 @router.get("/profile")
-async def profile_page(store: StoreDep) -> JSONResponse:
-    """Return the user profile and preferences as JSON."""
-    user_id = DEFAULT_USER_ID
-
-    # Fetch Profile
-    profile_item = await store.aget((user_id, "profile"), "data")
-    profile = UserProfile(**profile_item.value) if profile_item else UserProfile()
-
-    # Fetch Preferences
-    prefs_items = await store.asearch((user_id, "preferences"))
-    preferences: dict[str, object] = {}
-    for item in prefs_items:
-        if item.value:
-            try:
-                pref = Preference(**item.value)
-                preferences[item.key] = pref.model_dump()
-            except Exception:
-                preferences[item.key] = item.value
-
-    return JSONResponse(content={"profile": profile.model_dump(), "preferences": preferences})
+async def profile_page(service: ProfileServiceDep) -> JSONResponse:
+    """Return the user profile, preferences, and decision log as JSON."""
+    data = await service.get_profile_data(DEFAULT_USER_ID)
+    return JSONResponse(content=data)
 
 
 @router.post("/feedback")
-async def submit_feedback(body: FeedbackRequest, store: StoreDep) -> JSONResponse:
+async def submit_feedback(body: FeedbackRequest, service: ProfileServiceDep) -> JSONResponse:
     """Log a user's pass/pursue decision on a job card to the memory store."""
-    user_id = DEFAULT_USER_ID
-    key = str(uuid4())
-
-    log = DecisionLog(
+    await service.log_decision(
         job_title=body.job_title,
         company=body.company,
         action=body.action,
         description=body.description,
         reason=body.reason,
-        timestamp=datetime.now(UTC).isoformat(),
+        user_id=DEFAULT_USER_ID,
     )
-
-    await store.aput((user_id, "decisions"), key, log.model_dump())
-    logger.info("Feedback logged: %s at %s, action=%s", body.job_title, body.company, body.action)
     return JSONResponse(content={"status": "ok"})
 
 

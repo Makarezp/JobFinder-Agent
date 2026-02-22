@@ -1,5 +1,5 @@
 import operator
-from typing import Annotated, Any, TypedDict
+from typing import Annotated, Any, NotRequired, TypedDict
 
 from langchain_core.messages import BaseMessage
 
@@ -16,3 +16,4 @@ class AgentState(TypedDict):
     cv_raw_text: str | None
     active_agent: str
     search_attempts: int
+    recent_decisions: NotRequired[list[dict[str, Any]]]

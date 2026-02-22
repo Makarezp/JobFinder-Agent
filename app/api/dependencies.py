@@ -1,6 +1,7 @@
 from collections.abc import AsyncGenerator
-from typing import Any
+from typing import Annotated, Any
 
+from fastapi import Depends
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.graph.state import CompiledStateGraph
@@ -12,6 +13,7 @@ from app.agent.graph import get_compiled_graph
 from app.core.database import get_db_connection_uri
 from app.services.admin_service import AdminService
 from app.services.chat_service import ChatService
+from app.services.profile_service import ProfileService
 
 # Singleton-like storage for the pool/checkpointer/store
 # In a real production app, you might use app.state or a proper DI container context.
@@ -104,3 +106,10 @@ async def get_admin_service() -> AsyncGenerator[AdminService, None]:
     Currently stateless, but prepared for future expansion (e.g. logging, auth).
     """
     yield AdminService()
+
+
+async def get_profile_service(
+    store: Annotated[BaseStore, Depends(get_store)],
+) -> AsyncGenerator[ProfileService, None]:
+    """Dependency to get ProfileService, injected with the shared store."""
+    yield ProfileService(store)

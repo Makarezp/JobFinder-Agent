@@ -17,7 +17,7 @@ from app.agent.constants import (
 )
 from app.agent.main.prompts import SYSTEM_PROMPT
 from app.agent.main.tools import main_tools
-from app.agent.memory_schema import Preference, UserProfile
+from app.agent.memory_schema import DecisionLog, Preference, UserProfile
 from app.agent.state import AgentState
 from app.core.config import settings
 
@@ -51,6 +51,31 @@ def _format_profile_summary(profile: dict[str, Any] | None) -> str:
         parts.append(f"CV Summary:\n{cv}")
 
     return "\n".join(parts) if parts else "No profile information available yet."
+
+
+def _format_decisions_summary(decisions: list[dict[str, Any]]) -> str:
+    """Format decision log into a readable summary for the system prompt."""
+    if not decisions:
+        return "No feedback history yet."
+
+    lines: list[str] = []
+    for d in decisions:
+        action = d.get("action", "").upper()
+        title = d.get("job_title", "?")
+        company = d.get("company", "?")
+        description = d.get("description")
+        reason = d.get("reason")
+
+        if description and reason:
+            lines.append(f'- {action} "{title}" at {company} — "{description}": "{reason}"')
+        elif description:
+            lines.append(f'- {action} "{title}" at {company} — "{description}"')
+        elif reason:
+            lines.append(f'- {action} "{title}" at {company}: "{reason}"')
+        else:
+            lines.append(f'- {action} "{title}" at {company}')
+
+    return "Recent Feedback:\n" + "\n".join(lines)
 
 
 def _format_preferences_summary(preferences: dict[str, Any] | None) -> str:
@@ -97,8 +122,18 @@ async def fetch_profile(state: AgentState, config: RunnableConfig, store: Annota
             except Exception:
                 logger.warning(f"Skipping invalid preference: {item.key}")
 
-    logger.info("Node Completed: fetch_profile", extra={"profile": profile_dict, "pref_count": len(preferences)})
-    return {"user_profile": profile_dict, "preferences": preferences}
+    # Fetch Decisions (last 10, most recent first)
+    decisions_items = await store.asearch((user_id, "decisions"))
+    recent_decisions = sorted(
+        [DecisionLog(**item.value).model_dump() for item in decisions_items if item.value],
+        key=lambda d: d["timestamp"],
+        reverse=True,
+    )[:10]
+
+    logger.info(
+        "Node Completed: fetch_profile", extra={"profile": profile_dict, "pref_count": len(preferences), "decisions_count": len(recent_decisions)}
+    )
+    return {"user_profile": profile_dict, "preferences": preferences, "recent_decisions": recent_decisions}
 
 
 # --- Node: main_chatbot ---
@@ -111,12 +146,14 @@ def main_chatbot(state: AgentState) -> dict[str, list[BaseMessage]]:
 
     profile = state.get("user_profile")
     preferences = state.get("preferences")
+    decisions = state.get("recent_decisions", [])
 
     formatted_prompt = SYSTEM_PROMPT.format(
         name=profile.get("name", "User") if profile else "User",
         role=profile.get("role", "Job Seeker") if profile else "Job Seeker",
         profile_summary=_format_profile_summary(profile),
         preferences_summary=_format_preferences_summary(preferences),
+        decisions_summary=_format_decisions_summary(decisions),
     )
 
     system_messages = [SystemMessage(content=formatted_prompt)]
