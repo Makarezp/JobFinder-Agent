@@ -3,9 +3,10 @@
 import { useEffect, useState } from "react";
 import { useChatStore } from "../core/store/useChatStore";
 import CommandCenter from "../components/CommandCenter";
+import AdvisoryFeed from "../components/AdvisoryFeed";
 
 export default function Home() {
-  const { messages, isPending, fetchHistory } = useChatStore();
+  const { fetchHistory } = useChatStore();
   const [isMounted, setIsMounted] = useState(false);
 
   // Hydrate history on mount and avoid SSR hydration mismatch
@@ -41,36 +42,8 @@ export default function Home() {
           </button>
         </div>
 
-        {/* Temporary Sprint 0 Code (Will be replaced in Ticket 1.2/1.3) */}
-        <div className="flex-1 overflow-y-auto p-6 text-sm text-slate-200">
-          {messages.length === 0 ? (
-            <p className="text-slate-500 italic">No messages yet.</p>
-          ) : (
-            <div className="flex flex-col gap-4">
-              {messages.map((msg, idx) => (
-                <div key={idx} className="bg-glass-dark p-3 rounded-xl">
-                  <div>
-                    <strong className="text-primary">User:</strong>{" "}
-                    {msg.user_message}
-                  </div>
-                  <div className="mt-2 text-slate-300">
-                    <strong>AI:</strong> {msg.ai_message}
-                  </div>
-                  {msg.jobs && msg.jobs.length > 0 && (
-                    <div className="mt-2 text-xs italic text-slate-400">
-                      Found {msg.jobs.length} jobs.
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-          {isPending && (
-            <p className="mt-4 text-primary animate-pulse">
-              Agent is typing...
-            </p>
-          )}
-        </div>
+        {/* Advisory Feed Logic (Ticket 1.3) */}
+        <AdvisoryFeed />
 
         {/* Premium Command Center Component */}
         <CommandCenter />
