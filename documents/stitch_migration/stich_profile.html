@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>CVviewer AI Navigator Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#564be7",
+                        "primary-hover": "#4a41c7",
+                        "background-light": "#f6f6f8",
+                        "background-dark": "#0f111a",
+                        "glass-dark": "rgba(30, 32, 47, 0.6)",
+                        "glass-border": "rgba(255, 255, 255, 0.08)",
+                        "surface-dark": "#181a25",
+                        "positive": "rgba(16, 185, 129, 0.2)",
+                        "positive-border": "rgba(16, 185, 129, 0.5)",
+                        "negative": "rgba(239, 68, 68, 0.2)",
+                        "negative-border": "rgba(239, 68, 68, 0.5)",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.375rem", "lg": "0.5rem", "xl": "0.75rem", "2xl": "1rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+        }
+        .scrollbar-hide {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        .glass-panel {
+            background: linear-gradient(145deg, rgba(30, 32, 47, 0.7) 0%, rgba(18, 19, 30, 0.8) 100%);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+        }
+        .custom-scroll::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scroll::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+        }
+        .provenance-text {
+            font-size: 0.65rem;
+            color: #94a3b8;
+            letter-spacing: 0.02em;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 min-h-screen flex flex-col overflow-hidden">
+<header class="h-16 shrink-0 border-b border-glass-border bg-[#131221]/90 backdrop-blur-md z-20 flex items-center justify-between px-6">
+<div class="flex items-center gap-3">
+<div class="size-8 rounded-lg bg-primary/20 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined">smart_toy</span>
+</div>
+<h1 class="text-xl font-bold tracking-tight text-white">CVviewer</h1>
+</div>
+<div class="hidden md:flex items-center gap-3">
+<div class="flex items-center gap-2 rounded-full bg-surface-dark border border-glass-border px-3 py-1.5">
+<span class="material-symbols-outlined text-primary text-sm">search</span>
+<span class="text-xs font-medium text-slate-300">Searching: Senior Python</span>
+</div>
+<div class="flex items-center gap-2 rounded-full bg-surface-dark border border-glass-border px-3 py-1.5">
+<span class="material-symbols-outlined text-primary text-sm">location_on</span>
+<span class="text-xs font-medium text-slate-300">Remote / London</span>
+</div>
+<div class="flex items-center gap-2 rounded-full bg-surface-dark border border-glass-border px-3 py-1.5">
+<span class="material-symbols-outlined text-primary text-sm">payments</span>
+<span class="text-xs font-medium text-slate-300">£80k+</span>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="relative p-2 text-slate-400 hover:text-white transition-colors rounded-full hover:bg-white/5">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-2 right-2 size-2 bg-red-500 rounded-full border border-background-dark"></span>
+</button>
+<div class="size-9 rounded-full bg-cover bg-center border border-glass-border ring-2 ring-transparent hover:ring-primary/50 transition-all cursor-pointer" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuAYI05mDtB3TcTFus9J6wdKgOh85JjSKvngygdEy33wA8KCUPc8EKx76UHowCSqVyytgoU9XyDeSZI15woH31QXYFWc5sGR94DipSNF9CK4a4WAIQY8a-TzTJoJ9HHn10Lyt-ZHlzVBWuOYfLJN3vNlpwOP1Z9IyJEA2Tjr63KNzMQawMv1S_3KFoFNLD6IDG7alxaUXTJ9QfsRMXe7cY0I2W6dX3mcH4CSBdwkeGGZiR2cbWAwT2l8Y8hHHtJ5oH9Yb78Px5L3LpLD');"></div>
+</div>
+</header>
+<main class="flex-1 flex overflow-hidden relative">
+<div class="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/20 blur-[120px] rounded-full pointer-events-none z-0"></div>
+<div class="absolute bottom-[-10%] right-[-10%] w-[30%] h-[30%] bg-purple-600/10 blur-[100px] rounded-full pointer-events-none z-0"></div>
+<aside class="w-full md:w-[380px] lg:w-[420px] flex flex-col border-r border-glass-border bg-surface-dark/40 backdrop-blur-sm z-10 relative">
+<div class="px-6 py-4 border-b border-glass-border flex justify-between items-center">
+<h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">Advisory Feed</h2>
+<button class="text-xs text-primary hover:text-white transition-colors font-medium flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">history</span> History
+            </button>
+</div>
+<div class="flex-1 overflow-y-auto custom-scroll p-6 flex flex-col gap-6">
+<div class="flex justify-center">
+<span class="text-[10px] font-medium text-slate-500 bg-surface-dark px-3 py-1 rounded-full border border-glass-border">Today, 10:23 AM</span>
+</div>
+<div class="flex items-start gap-3">
+<div class="shrink-0 size-8 rounded-full bg-gradient-to-br from-primary to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-primary/20">
+<span class="material-symbols-outlined text-sm">smart_toy</span>
+</div>
+<div class="flex flex-col gap-1 max-w-[85%]">
+<span class="text-xs font-medium text-slate-400 ml-1">Navigator AI</span>
+<div class="p-3.5 rounded-2xl rounded-tl-none bg-glass-dark border border-glass-border text-sm leading-relaxed text-slate-200">
+<p>Good morning, Alex. I've analyzed your profile updates. The shift towards architecture roles is clear.</p>
+</div>
+</div>
+</div>
+<div class="flex items-start gap-3 justify-end">
+<div class="flex flex-col gap-1 items-end max-w-[85%]">
+<span class="text-xs font-medium text-slate-400 mr-1">You</span>
+<div class="p-3.5 rounded-2xl rounded-tr-none bg-primary text-white text-sm leading-relaxed shadow-lg shadow-primary/10">
+<p>Thanks. I wanted to make sure my preferences are set correctly for the new direction.</p>
+</div>
+</div>
+<div class="shrink-0 size-8 rounded-full bg-cover bg-center border border-glass-border" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuAxko_kfovH596BKEkEacxfBD6kwIVyqKD6HTfwJDpi3dwc12VNoYkFx3Qmk46X_L1aL43OzjZOUFNLhCNEBHr4T1Mq9HPQ5nnh_S7QoFLp6Wa3LLi_iUun3GAs-E-GbqPXNUS2UYS3srIwEp2IrtH6WsvA1XOyHHbrDDdU9u-KVARwDNnPRtcVZedA9n-1KagAnNKm-JdE6S4IoRK_sTmP3mQtr6UIHV9KC9aPFNrVHPXTT8z5mgYq-8OPquejlwnV1ivckjvN6Pm3');"></div>
+</div>
+<div class="flex items-start gap-3">
+<div class="shrink-0 size-8 rounded-full bg-gradient-to-br from-primary to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-primary/20">
+<span class="material-symbols-outlined text-sm">smart_toy</span>
+</div>
+<div class="flex flex-col gap-1 max-w-[85%]">
+<span class="text-xs font-medium text-slate-400 ml-1">Navigator AI</span>
+<div class="p-3.5 rounded-2xl rounded-tl-none bg-glass-dark border border-glass-border text-sm leading-relaxed text-slate-200">
+<p>I've updated your 'Looking For' and 'Avoiding' constraints based on our chat yesterday. Check the Profile tab.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="p-4 border-t border-glass-border bg-surface-dark/95 backdrop-blur-xl">
+<div class="relative flex items-center">
+<button class="absolute left-3 text-slate-400 hover:text-white transition-colors">
+<span class="material-symbols-outlined text-[20px]">attach_file</span>
+</button>
+<input class="w-full bg-background-dark/50 border border-glass-border rounded-xl py-3 pl-10 pr-12 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50 transition-all" placeholder="Ask Navigator to refine profile..." type="text"/>
+<button class="absolute right-2 p-1.5 bg-primary hover:bg-primary-hover text-white rounded-lg transition-colors flex items-center justify-center shadow-lg shadow-primary/20">
+<span class="material-symbols-outlined text-[18px]">arrow_upward</span>
+</button>
+</div>
+</div>
+</aside>
+<section class="flex-1 flex flex-col bg-transparent z-10 relative h-full overflow-hidden">
+<div class="px-8 pt-6 pb-2 border-b border-glass-border bg-surface-dark/30 backdrop-blur-sm">
+<div class="flex gap-6">
+<button class="pb-3 text-slate-400 hover:text-white font-medium text-sm transition-colors border-b-2 border-transparent">
+                    Discovery
+                </button>
+<button class="pb-3 text-white font-medium text-sm transition-colors border-b-2 border-primary">
+                    Profile
+                </button>
+</div>
+</div>
+<div class="flex-1 overflow-y-auto custom-scroll px-8 py-8">
+<div class="max-w-4xl mx-auto flex flex-col gap-6">
+<div class="glass-panel rounded-2xl p-6 flex items-start gap-6 relative">
+<div class="size-20 rounded-full bg-cover bg-center border-2 border-glass-border ring-4 ring-surface-dark" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuAYI05mDtB3TcTFus9J6wdKgOh85JjSKvngygdEy33wA8KCUPc8EKx76UHowCSqVyytgoU9XyDeSZI15woH31QXYFWc5sGR94DipSNF9CK4a4WAIQY8a-TzTJoJ9HHn10Lyt-ZHlzVBWuOYfLJN3vNlpwOP1Z9IyJEA2Tjr63KNzMQawMv1S_3KFoFNLD6IDG7alxaUXTJ9QfsRMXe7cY0I2W6dX3mcH4CSBdwkeGGZiR2cbWAwT2l8Y8hHHtJ5oH9Yb78Px5L3LpLD');"></div>
+<div class="flex-1">
+<div class="flex justify-between items-start">
+<div>
+<h3 class="text-xl font-bold text-white">Alex Makarezp</h3>
+<p class="text-primary font-medium text-sm">Senior Backend Engineer</p>
+</div>
+</div>
+<div class="mt-4 p-4 rounded-xl bg-surface-dark/50 border border-glass-border">
+<div class="flex items-center gap-2 mb-2 text-xs font-semibold text-slate-400 uppercase tracking-wide">
+<span class="material-symbols-outlined text-sm text-indigo-400">auto_awesome</span> AI Summary
+                            </div>
+<p class="text-sm text-slate-300 leading-relaxed">
+                                Alex is currently pivoting from pure backend implementation towards <span class="text-white font-medium">System Architecture</span> and technical leadership. He has strong expertise in Python/Django environments but is actively seeking to move away from legacy maintenance roles into greenfield architectural design.
+                            </p>
+</div>
+</div>
+</div>
+<div class="glass-panel rounded-2xl overflow-hidden">
+<div class="p-6 border-b border-glass-border flex justify-between items-center">
+<h4 class="text-sm font-bold text-white uppercase tracking-wider">Search Preferences</h4>
+<button class="text-xs bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
+<span class="material-symbols-outlined text-sm">add</span> Add Constraint
+                        </button>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2">
+<div class="p-6 border-r border-glass-border">
+<h5 class="text-xs font-bold text-emerald-400 mb-4 flex items-center gap-2 uppercase tracking-wide">
+<span class="material-symbols-outlined text-[18px]">check_circle</span>
+                                Looking For
+                            </h5>
+<div class="space-y-3">
+<div class="flex items-center justify-between group p-3 rounded-xl hover:bg-white/5 transition-colors border border-transparent hover:border-glass-border">
+<span class="text-sm text-slate-200">Remote First</span>
+<div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-sm text-slate-500 cursor-help" title="Mentioned in chat (Oct 24)">info</span>
+<button class="text-slate-500 hover:text-white"><span class="material-symbols-outlined text-sm">close</span></button>
+</div>
+</div>
+<div class="flex items-center justify-between group p-3 rounded-xl hover:bg-white/5 transition-colors border border-transparent hover:border-glass-border">
+<span class="text-sm text-slate-200">£80k+ Salary</span>
+<div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-sm text-slate-500 cursor-help" title="Inferred from current comp">info</span>
+<button class="text-slate-500 hover:text-white"><span class="material-symbols-outlined text-sm">close</span></button>
+</div>
+</div>
+<div class="flex items-center justify-between group p-3 rounded-xl hover:bg-white/5 transition-colors border border-transparent hover:border-glass-border">
+<span class="text-sm text-slate-200">Startups &amp; Scale-ups</span>
+<div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-sm text-slate-500 cursor-help" title="Explicit preference set">info</span>
+<button class="text-slate-500 hover:text-white"><span class="material-symbols-outlined text-sm">close</span></button>
+</div>
+</div>
+<div class="flex items-center justify-between group p-3 rounded-xl hover:bg-white/5 transition-colors border border-transparent hover:border-glass-border">
+<span class="text-sm text-slate-200">Team Mentorship</span>
+<div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-sm text-slate-500 cursor-help" title="I want to lead juniors">info</span>
+<button class="text-slate-500 hover:text-white"><span class="material-symbols-outlined text-sm">close</span></button>
+</div>
+</div>
+</div>
+</div>
+<div class="p-6">
+<h5 class="text-xs font-bold text-red-400 mb-4 flex items-center gap-2 uppercase tracking-wide">
+<span class="material-symbols-outlined text-[18px]">cancel</span>
+                                Avoiding
+                            </h5>
+<div class="space-y-3">
+<div class="flex items-center justify-between group p-3 rounded-xl hover:bg-white/5 transition-colors border border-transparent hover:border-glass-border">
+<span class="text-sm text-slate-200">Java Environments</span>
+<div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-sm text-slate-500 cursor-help" title="Previous role burnout">info</span>
+<button class="text-slate-500 hover:text-white"><span class="material-symbols-outlined text-sm">close</span></button>
+</div>
+</div>
+<div class="flex items-center justify-between group p-3 rounded-xl hover:bg-white/5 transition-colors border border-transparent hover:border-glass-border">
+<span class="text-sm text-slate-200">Consultancy / Agencies</span>
+<div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-sm text-slate-500 cursor-help" title="No more billable hours">info</span>
+<button class="text-slate-500 hover:text-white"><span class="material-symbols-outlined text-sm">close</span></button>
+</div>
+</div>
+<div class="flex items-center justify-between group p-3 rounded-xl hover:bg-white/5 transition-colors border border-transparent hover:border-glass-border">
+<span class="text-sm text-slate-200">Legacy Maintenance</span>
+<div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-sm text-slate-500 cursor-help" title="CV keyword analysis">info</span>
+<button class="text-slate-500 hover:text-white"><span class="material-symbols-outlined text-sm">close</span></button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="glass-panel rounded-2xl p-6">
+<h4 class="text-sm font-bold text-white mb-4 uppercase tracking-wider flex items-center gap-2">
+<span class="material-symbols-outlined text-indigo-400">history</span>
+                        Passed Jobs Feedback
+                    </h4>
+<div class="space-y-4">
+<div class="flex gap-4 items-start p-4 rounded-xl bg-surface-dark/50 border border-glass-border hover:border-indigo-500/30 transition-colors">
+<div class="size-10 rounded bg-slate-800 flex items-center justify-center text-slate-400 shrink-0">
+<span class="material-symbols-outlined">corporate_fare</span>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-center mb-1">
+<span class="text-sm font-semibold text-white">Fullstack Dev @ FintechCorp</span>
+<span class="text-[10px] text-slate-500 uppercase">Oct 26</span>
+</div>
+<p class="text-sm text-slate-300">Passed because of <span class="text-indigo-300">"Legacy technology stack (Java/Oracle)"</span>. Values engineering seat at table over pure execution.</p>
+</div>
+</div>
+<div class="flex gap-4 items-start p-4 rounded-xl bg-surface-dark/50 border border-glass-border hover:border-indigo-500/30 transition-colors">
+<div class="size-10 rounded bg-slate-800 flex items-center justify-center text-slate-400 shrink-0">
+<span class="material-symbols-outlined">domain</span>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-center mb-1">
+<span class="text-sm font-semibold text-white">Senior Python @ AgencyX</span>
+<span class="text-[10px] text-slate-500 uppercase">Oct 24</span>
+</div>
+<p class="text-sm text-slate-300">Passed due to <span class="text-indigo-300">"Agency model / billable hours"</span>. Expressed strong preference for product-led growth teams.</p>
+</div>
+</div>
+<div class="flex gap-4 items-start p-4 rounded-xl bg-surface-dark/50 border border-glass-border hover:border-indigo-500/30 transition-colors">
+<div class="size-10 rounded bg-slate-800 flex items-center justify-center text-slate-400 shrink-0">
+<span class="material-symbols-outlined">cloud_circle</span>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-center mb-1">
+<span class="text-sm font-semibold text-white">Platform Lead @ LegacySoft</span>
+<span class="text-[10px] text-slate-500 uppercase">Oct 22</span>
+</div>
+<p class="text-sm text-slate-300">Passed because role focused on <span class="text-indigo-300">"Maintenance over greenfield"</span>. Looking for cloud-native architectural opportunities.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+</main>
+
+</body></html>
