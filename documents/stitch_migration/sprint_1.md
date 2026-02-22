@@ -18,7 +18,7 @@ Extract the global "shell" from the Stitch Design reference (`documents/stitch_m
    - Open `frontend/src/app/page.tsx`.
    - Create the flexbox grid separating the Left Pane (`AdvisoryFeed` area) from the Right Pane (`DiscoveryDeck` area) as dictated by the Stitch prototypes.
 
-### Ticket 1.2: Command Center Component
+### Ticket 1.2: Command Center Component ✅ DONE
 
 #### Overview
 Translate the Stitch dark-mode chat input form from the design reference (`documents/stitch_migration/stitch_design.html`) into a reusable Next.js Server/Client component.
@@ -32,7 +32,7 @@ Translate the Stitch dark-mode chat input form from the design reference (`docum
    - Wire the hidden file input's `onChange` to `useChatStore().uploadCV()`.
    - **Loading UI**: Read a new `isPending` state from `useChatStore`. While true, disable both inputs, change the "send" icon to a loading spinner or pulsing animation, and dim the input area.
 
-### Ticket 1.3: Advisory Feed & Chat Bubbles
+### Ticket 1.3: Advisory Feed & Chat Bubbles ✅ DONE
 
 #### Overview
 Translate the premium chat bubbles from the Stitch design reference (`documents/stitch_migration/stitch_design.html`) into Next.js components that consume the Zustand `messages` array.
@@ -50,7 +50,7 @@ Translate the premium chat bubbles from the Stitch design reference (`documents/
 
 ---
 
-### Ticket 1.4: Component Testing
+### Ticket 1.4: Component Testing ✅ DONE
 
 #### Overview
 Ensure the new premium UI components render correctly and properly trigger the mocked Zustand store actions when interacted with.
