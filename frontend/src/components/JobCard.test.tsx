@@ -4,6 +4,7 @@ import JobCard from "./JobCard";
 import { Job } from "../core/types/api";
 
 const mockJob: Job = {
+  id: "abc123def456",
   title: "Senior Backend Engineer",
   company: "TechFlow",
   location: "Remote",

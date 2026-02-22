@@ -11,6 +11,7 @@ vi.mock("../core/store/useJobStore", () => ({
 import { useJobStore } from "../core/store/useJobStore";
 
 const mockJob1: Job = {
+  id: "aabbcc112233",
   title: "Senior Backend Engineer",
   company: "TechFlow",
   location: "Remote",
@@ -20,6 +21,7 @@ const mockJob1: Job = {
 };
 
 const mockJob2: Job = {
+  id: "ddeeff445566",
   title: "Python Architect",
   company: "DataCorp",
   location: "London (Hybrid)",

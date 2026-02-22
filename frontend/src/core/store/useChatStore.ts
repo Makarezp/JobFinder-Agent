@@ -62,8 +62,6 @@ export const useChatStore = create<ChatState>((set) => ({
 
       if (response.jobs && response.jobs.length > 0) {
         useJobStore.getState().setJobs(response.jobs);
-      } else {
-        useJobStore.getState().setJobs([]);
       }
     } catch (error) {
       console.error("Failed to send message:", error);
