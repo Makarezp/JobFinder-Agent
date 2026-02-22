@@ -157,7 +157,7 @@ Update the existing `GET /api/profile` endpoint to also return the decision log,
 
 ---
 
-### Ticket 3.3: Frontend — Types, Stores & API Client
+### Ticket 3.3: Frontend — Types, Stores & API Client ✅ DONE
 
 #### Overview
 Build the entire frontend data layer for Sprint 3. This ticket creates no UI — it strictly covers the `src/core/` boundary: TypeScript interfaces, API client functions, and Zustand stores. The UI components in Ticket 3.4 depend entirely on the contracts established here.
