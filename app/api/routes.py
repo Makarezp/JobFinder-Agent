@@ -1,15 +1,17 @@
 import logging
 import traceback
+from datetime import UTC, datetime
 from typing import Annotated
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 from langgraph.store.base import BaseStore
 
 from app.agent.constants import DEFAULT_USER_ID
-from app.agent.memory_schema import Preference, UserProfile
+from app.agent.memory_schema import DecisionLog, Preference, UserProfile
 from app.api.dependencies import get_admin_service, get_chat_service, get_store
-from app.api.schemas import ChatRequest
+from app.api.schemas import ChatRequest, FeedbackRequest
 from app.services.admin_service import AdminService
 from app.services.chat_service import ChatService
 
@@ -44,6 +46,26 @@ async def profile_page(store: StoreDep) -> JSONResponse:
                 preferences[item.key] = item.value
 
     return JSONResponse(content={"profile": profile.model_dump(), "preferences": preferences})
+
+
+@router.post("/feedback")
+async def submit_feedback(body: FeedbackRequest, store: StoreDep) -> JSONResponse:
+    """Log a user's pass/pursue decision on a job card to the memory store."""
+    user_id = DEFAULT_USER_ID
+    key = str(uuid4())
+
+    log = DecisionLog(
+        job_title=body.job_title,
+        company=body.company,
+        action=body.action,
+        description=body.description,
+        reason=body.reason,
+        timestamp=datetime.now(UTC).isoformat(),
+    )
+
+    await store.aput((user_id, "decisions"), key, log.model_dump())
+    logger.info("Feedback logged: %s at %s, action=%s", body.job_title, body.company, body.action)
+    return JSONResponse(content={"status": "ok"})
 
 
 @router.delete("/profile/reset")

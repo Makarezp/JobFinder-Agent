@@ -8,7 +8,7 @@
 
 ## Detailed Ticket Breakdown
 
-### Ticket 3.1: Backend — Decision Log Schema & Feedback Endpoint
+### Ticket 3.1: Backend — Decision Log Schema & Feedback Endpoint ✅ DONE
 
 #### Overview
 Create the data model and API endpoint for logging user feedback on job cards. When a user clicks "Pass" on a job, the frontend sends a `POST /api/feedback` request. The backend persists this as a `DecisionLog` entry in the LangGraph memory store under the `(user_id, "decisions")` namespace. This log is later read by the agent (via `fetch_profile`) to inform future searches.
@@ -21,9 +21,11 @@ Create the data model and API endpoint for logging user feedback on job cards. W
          job_title: str
          company: str
          action: Literal["pass", "pursue"]
+         description: str | None = None
          reason: str | None = None
          timestamp: str  # ISO 8601 format
      ```
+   - `description` carries a brief job summary snippet (sourced from `JobListing.description`) so the agent has richer context when reviewing past decisions.
    - This model lives alongside the existing `UserProfile` and `Preference` models.
 
 5. **Add `sentiment` field to `Preference` model** (`app/agent/memory_schema.py`):
@@ -37,6 +39,7 @@ Create the data model and API endpoint for logging user feedback on job cards. W
          job_title: str
          company: str
          action: Literal["pass", "pursue"]
+         description: str | None = None
          reason: str | None = None
      ```
 
@@ -125,9 +128,10 @@ Update the existing `GET /api/profile` endpoint to also return the decision log,
    - Add a helper `_format_decisions_summary(decisions)` that outputs something like:
      ```
      Recent Feedback:
-     - PASSED "Fullstack Dev" at FintechCorp: "Legacy technology stack"
-     - PASSED "Senior Python" at AgencyX: "Agency model"
+     - PASSED "Fullstack Dev" at FintechCorp — "Builds internal tooling for trading desks": "Legacy technology stack"
+     - PASSED "Senior Python" at AgencyX — "Client-facing Python consultancy role": "Agency model"
      ```
+   - Include `description` (the job snippet) between the job title/company and the reason, separated by `—`. If `description` is `None`, omit the `—` segment entirely.
    - If `decisions` is empty, return `"No feedback history yet."` (consistent with `_format_profile_summary` and `_format_preferences_summary` patterns).
 
 5. **Update system prompt** (`app/agent/main/prompts.py`):
@@ -175,6 +179,7 @@ Build the entire frontend data layer for Sprint 3. This ticket creates no UI —
        job_title: string;
        company: string;
        action: "pass" | "pursue";
+       description: string | null;
        reason: string | null;
        timestamp: string; // ISO 8601
      }
@@ -195,6 +200,7 @@ Build the entire frontend data layer for Sprint 3. This ticket creates no UI —
        job_title: string;
        company: string;
        action: "pass" | "pursue";
+       description: string | null;
        reason: string | null;
      }
      ```
@@ -222,7 +228,7 @@ Build the entire frontend data layer for Sprint 3. This ticket creates no UI —
 4. **Update `useJobStore`** (`frontend/src/core/store/useJobStore.ts`):
    - Add `submitFeedback(job: Job, action: "pass" | "pursue", reason: string | null): Promise<void>` action.
    - **Optimistic removal first**: synchronously filter out `job.id` from the `jobs` array before making any network call.
-   - Then call `submitFeedbackRequest({ job_title: job.title, company: job.company, action, reason })`.
+   - Then call `submitFeedbackRequest({ job_title: job.title, company: job.company, action, description: job.description ?? null, reason })`.
    - On network error: log to `console.error`. Do **not** roll back the optimistic removal — the card is already gone from the user's perspective; re-appearing it is more jarring than leaving it gone.
    - After successful feedback, call `useProfileStore.getState().fetchProfile()` to refresh the Profile tab's decision log.
 
@@ -280,7 +286,7 @@ This is the UI integration ticket. It introduces a tab system in the right pane 
      **Section C: Decision Log (Passed Jobs)**
      - Header: "Passed Jobs Feedback" with `history` icon.
      - Iterate over `decisions` array (already sorted by timestamp descending from the backend).
-     - Each entry renders as a sub-card with: an icon (`corporate_fare` material icon), job title + company in `text-sm font-semibold text-white`, timestamp in `text-[10px] text-slate-500`, and reason text (if provided) in `text-sm text-slate-300` with the reason phrase highlighted in `text-indigo-300`.
+     - Each entry renders as a sub-card with: an icon (`corporate_fare` material icon), job title + company in `text-sm font-semibold text-white`, timestamp in `text-[10px] text-slate-500`, description snippet (if provided) in `text-xs text-slate-400 italic`, and reason text (if provided) in `text-sm text-slate-300` with the reason phrase highlighted in `text-indigo-300`.
      - If `decisions` is empty, render: *"No feedback yet. Pass or pursue some jobs to see your decision history here."*
 
 3. **Wire `JobCard` "Pass" Button** (`frontend/src/components/JobCard.tsx`):

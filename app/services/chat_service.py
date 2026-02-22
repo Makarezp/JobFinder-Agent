@@ -1,3 +1,4 @@
+import hashlib
 from io import BytesIO
 from typing import Any
 
@@ -114,6 +115,12 @@ class ChatService:
 
         if not ai_content and not jobs:
             ai_content = "I apologize, but I couldn't generate a response. Please try asking again."
+
+        # Inject deterministic id into each job dict for frontend tracking
+        for job in jobs:
+            if not job.get("id"):
+                slug = f"{job.get('company', '')}{job.get('title', '')}{job.get('apply_link', '')}".encode()
+                job["id"] = hashlib.md5(slug).hexdigest()[:12]  # noqa: S324 — not used for security
 
         # Return dict for Jinja2 template
         return {

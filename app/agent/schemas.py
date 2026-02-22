@@ -47,6 +47,7 @@ class JobDetail(BaseModel):
 class JobListing(BaseModel):
     """Represents a single job listing (Legacy/Main Agent compatibility)."""
 
+    id: str = Field(default="", description="Deterministic hash for frontend tracking. Computed in _parse_agent_result, not by the LLM.")
     title: str = Field(..., description="The job title.")
     company: str = Field(..., description="The name of the company.")
     location: str = Field(..., description="The job location.")

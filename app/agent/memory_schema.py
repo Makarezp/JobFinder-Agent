@@ -23,3 +23,18 @@ class Preference(BaseModel):
     key: str = Field(..., description="The setting name, e.g. 'min_salary', 'remote', 'tech_stack'")
     value: Any = Field(..., description="The value. Can be string, int, list, or boolean.")
     category: Literal["hard", "soft"] = Field("soft", description="'hard' for strict filters (must have), 'soft' for preferences (nice to have)")
+    sentiment: Literal["positive", "negative"] = Field("positive", description="'positive' for things the user wants, 'negative' for things to avoid")
+
+
+class DecisionLog(BaseModel):
+    """
+    Records a user's pass/pursue decision on a specific job card.
+    Stored under (user_id, "decisions") namespace in the LangGraph memory store.
+    """
+
+    job_title: str
+    company: str
+    action: Literal["pass", "pursue"]
+    description: str | None = None
+    reason: str | None = None
+    timestamp: str  # ISO 8601 format, e.g. "2026-02-22T20:32:00+00:00"

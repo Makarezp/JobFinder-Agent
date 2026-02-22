@@ -64,6 +64,9 @@ async def save_preference(
     key: Annotated[str, "The preference key (e.g., 'min_salary', 'location', 'tech_stack')"],
     value: Annotated[Any, "The value (string, number, boolean, or list)"],
     category: Annotated[Literal["hard", "soft"], "Is this a strict requirement ('hard') or just nice to have ('soft')?"] = "soft",
+    sentiment: Annotated[
+        Literal["positive", "negative"], "Use 'positive' when user wants something, 'negative' when they want to avoid it (e.g. 'No Java')."
+    ] = "positive",
 ) -> str:
     """
     Save a user preference or constraint.
@@ -71,20 +74,21 @@ async def save_preference(
     - Soft preferences: vibe checks (e.g., "I like startups", "No fintech").
 
     Example: User says "I only want remote jobs", call save_preference("location", "Remote", "hard").
+    Example: User says "No agencies", call save_preference("agencies", "no agencies", "hard", sentiment="negative").
     """
     try:
         user_id = config.get("configurable", {}).get("user_id", "default_user")
         namespace = (user_id, "preferences")
 
-        logger.info("Tool Started: save_preference", key=key, value=value, category=category)
+        logger.info("Tool Started: save_preference", key=key, value=value, category=category, sentiment=sentiment)
 
         # Use Pydantic model for validation
-        pref = Preference(key=key, value=value, category=category)
+        pref = Preference(key=key, value=value, category=category, sentiment=sentiment)
 
         # Store using model_dump
         await store.aput(namespace, key, pref.model_dump())
 
-        return f"Preference saved: {key} = {value} ({category})"
+        return f"Preference saved: {key} = {value} ({category}, {sentiment})"
     except Exception as e:
         logger.error("Failed to save preference", exc_info=True, extra={"preference_key": key, "category": category})
         return f"Error saving preference: {str(e)}"
