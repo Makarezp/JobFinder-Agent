@@ -6,7 +6,7 @@
 
 ## Detailed Ticket Breakdown
 
-### Ticket 2.1: Types and Schema Definitions
+### Ticket 2.1: Types and Schema Definitions ✅ DONE
 
 #### Overview
 Ensure the `src/core` accurately models the data coming from the LangGraph backend.

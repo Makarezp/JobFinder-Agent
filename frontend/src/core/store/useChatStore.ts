@@ -5,6 +5,7 @@ import {
   sendMessageRequest,
   uploadCVRequest,
 } from "../api/chat";
+import { useJobStore } from "./useJobStore";
 
 export interface ChatState {
   messages: ChatResponse[];
@@ -23,6 +24,13 @@ export const useChatStore = create<ChatState>((set) => ({
       set({ isPending: true });
       const history = await fetchHistoryRequest();
       set({ messages: history });
+
+      if (history.length > 0) {
+        const lastMessage = history[history.length - 1];
+        if (lastMessage.jobs && lastMessage.jobs.length > 0) {
+          useJobStore.getState().setJobs(lastMessage.jobs);
+        }
+      }
     } catch (error) {
       console.error("Failed to fetch history:", error);
     } finally {
@@ -51,6 +59,12 @@ export const useChatStore = create<ChatState>((set) => ({
         newMessages[newMessages.length - 1] = response;
         return { messages: newMessages };
       });
+
+      if (response.jobs && response.jobs.length > 0) {
+        useJobStore.getState().setJobs(response.jobs);
+      } else {
+        useJobStore.getState().setJobs([]);
+      }
     } catch (error) {
       console.error("Failed to send message:", error);
       set((state) => {
