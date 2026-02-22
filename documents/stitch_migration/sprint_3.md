@@ -79,7 +79,7 @@ Create the data model and API endpoint for logging user feedback on job cards. W
 
 ---
 
-### Ticket 3.2: Backend — Profile Endpoint Enhancement & Agent Context
+### Ticket 3.2: Backend — Profile Endpoint Enhancement & Agent Context ✅ DONE
 
 #### Overview
 Update the existing `GET /api/profile` endpoint to also return the decision log, so the frontend has everything it needs for the Profile tab in a single request. Additionally, update the agent's `fetch_profile` node to inject recent decisions into the system prompt context, allowing the agent to passively learn from user feedback without any special feedback-processing logic.
