@@ -5,7 +5,7 @@ Jobs returned by the agent must accumulate in a persistent, backend-owned deck. 
 
 ---
 
-## Ticket 4.1: Backend — `PendingJob` Model & Store Namespace
+## Ticket 4.1: Backend — `PendingJob` Model & Store Namespace ✅ DONE
 
 ### Overview
 Create the data model and store CRUD operations for persisting pending jobs in the `(user_id, "pending_jobs")` namespace, following the existing `DecisionLog` pattern.
