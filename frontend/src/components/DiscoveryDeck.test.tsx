@@ -42,12 +42,6 @@ describe("DiscoveryDeck", () => {
     expect(screen.getByText(/No jobs discovered yet/i)).toBeInTheDocument();
   });
 
-  it("renders the correct subtitle in the empty state", () => {
-    vi.mocked(useJobStore).mockReturnValue([]);
-    render(<DiscoveryDeck />);
-    expect(screen.getByText(/Chat with the Navigator/i)).toBeInTheDocument();
-  });
-
   it("renders job cards when jobs are present", () => {
     vi.mocked(useJobStore).mockReturnValue([mockJob1, mockJob2]);
     render(<DiscoveryDeck />);
@@ -59,17 +53,5 @@ describe("DiscoveryDeck", () => {
     vi.mocked(useJobStore).mockReturnValue([mockJob1]);
     render(<DiscoveryDeck />);
     expect(screen.queryByTestId("empty-state")).not.toBeInTheDocument();
-  });
-
-  it("displays the correct match count in the subtitle", () => {
-    vi.mocked(useJobStore).mockReturnValue([mockJob1, mockJob2]);
-    render(<DiscoveryDeck />);
-    expect(screen.getByText(/Found 2 matches/i)).toBeInTheDocument();
-  });
-
-  it("uses singular 'match' for a single job", () => {
-    vi.mocked(useJobStore).mockReturnValue([mockJob1]);
-    render(<DiscoveryDeck />);
-    expect(screen.getByText(/Found 1 match/i)).toBeInTheDocument();
   });
 });

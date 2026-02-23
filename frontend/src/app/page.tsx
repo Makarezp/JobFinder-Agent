@@ -2,13 +2,28 @@
 
 import { useEffect, useState } from "react";
 import { useChatStore } from "../core/store/useChatStore";
+import { useJobStore } from "../core/store/useJobStore";
+import { useProfileStore } from "../core/store/useProfileStore";
 import CommandCenter from "../components/CommandCenter";
 import AdvisoryFeed from "../components/AdvisoryFeed";
 import DiscoveryDeck from "../components/DiscoveryDeck";
+import ProfileView from "../components/ProfileView";
 
 export default function Home() {
   const { fetchHistory } = useChatStore();
+  const jobs = useJobStore((state) => state.jobs);
+  const { fetchProfile } = useProfileStore();
   const [isMounted, setIsMounted] = useState(false);
+  const [activeTab, setActiveTab] = useState<"discovery" | "profile">(
+    "discovery"
+  );
+
+  function handleTabChange(tab: "discovery" | "profile") {
+    if (tab === "profile") {
+      fetchProfile();
+    }
+    setActiveTab(tab);
+  }
 
   // Hydrate history on mount and avoid SSR hydration mismatch
   useEffect(() => {
@@ -50,8 +65,44 @@ export default function Home() {
         <CommandCenter />
       </aside>
 
-      {/* Right Pane: Discovery Deck */}
-      <DiscoveryDeck />
+      {/* Right Pane: Tabbed Panel */}
+      <section className="flex-1 flex flex-col bg-transparent z-10 relative overflow-hidden">
+        {/* Tab Bar */}
+        <div className="px-8 pt-6 pb-2 border-b border-glass-border flex gap-6 shrink-0">
+          <button
+            type="button"
+            onClick={() => handleTabChange("discovery")}
+            className={`pb-2 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === "discovery"
+                ? "border-primary text-white"
+                : "border-transparent text-slate-400 hover:text-white"
+            }`}
+          >
+            Discovery
+          </button>
+          <button
+            type="button"
+            onClick={() => handleTabChange("profile")}
+            className={`pb-2 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === "profile"
+                ? "border-primary text-white"
+                : "border-transparent text-slate-400 hover:text-white"
+            }`}
+          >
+            Profile
+          </button>
+        </div>
+
+        {/* Match count subtitle — Discovery tab only */}
+        {activeTab === "discovery" && jobs.length > 0 && (
+          <p className="px-8 pt-3 pb-1 text-slate-400 text-sm shrink-0">
+            {`Found ${jobs.length} ${jobs.length === 1 ? "match" : "matches"} based on your criteria.`}
+          </p>
+        )}
+
+        {/* Tab Content */}
+        {activeTab === "discovery" ? <DiscoveryDeck /> : <ProfileView />}
+      </section>
     </main>
   );
 }

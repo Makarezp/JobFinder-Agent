@@ -25,6 +25,7 @@ export interface DecisionLogEntry {
   job_title: string;
   company: string;
   action: "pass" | "pursue";
+  description: string | null;
   reason: string | null;
   timestamp: string;
 }
@@ -45,5 +46,6 @@ export interface FeedbackRequest {
   job_title: string;
   company: string;
   action: "pass" | "pursue";
+  description: string | null;
   reason: string | null;
 }

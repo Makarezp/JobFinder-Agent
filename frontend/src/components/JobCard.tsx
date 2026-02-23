@@ -1,12 +1,31 @@
 "use client";
 
+import { useState } from "react";
 import { Job } from "../core/types/api";
+import { useJobStore } from "../core/store/useJobStore";
 
 interface JobCardProps {
   job: Job;
 }
 
 export default function JobCard({ job }: JobCardProps) {
+  const [showReasonInput, setShowReasonInput] = useState(false);
+  const [reason, setReason] = useState("");
+
+  function handlePassClick() {
+    setShowReasonInput(true);
+  }
+
+  function handleSkip() {
+    useJobStore.getState().submitFeedback(job, "pass", null);
+    setShowReasonInput(false);
+  }
+
+  function handleSubmit() {
+    useJobStore.getState().submitFeedback(job, "pass", reason.trim() || null);
+    setShowReasonInput(false);
+  }
+
   return (
     <div className="glass-panel rounded-2xl p-6 flex flex-col gap-4 group hover:bg-surface-dark/80 transition-all duration-300">
       {/* Header: Logo placeholder + Title + Company */}
@@ -60,6 +79,7 @@ export default function JobCard({ job }: JobCardProps) {
       <div className="flex gap-3 mt-auto pt-1">
         <button
           type="button"
+          onClick={handlePassClick}
           className="flex-1 py-2.5 rounded-lg border border-slate-600 text-slate-300 font-medium text-sm hover:border-slate-400 hover:text-white hover:bg-white/5 transition-all"
         >
           Pass
@@ -76,6 +96,33 @@ export default function JobCard({ job }: JobCardProps) {
           </span>
         </a>
       </div>
+
+      {/* Inline Reason Input */}
+      {showReasonInput && (
+        <div className="flex gap-2 items-center pt-1">
+          <input
+            type="text"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="Why? (optional)"
+            className="flex-1 bg-surface-dark/50 border border-glass-border rounded-lg px-3 py-1.5 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-primary/50"
+          />
+          <button
+            type="button"
+            onClick={handleSkip}
+            className="text-xs text-slate-400 hover:text-white px-2 py-1.5 rounded-lg hover:bg-white/5 transition-all"
+          >
+            Skip
+          </button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            className="text-xs text-primary hover:text-white px-2 py-1.5 rounded-lg hover:bg-primary/20 transition-all font-medium"
+          >
+            Submit
+          </button>
+        </div>
+      )}
     </div>
   );
 }

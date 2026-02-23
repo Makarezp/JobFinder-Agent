@@ -1,7 +1,15 @@
-import { render, screen } from "@testing-library/react";
-import { describe, it, expect } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import JobCard from "./JobCard";
 import { Job } from "../core/types/api";
+
+vi.mock("../core/store/useJobStore", () => ({
+  useJobStore: {
+    getState: vi.fn(() => ({ submitFeedback: vi.fn() })),
+  },
+}));
+
+import { useJobStore } from "../core/store/useJobStore";
 
 const mockJob: Job = {
   id: "abc123def456",
@@ -15,6 +23,14 @@ const mockJob: Job = {
 };
 
 describe("JobCard", () => {
+  beforeEach(() => {
+    vi.mocked(useJobStore.getState).mockReturnValue({
+      submitFeedback: vi.fn(),
+      jobs: [],
+      setJobs: vi.fn(),
+    });
+  });
+
   it("renders the job title", () => {
     render(<JobCard job={mockJob} />);
     expect(screen.getByText("Senior Backend Engineer")).toBeInTheDocument();
@@ -62,5 +78,52 @@ describe("JobCard", () => {
   it("renders the Pass button", () => {
     render(<JobCard job={mockJob} />);
     expect(screen.getByRole("button", { name: /pass/i })).toBeInTheDocument();
+  });
+
+  it("shows the reason input after clicking Pass", () => {
+    render(<JobCard job={mockJob} />);
+    fireEvent.click(screen.getByRole("button", { name: /pass/i }));
+    expect(
+      screen.getByPlaceholderText(/why\? \(optional\)/i)
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /skip/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /submit/i })).toBeInTheDocument();
+  });
+
+  it("calls submitFeedback with null reason when Skip is clicked", () => {
+    const mockSubmitFeedback = vi.fn();
+    vi.mocked(useJobStore.getState).mockReturnValue({
+      submitFeedback: mockSubmitFeedback,
+      jobs: [],
+      setJobs: vi.fn(),
+    });
+
+    render(<JobCard job={mockJob} />);
+    fireEvent.click(screen.getByRole("button", { name: /pass/i }));
+    fireEvent.click(screen.getByRole("button", { name: /skip/i }));
+
+    expect(mockSubmitFeedback).toHaveBeenCalledWith(mockJob, "pass", null);
+  });
+
+  it("calls submitFeedback with typed reason when Submit is clicked", () => {
+    const mockSubmitFeedback = vi.fn();
+    vi.mocked(useJobStore.getState).mockReturnValue({
+      submitFeedback: mockSubmitFeedback,
+      jobs: [],
+      setJobs: vi.fn(),
+    });
+
+    render(<JobCard job={mockJob} />);
+    fireEvent.click(screen.getByRole("button", { name: /pass/i }));
+    fireEvent.change(screen.getByPlaceholderText(/why\? \(optional\)/i), {
+      target: { value: "Too much legacy code" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /submit/i }));
+
+    expect(mockSubmitFeedback).toHaveBeenCalledWith(
+      mockJob,
+      "pass",
+      "Too much legacy code"
+    );
   });
 });

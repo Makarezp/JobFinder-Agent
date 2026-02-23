@@ -79,4 +79,17 @@
       0 0 6px -2px rgba(86, 75, 231, 0.1);
     border: 1px solid rgba(86, 75, 231, 0.4);
   }
+
+  .custom-scroll::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .custom-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .custom-scroll::-webkit-scrollbar-thumb {
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: 20px;
+  }
 }

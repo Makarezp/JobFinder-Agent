@@ -249,7 +249,7 @@ Build the entire frontend data layer for Sprint 3. This ticket creates no UI —
 
 ---
 
-### Ticket 3.4: Frontend — Tabbed Right Pane, ProfileView & JobCard Wiring
+### Ticket 3.4: Frontend — Tabbed Right Pane, ProfileView & JobCard Wiring ✅ DONE
 
 #### Overview
 This is the UI integration ticket. It introduces a tab system in the right pane (switching between Discovery Deck and Profile), creates the `ProfileView` component for rich memory display, and wires the "Pass" button on `JobCard` to the feedback flow. The Stitch profile design (`documents/stitch_migration/stich_profile.html`) provides visual direction for the Profile tab — use it for glass-panel styling, typography, and layout inspiration, but note that not all UI elements in the design are implemented (e.g., "Add Constraint" button is intentionally excluded).
