@@ -6,7 +6,7 @@ import structlog
 from langgraph.store.base import BaseStore
 
 from app.agent.constants import DEFAULT_USER_ID
-from app.agent.memory_schema import DecisionLog, Preference, UserProfile
+from app.agent.memory_schema import DecisionLog, PendingJob, Preference, UserProfile
 
 logger = structlog.get_logger(__name__)
 
@@ -67,3 +67,28 @@ class ProfileService:
         )
         await self._store.aput((user_id, "decisions"), key, log.model_dump())
         logger.info("Decision logged", job_title=job_title, company=company, action=action)
+
+    async def get_pending_jobs(self, user_id: str = DEFAULT_USER_ID) -> list[PendingJob]:
+        """Fetch all non-removed pending jobs from the store under (user_id, 'pending_jobs')."""
+        logger.info("Fetching pending jobs", user_id=user_id)
+        items = await self._store.asearch((user_id, "pending_jobs"))
+        jobs = [PendingJob(**item.value) for item in items if item.value and not item.value.get("removed")]
+        logger.info("Pending jobs fetched", user_id=user_id, count=len(jobs))
+        return jobs
+
+    async def add_pending_jobs(self, jobs: list[dict[str, Any]], user_id: str = DEFAULT_USER_ID) -> None:
+        """Persist a list of jobs to the store, keyed by their deterministic id."""
+        logger.info("Adding pending jobs", user_id=user_id, count=len(jobs))
+        for job in jobs:
+            pending = PendingJob(
+                added_at=datetime.now(UTC).isoformat(),
+                **job,
+            )
+            await self._store.aput((user_id, "pending_jobs"), pending.id, pending.model_dump())
+        logger.info("Pending jobs added", user_id=user_id, count=len(jobs))
+
+    async def remove_pending_job(self, job_id: str, user_id: str = DEFAULT_USER_ID) -> None:
+        """Soft-delete a pending job by marking it removed: True."""
+        logger.info("Removing pending job", user_id=user_id, job_id=job_id)
+        await self._store.aput((user_id, "pending_jobs"), job_id, {"removed": True})
+        logger.info("Pending job removed", user_id=user_id, job_id=job_id)

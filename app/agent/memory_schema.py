@@ -26,6 +26,23 @@ class Preference(BaseModel):
     sentiment: Literal["positive", "negative"] = Field("positive", description="'positive' for things the user wants, 'negative' for things to avoid")
 
 
+class PendingJob(BaseModel):
+    """
+    A job card returned by the agent, pending a pass/pursue decision.
+    Stored under (user_id, "pending_jobs") namespace in the LangGraph memory store.
+    Mirrors the frontend Job interface exactly, plus store-level metadata.
+    """
+
+    id: str
+    title: str
+    company: str
+    location: str
+    salary: str | None = None
+    description: str
+    apply_link: str
+    added_at: str  # ISO 8601 format — store metadata, not exposed to frontend
+
+
 class DecisionLog(BaseModel):
     """
     Records a user's pass/pursue decision on a specific job card.
