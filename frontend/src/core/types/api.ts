@@ -48,4 +48,5 @@ export interface FeedbackRequest {
   action: "pass" | "pursue";
   description: string | null;
   reason: string | null;
+  job_id: string;
 }

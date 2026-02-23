@@ -5,6 +5,26 @@ import JobCard from "./JobCard";
 
 export default function DiscoveryDeck() {
   const jobs = useJobStore((state) => state.jobs);
+  const isLoading = useJobStore((state) => state.isLoading);
+  const error = useJobStore((state) => state.error);
+
+  if (isLoading) {
+    return (
+      <div className="flex-1 flex items-center justify-center opacity-60">
+        <span className="material-symbols-outlined animate-spin text-4xl">
+          progress_activity
+        </span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex-1 flex items-center justify-center opacity-60 text-center px-4">
+        <p className="text-sm text-red-400">{error}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 overflow-y-auto custom-scroll px-8 pb-8 pt-4">

@@ -1,4 +1,13 @@
-import { FeedbackRequest, ProfileResponse } from "../types/api";
+import { FeedbackRequest, Job, ProfileResponse } from "../types/api";
+
+export async function fetchDeckRequest(): Promise<Job[]> {
+  const response = await fetch("/api/deck");
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  const data: { jobs: Job[] } = await response.json();
+  return data.jobs;
+}
 
 export async function fetchProfileRequest(): Promise<ProfileResponse> {
   const response = await fetch("/api/profile");

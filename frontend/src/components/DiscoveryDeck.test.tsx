@@ -8,7 +8,7 @@ vi.mock("../core/store/useJobStore", () => ({
   useJobStore: vi.fn(),
 }));
 
-import { useJobStore } from "../core/store/useJobStore";
+import { useJobStore, JobState } from "../core/store/useJobStore";
 
 const mockJob1: Job = {
   id: "aabbcc112233",
@@ -30,27 +30,46 @@ const mockJob2: Job = {
   apply_link: "https://example.com/apply/2",
 };
 
+function mockStoreWith(
+  jobs: Job[],
+  isLoading = false,
+  error: string | null = null
+) {
+  vi.mocked(useJobStore).mockImplementation(
+    (selector: (s: JobState) => unknown) => {
+      const state = {
+        jobs,
+        isLoading,
+        error,
+        fetchDeck: vi.fn(),
+        submitFeedback: vi.fn(),
+      };
+      return selector(state);
+    }
+  );
+}
+
 describe("DiscoveryDeck", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   it("renders the empty state when there are no jobs", () => {
-    vi.mocked(useJobStore).mockReturnValue([]);
+    mockStoreWith([]);
     render(<DiscoveryDeck />);
     expect(screen.getByTestId("empty-state")).toBeInTheDocument();
     expect(screen.getByText(/No jobs discovered yet/i)).toBeInTheDocument();
   });
 
   it("renders job cards when jobs are present", () => {
-    vi.mocked(useJobStore).mockReturnValue([mockJob1, mockJob2]);
+    mockStoreWith([mockJob1, mockJob2]);
     render(<DiscoveryDeck />);
     expect(screen.getByText("Senior Backend Engineer")).toBeInTheDocument();
     expect(screen.getByText("Python Architect")).toBeInTheDocument();
   });
 
   it("does not show empty state when jobs are present", () => {
-    vi.mocked(useJobStore).mockReturnValue([mockJob1]);
+    mockStoreWith([mockJob1]);
     render(<DiscoveryDeck />);
     expect(screen.queryByTestId("empty-state")).not.toBeInTheDocument();
   });

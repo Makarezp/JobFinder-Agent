@@ -7,6 +7,7 @@ import { Job } from "../types/api";
 
 vi.mock("../api/profile", () => ({
   fetchProfileRequest: vi.fn(),
+  fetchDeckRequest: vi.fn(),
   submitFeedbackRequest: vi.fn(),
 }));
 
@@ -41,8 +42,7 @@ const mockJob2: Job = {
 describe("useJobStore", () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    useJobStore.setState({ jobs: [] });
-    // Restore the mock after reset
+    useJobStore.setState({ jobs: [], isLoading: false, error: null });
     vi.mocked(useProfileStore.getState).mockReturnValue({
       fetchProfile: vi.fn(),
       profile: null,
@@ -57,17 +57,47 @@ describe("useJobStore", () => {
       const { result } = renderHook(() => useJobStore());
       expect(result.current.jobs).toEqual([]);
     });
+
+    it("should initialize with isLoading false and no error", () => {
+      const { result } = renderHook(() => useJobStore());
+      expect(result.current.isLoading).toBe(false);
+      expect(result.current.error).toBeNull();
+    });
   });
 
-  describe("setJobs", () => {
-    it("should set jobs correctly", () => {
-      const { result } = renderHook(() => useJobStore());
+  describe("fetchDeck", () => {
+    it("populates jobs from mock API response", async () => {
+      vi.mocked(profileApi.fetchDeckRequest).mockResolvedValueOnce([
+        mockJob1,
+        mockJob2,
+      ]);
 
-      act(() => {
-        result.current.setJobs([mockJob1]);
+      await act(async () => {
+        await useJobStore.getState().fetchDeck();
       });
 
-      expect(result.current.jobs).toEqual([mockJob1]);
+      expect(useJobStore.getState().jobs).toEqual([mockJob1, mockJob2]);
+      expect(useJobStore.getState().isLoading).toBe(false);
+      expect(useJobStore.getState().error).toBeNull();
+    });
+
+    it("sets error state on failure", async () => {
+      const consoleSpy = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+      vi.mocked(profileApi.fetchDeckRequest).mockRejectedValueOnce(
+        new Error("Network error")
+      );
+
+      await act(async () => {
+        await useJobStore.getState().fetchDeck();
+      });
+
+      expect(useJobStore.getState().jobs).toEqual([]);
+      expect(useJobStore.getState().error).toBeTruthy();
+      expect(useJobStore.getState().isLoading).toBe(false);
+
+      consoleSpy.mockRestore();
     });
   });
 
@@ -89,7 +119,7 @@ describe("useJobStore", () => {
       await promise;
     });
 
-    it("calls submitFeedbackRequest with the correct payload", async () => {
+    it("calls submitFeedbackRequest with job_id in the payload", async () => {
       useJobStore.setState({ jobs: [mockJob1] });
       vi.mocked(profileApi.submitFeedbackRequest).mockResolvedValueOnce(
         undefined
@@ -105,6 +135,7 @@ describe("useJobStore", () => {
         action: "pass",
         description: mockJob1.description,
         reason: "Too senior",
+        job_id: mockJob1.id,
       });
     });
 

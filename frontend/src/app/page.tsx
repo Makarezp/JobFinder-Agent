@@ -12,6 +12,7 @@ import ProfileView from "../components/ProfileView";
 export default function Home() {
   const { fetchHistory } = useChatStore();
   const jobs = useJobStore((state) => state.jobs);
+  const { fetchDeck } = useJobStore();
   const { fetchProfile } = useProfileStore();
   const [isMounted, setIsMounted] = useState(false);
   const [activeTab, setActiveTab] = useState<"discovery" | "profile">(
@@ -30,7 +31,8 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsMounted(true);
     fetchHistory();
-  }, [fetchHistory]);
+    fetchDeck();
+  }, [fetchHistory, fetchDeck]);
 
   if (!isMounted) {
     return (

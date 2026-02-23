@@ -24,6 +24,7 @@ async def test_post_feedback_stores_decision_log() -> None:
                     "action": "pass",
                     "description": "A Python role building internal tooling.",
                     "reason": "Too corporate",
+                    "job_id": "abc123def456",
                 },
             )
 
@@ -56,7 +57,7 @@ async def test_post_feedback_without_reason() -> None:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
             response = await ac.post(
                 "/api/feedback",
-                json={"job_title": "Engineer", "company": "StartupX", "action": "pursue"},
+                json={"job_title": "Engineer", "company": "StartupX", "action": "pursue", "job_id": "def456abc789"},
             )
 
         assert response.status_code == 200
@@ -95,8 +96,8 @@ async def test_post_feedback_each_entry_gets_unique_key() -> None:
 
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
-            await ac.post("/api/feedback", json={"job_title": "Job A", "company": "Corp1", "action": "pass"})
-            await ac.post("/api/feedback", json={"job_title": "Job B", "company": "Corp2", "action": "pursue"})
+            await ac.post("/api/feedback", json={"job_title": "Job A", "company": "Corp1", "action": "pass", "job_id": "aaabbbccc111"})
+            await ac.post("/api/feedback", json={"job_title": "Job B", "company": "Corp2", "action": "pursue", "job_id": "dddeeefff222"})
 
         items = store.search((DEFAULT_USER_ID, "decisions"))
         assert len(items) == 2

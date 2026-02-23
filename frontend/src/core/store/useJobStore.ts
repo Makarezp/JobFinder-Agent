@@ -1,11 +1,13 @@
 import { create } from "zustand";
 import { Job } from "../types/api";
-import { submitFeedbackRequest } from "../api/profile";
+import { fetchDeckRequest, submitFeedbackRequest } from "../api/profile";
 import { useProfileStore } from "./useProfileStore";
 
 export interface JobState {
   jobs: Job[];
-  setJobs: (jobs: Job[]) => void;
+  isLoading: boolean;
+  error: string | null;
+  fetchDeck: () => Promise<void>;
   submitFeedback: (
     job: Job,
     action: "pass" | "pursue",
@@ -15,7 +17,21 @@ export interface JobState {
 
 export const useJobStore = create<JobState>((set) => ({
   jobs: [],
-  setJobs: (jobs) => set({ jobs }),
+  isLoading: false,
+  error: null,
+
+  fetchDeck: async () => {
+    set({ isLoading: true, error: null });
+    try {
+      const jobs = await fetchDeckRequest();
+      set({ jobs });
+    } catch (error) {
+      console.error("Failed to fetch deck:", error);
+      set({ error: "Failed to load jobs. Please try again." });
+    } finally {
+      set({ isLoading: false });
+    }
+  },
 
   submitFeedback: async (job, action, reason) => {
     // Optimistic removal — irreversible by design
@@ -28,6 +44,7 @@ export const useJobStore = create<JobState>((set) => ({
         action,
         description: job.description ?? null,
         reason,
+        job_id: job.id,
       });
       await useProfileStore.getState().fetchProfile();
     } catch (error) {

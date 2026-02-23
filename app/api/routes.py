@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 
 from app.agent.constants import DEFAULT_USER_ID
 from app.api.dependencies import get_admin_service, get_chat_service, get_profile_service
-from app.api.schemas import ChatRequest, FeedbackRequest
+from app.api.schemas import ChatRequest, DeckResponse, FeedbackRequest
 from app.services.admin_service import AdminService
 from app.services.chat_service import ChatService
 from app.services.profile_service import ProfileService
@@ -20,6 +20,13 @@ router = APIRouter(prefix="/api")
 ChatServiceDep = Annotated[ChatService, Depends(get_chat_service)]
 ProfileServiceDep = Annotated[ProfileService, Depends(get_profile_service)]
 AdminServiceDep = Annotated[AdminService, Depends(get_admin_service)]
+
+
+@router.get("/deck")
+async def get_deck(service: ProfileServiceDep) -> DeckResponse:
+    """Return the user's current pending job deck."""
+    jobs = await service.get_pending_jobs(DEFAULT_USER_ID)
+    return DeckResponse(jobs=jobs)
 
 
 @router.get("/profile")
@@ -40,6 +47,7 @@ async def submit_feedback(body: FeedbackRequest, service: ProfileServiceDep) -> 
         reason=body.reason,
         user_id=DEFAULT_USER_ID,
     )
+    await service.remove_pending_job(body.job_id, DEFAULT_USER_ID)
     return JSONResponse(content={"status": "ok"})
 
 

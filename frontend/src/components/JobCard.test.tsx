@@ -27,7 +27,9 @@ describe("JobCard", () => {
     vi.mocked(useJobStore.getState).mockReturnValue({
       submitFeedback: vi.fn(),
       jobs: [],
-      setJobs: vi.fn(),
+      isLoading: false,
+      error: null,
+      fetchDeck: vi.fn(),
     });
   });
 
@@ -95,7 +97,9 @@ describe("JobCard", () => {
     vi.mocked(useJobStore.getState).mockReturnValue({
       submitFeedback: mockSubmitFeedback,
       jobs: [],
-      setJobs: vi.fn(),
+      isLoading: false,
+      error: null,
+      fetchDeck: vi.fn(),
     });
 
     render(<JobCard job={mockJob} />);
@@ -110,7 +114,9 @@ describe("JobCard", () => {
     vi.mocked(useJobStore.getState).mockReturnValue({
       submitFeedback: mockSubmitFeedback,
       jobs: [],
-      setJobs: vi.fn(),
+      isLoading: false,
+      error: null,
+      fetchDeck: vi.fn(),
     });
 
     render(<JobCard job={mockJob} />);

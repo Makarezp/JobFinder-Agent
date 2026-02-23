@@ -28,7 +28,7 @@ Create the data model and store CRUD operations for persisting pending jobs in t
 
 ---
 
-## Ticket 4.2 + 4.5: Deck API & Frontend Hydration (Paired Release)
+## Ticket 4.2 + 4.5: Deck API & Frontend Hydration (Paired Release) ✅ DONE
 
 ### Overview
 These two tickets are merged into a single paired release to avoid a breaking contract change. The backend adds `GET /api/deck` and `job_id` to `FeedbackRequest`; the frontend simultaneously adds `fetchDeck()` and starts sending `job_id`. Neither side ships without the other.

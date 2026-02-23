@@ -24,13 +24,6 @@ export const useChatStore = create<ChatState>((set) => ({
       set({ isPending: true });
       const history = await fetchHistoryRequest();
       set({ messages: history });
-
-      if (history.length > 0) {
-        const lastMessage = history[history.length - 1];
-        if (lastMessage.jobs && lastMessage.jobs.length > 0) {
-          useJobStore.getState().setJobs(lastMessage.jobs);
-        }
-      }
     } catch (error) {
       console.error("Failed to fetch history:", error);
     } finally {
@@ -61,7 +54,7 @@ export const useChatStore = create<ChatState>((set) => ({
       });
 
       if (response.jobs && response.jobs.length > 0) {
-        useJobStore.getState().setJobs(response.jobs);
+        await useJobStore.getState().fetchDeck();
       }
     } catch (error) {
       console.error("Failed to send message:", error);
@@ -75,7 +68,7 @@ export const useChatStore = create<ChatState>((set) => ({
         return { messages: newMessages };
       });
     } finally {
-      set({ isPending: false });
+      set({ isPending: false }); // only resolves after fetchDeck completes (awaited above)
     }
   },
 

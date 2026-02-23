@@ -11,7 +11,16 @@ vi.mock("../core/store/useChatStore", () => ({
 }));
 
 vi.mock("../core/store/useJobStore", () => ({
-  useJobStore: vi.fn(() => []),
+  useJobStore: vi.fn((selector?: (s: JobState) => unknown) => {
+    const state: JobState = {
+      jobs: [],
+      isLoading: false,
+      error: null,
+      fetchDeck: vi.fn(),
+      submitFeedback: vi.fn(),
+    };
+    return selector ? selector(state) : state;
+  }),
 }));
 
 vi.mock("../core/store/useProfileStore", () => ({
@@ -42,12 +51,23 @@ vi.mock("../components/ProfileView", () => ({
 }));
 
 import { useProfileStore } from "../core/store/useProfileStore";
-import { useJobStore } from "../core/store/useJobStore";
+import { useJobStore, JobState } from "../core/store/useJobStore";
 
 describe("Home page — tab system", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(useJobStore).mockReturnValue([]);
+    vi.mocked(useJobStore).mockImplementation(
+      (selector?: (s: JobState) => unknown) => {
+        const state: JobState = {
+          jobs: [],
+          isLoading: false,
+          error: null,
+          fetchDeck: vi.fn(),
+          submitFeedback: vi.fn(),
+        };
+        return selector ? selector(state) : state;
+      }
+    );
     vi.mocked(useProfileStore).mockReturnValue({
       profile: null,
       preferences: {},
@@ -117,7 +137,7 @@ describe("Home page — tab system", () => {
   });
 
   it("shows match count subtitle when Discovery tab is active and jobs exist", async () => {
-    vi.mocked(useJobStore).mockReturnValue([
+    const jobs = [
       {
         id: "abc",
         title: "Dev",
@@ -136,7 +156,19 @@ describe("Home page — tab system", () => {
         description: "...",
         apply_link: "https://example.com",
       },
-    ]);
+    ];
+    vi.mocked(useJobStore).mockImplementation(
+      (selector?: (s: JobState) => unknown) => {
+        const state: JobState = {
+          jobs,
+          isLoading: false,
+          error: null,
+          fetchDeck: vi.fn(),
+          submitFeedback: vi.fn(),
+        };
+        return selector ? selector(state) : state;
+      }
+    );
 
     await act(async () => {
       render(<Home />);
@@ -146,7 +178,7 @@ describe("Home page — tab system", () => {
   });
 
   it("does not show match count subtitle when Profile tab is active", async () => {
-    vi.mocked(useJobStore).mockReturnValue([
+    const jobs = [
       {
         id: "abc",
         title: "Dev",
@@ -156,7 +188,19 @@ describe("Home page — tab system", () => {
         description: "...",
         apply_link: "https://example.com",
       },
-    ]);
+    ];
+    vi.mocked(useJobStore).mockImplementation(
+      (selector?: (s: JobState) => unknown) => {
+        const state: JobState = {
+          jobs,
+          isLoading: false,
+          error: null,
+          fetchDeck: vi.fn(),
+          submitFeedback: vi.fn(),
+        };
+        return selector ? selector(state) : state;
+      }
+    );
 
     await act(async () => {
       render(<Home />);
