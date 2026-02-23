@@ -53,6 +53,11 @@ Detailed documentation is available in the `documents/` directory:
 | **[architecture.md](documents/architecture.md)** | 🏗️ **Architects** | Technical stack, data flow, and component diagrams. |
 | **[DESIGN_PRINCIPLES.md](documents/DESIGN_PRINCIPLES.md)** | 📐 **Engineers** | SOLID, Clean Architecture, and abstract system rules. |
 
+### 🕰️ Legacy Documents
+The `legacy_documents/` folder contains finished documentation that is no longer actively needed.
+> [!IMPORTANT]
+> **AI Instruction**: Do not read files in `legacy_documents/` unless explicitly asked by the user with the exact name of the document. Otherwise, this folder should be ignored.
+
 ## 🛠️ Development
 
 ### Backend Checks
@@ -104,7 +109,8 @@ CVviewer/
 │           ├── store/    # Zustand state management
 │           └── types/    # Shared TypeScript types
 ├── tests/                # Python backend tests
-└── documents/            # Project documentation
+├── documents/            # Project documentation
+└── legacy_documents/     # Archived/Legacy documentation (AI ignore by default)
 ```
 
 ## Status
