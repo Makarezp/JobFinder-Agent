@@ -53,10 +53,16 @@ Detailed documentation is available in the `documents/` directory:
 | **[architecture.md](documents/architecture.md)** | 🏗️ **Architects** | Technical stack, data flow, and component diagrams. |
 | **[DESIGN_PRINCIPLES.md](documents/DESIGN_PRINCIPLES.md)** | 📐 **Engineers** | SOLID, Clean Architecture, and abstract system rules. |
 
-### 🕰️ Legacy Documents
-The `legacy_documents/` folder contains finished documentation that is no longer actively needed.
+### � Work Organisation
+The `work_organisation/` folder contains project management and historical data.
+- **history/**: Archived documentation (formerly `legacy_documents`).
+- **bugs/**: Bug trackers and issue logs.
+- **sprints/**: Sprint plans and tickets.
+
 > [!IMPORTANT]
-> **AI Instruction**: Do not read files in `legacy_documents/` unless explicitly asked by the user with the exact name of the document. Otherwise, this folder should be ignored.
+> **AI Interaction Rules**:
+> - **history/**: **DO NOT READ** unless explicitly asked for a specific file name. Reading this will "poison" your context with outdated information.
+> - **bugs/ & sprints/**: Only read when explicitly asked by the user to focus on a particular task or bug.
 
 ## 🛠️ Development
 
@@ -110,7 +116,10 @@ CVviewer/
 │           └── types/    # Shared TypeScript types
 ├── tests/                # Python backend tests
 ├── documents/            # Project documentation
-└── legacy_documents/     # Archived/Legacy documentation (AI ignore by default)
+└── work_organisation/    # Project management & History
+    ├── history/          # Archived docs (AI DO NOT READ)
+    ├── bugs/             # Bug tracker (Explicit request only)
+    └── sprints/          # Sprint plans (Explicit request only)
 ```
 
 ## Status

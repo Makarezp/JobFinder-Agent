@@ -1,11 +1,5 @@
 # AGENTS.md - The AI Manual
 
-## 📌 Document Interaction Rules
-- **READ FIRST**: `AGENTS.md` and `CONVENTIONS.md` are the primary sources of truth for rules.
-- **LEGACY DOCUMENTS**: The `legacy_documents/` folder is **OFF-LIMITS** for broad research.
-    - **Instruction**: Do not read it unless the user explicitly requests a specific file by its full name.
-    - **Reason**: It contains outdated designs that may mislead current implementation.
-
 ## 1. Codebase Map
 
 ### Backend (`app/`)
