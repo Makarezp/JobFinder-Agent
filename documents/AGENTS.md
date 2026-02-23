@@ -1,5 +1,10 @@
 # AGENTS.md - The AI Manual
 
+## 📌 Context Guidance
+- **PERSONAS**: All AI interactions should begin with a persona assignment. Refer to **[PERSONAS.md](PERSONAS.md)** for your specific read-list.
+- **HISTORY**: The `work_organisation/history/` folder is **OFF-LIMITS**. Do not read unless explicitly requested by name. Legacy designs *will* poison your context and lead to incorrect implementation.
+- **TASKS**: `work_organisation/sprints/` and `work_organisation/bugs/` should only be read when actively working on a related ticket.
+
 ## 1. Codebase Map
 
 ### Backend (`app/`)

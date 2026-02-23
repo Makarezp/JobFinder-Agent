@@ -41,16 +41,25 @@
 
 > **Note**: Both backend and frontend must be running concurrently. The Next.js dev server proxies all `/api/*` requests to the FastAPI backend on port 8000.
 
+## 🤖 AI Personas (READ FIRST)
+This project uses a **Persona-based Documentation Model**. Before starting work, the user will assign you a persona. Read the corresponding files in **[PERSONAS.md](documents/PERSONAS.md)** to focus your context.
+
+- 🏗️ **Architect**: System design & constraints.
+- 👨‍💻 **Senior Developer**: Features & components.
+- 🐛 **Bug Fixer**: Troubleshooting & technical debt.
+- 💡 **Product Ideator**: Vision & UX strategy.
+- 🧪 **QA / Tester**: Testing & quality audit.
+
 ## 📚 Documentation
 
 Detailed documentation is available in the `documents/` directory:
 
 | Document | Audience | Description |
 | :--- | :--- | :--- |
-| **[AGENTS.md](documents/AGENTS.md)** | 🤖 **AI Agents** | **READ THIS FIRST**. Project internal map, workflows, and "How-To" guides. |
+| **[PERSONAS.md](documents/PERSONAS.md)** | 🤖 **AI Agents** | **START HERE**. Persona assignment and context read lists. |
+| **[AGENTS.md](documents/AGENTS.md)** | 🤖 **Devs** | Project internal map, workflows, and "How-To" guides. |
 | **[CONVENTIONS.md](documents/CONVENTIONS.md)** | 🤖 & 👨‍💻 | Strict rules for Typing, Error Handling, and Testing. |
 | **[domain.md](documents/domain.md)** | 🧠 **Context** | Business logic, glossary, and the "Soul" of the project. |
-| **[architecture.md](documents/architecture.md)** | 🏗️ **Architects** | Technical stack, data flow, and component diagrams. |
 | **[DESIGN_PRINCIPLES.md](documents/DESIGN_PRINCIPLES.md)** | 📐 **Engineers** | SOLID, Clean Architecture, and abstract system rules. |
 
 ### � Work Organisation
