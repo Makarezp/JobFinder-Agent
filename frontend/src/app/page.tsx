@@ -41,7 +41,7 @@ export default function Home() {
   }
 
   return (
-    <main className="flex-1 flex overflow-hidden relative">
+    <main className="flex-1 min-h-0 flex overflow-clip relative">
       {/* Background Ambient Glow */}
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/20 blur-[120px] rounded-full pointer-events-none z-0" />
       <div className="absolute bottom-[-10%] right-[-10%] w-[30%] h-[30%] bg-purple-600/10 blur-[100px] rounded-full pointer-events-none z-0" />

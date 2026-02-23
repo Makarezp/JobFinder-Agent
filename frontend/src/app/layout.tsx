@@ -23,7 +23,7 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 min-h-screen flex flex-col overflow-hidden">
+      <body className="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 h-screen flex flex-col overflow-hidden">
         {/* Top Navigation / Pulse Widget */}
         <header className="h-16 shrink-0 border-b border-glass-border bg-[#131221]/90 backdrop-blur-md z-20 flex items-center justify-between px-6">
           {/* Brand */}
