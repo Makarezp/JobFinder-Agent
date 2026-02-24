@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>CVviewer — Job Carousel Reference</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<script>
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        colors: {
+          "primary": "#564be7",
+          "primary-hover": "#4a41c7",
+          "background-dark": "#0f111a",
+          "glass-dark": "rgba(30, 32, 47, 0.6)",
+          "glass-border": "rgba(255, 255, 255, 0.08)",
+          "surface-dark": "#181a25",
+        },
+      },
+    },
+  }
+</script>
+<style>
+  body { font-family: 'Inter', sans-serif; }
+
+  /* --- Reuse in globals.css --- */
+  .glass-panel {
+    background: linear-gradient(145deg, rgba(30, 32, 47, 0.7) 0%, rgba(18, 19, 30, 0.8) 100%);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+  }
+  .glow-card {
+    box-shadow: 0 20px 50px -12px rgba(0, 0, 0, 0.5), 0 0 30px -5px rgba(86, 75, 231, 0.3);
+    border: 1px solid rgba(86, 75, 231, 0.5);
+  }
+  .nav-gutter {
+    background: linear-gradient(to right, rgba(15, 17, 26, 0.8), rgba(15, 17, 26, 0));
+    transition: all 0.3s ease;
+  }
+  .nav-gutter:hover {
+    background: linear-gradient(to right, rgba(86, 75, 231, 0.1), rgba(15, 17, 26, 0));
+  }
+  .nav-gutter.right {
+    background: linear-gradient(to left, rgba(15, 17, 26, 0.8), rgba(15, 17, 26, 0));
+  }
+  .nav-gutter.right:hover {
+    background: linear-gradient(to left, rgba(86, 75, 231, 0.1), rgba(15, 17, 26, 0));
+  }
+  .side-card {
+    opacity: 0.4;
+    transform: scale(0.92);
+    filter: blur(2px) grayscale(0.5);
+    transition: all 0.4s ease;
+  }
+  .custom-scroll::-webkit-scrollbar { width: 6px; }
+  .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+  .custom-scroll::-webkit-scrollbar-thumb { background-color: rgba(255,255,255,0.1); border-radius: 20px; }
+  .scroll-mask {
+    mask-image: linear-gradient(to bottom, black 85%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to bottom, black 85%, transparent 100%);
+  }
+  .floating-action-bar {
+    background: rgba(24, 26, 37, 0.85);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+  }
+</style>
+</head>
+<body class="dark:bg-background-dark text-slate-100 min-h-screen flex flex-col overflow-hidden">
+
+<!-- CAROUSEL SHELL -->
+<main class="flex-1 flex overflow-hidden relative" style="height:100vh;">
+
+  <!-- Background glows -->
+  <div class="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/20 blur-[120px] rounded-full pointer-events-none z-0"></div>
+  <div class="absolute bottom-[-10%] right-[-10%] w-[30%] h-[30%] bg-purple-600/10 blur-[100px] rounded-full pointer-events-none z-0"></div>
+
+  <section class="flex-1 flex flex-col bg-transparent z-10 relative overflow-hidden">
+
+    <!-- Left nav gutter -->
+    <div class="absolute left-0 top-0 bottom-0 w-24 z-30 flex items-center justify-center nav-gutter group cursor-pointer">
+      <div class="h-32 w-12 rounded-full glass-panel flex items-center justify-center border border-white/10 group-hover:border-primary/40 group-hover:shadow-[0_0_15px_rgba(86,75,231,0.2)] transition-all duration-300">
+        <span class="material-symbols-outlined text-4xl text-slate-400 group-hover:text-white transition-colors">chevron_left</span>
+      </div>
+    </div>
+
+    <!-- Right nav gutter -->
+    <div class="absolute right-0 top-0 bottom-0 w-24 z-30 flex items-center justify-center nav-gutter right group cursor-pointer">
+      <div class="h-32 w-12 rounded-full glass-panel flex items-center justify-center border border-white/10 group-hover:border-primary/40 group-hover:shadow-[0_0_15px_rgba(86,75,231,0.2)] transition-all duration-300">
+        <span class="material-symbols-outlined text-4xl text-slate-400 group-hover:text-white transition-colors">chevron_right</span>
+      </div>
+    </div>
+
+    <!-- Card area -->
+    <div class="flex-1 flex items-center justify-center relative overflow-hidden">
+
+      <!-- Side peek ghost cards (decorative only, no content) -->
+      <div class="absolute left-[5%] h-[80%] w-[100px] bg-surface-dark border border-glass-border rounded-2xl side-card z-0 hidden md:block"></div>
+      <div class="absolute right-[5%] h-[80%] w-[100px] bg-surface-dark border border-glass-border rounded-2xl side-card z-0 hidden md:block"></div>
+
+      <!-- Main job profile card -->
+      <div class="w-full max-w-4xl h-full max-h-[85vh] flex flex-col relative z-20 mx-20">
+        <div class="relative flex-1 flex flex-col glass-panel glow-card rounded-2xl overflow-hidden">
+
+          <!-- STICKY HEADER -->
+          <div class="p-8 pb-4 shrink-0 border-b border-glass-border bg-surface-dark/50 backdrop-blur-md z-10">
+            <div class="flex gap-5 items-start">
+              <!-- Logo placeholder -->
+              <div class="size-20 rounded-2xl bg-slate-800 flex items-center justify-center shrink-0">
+                <span class="material-symbols-outlined text-slate-400 text-4xl">work</span>
+              </div>
+              <!-- Title block -->
+              <div class="flex flex-col gap-1">
+                <h3 class="text-3xl font-bold text-white tracking-tight">Senior Backend Engineer</h3>
+                <div class="flex items-center gap-2 text-slate-300 font-medium text-lg">
+                  <span>TechFlow</span>
+                  <span class="text-slate-600">•</span>
+                  <span>Remote</span>
+                </div>
+                <!-- Salary — omit if null -->
+                <div class="flex items-center gap-1.5 text-sm text-slate-400 mt-1">
+                  <span class="material-symbols-outlined text-primary text-[18px]">payments</span>
+                  <span>£85k - £110k</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- SCROLLABLE BODY (pb-24 required — floating bar overlays bottom) -->
+          <div class="flex-1 overflow-y-auto custom-scroll p-8 pb-24 space-y-6 scroll-mask">
+
+            <!-- Overview (short description) -->
+            <div class="space-y-3">
+              <h4 class="text-lg font-semibold text-white">Overview</h4>
+              <p class="text-slate-300 leading-relaxed">
+                A senior backend role focused on high-performance systems for a global logistics platform.
+                Strong Python and Django background required, with mentorship responsibilities for junior engineers.
+              </p>
+            </div>
+
+            <!-- Full description -->
+            <div class="space-y-4 pt-4 border-t border-glass-border">
+              <h4 class="text-lg font-semibold text-white">Full Description</h4>
+              <p class="text-slate-300 leading-relaxed">
+                We are looking for a Senior Backend Engineer to join our Core Platform team. You will be responsible
+                for designing, building, and maintaining high-performance, scalable systems that power our global
+                logistics platform. You'll work closely with product managers, frontend engineers, and data scientists
+                to deliver robust solutions.
+              </p>
+              <p class="text-slate-300 leading-relaxed">
+                As a senior member of the team, you will also be expected to provide technical guidance and mentorship
+                to other engineers, ensuring code quality and best practices are maintained.
+              </p>
+              <h5 class="text-base font-semibold text-white pt-2">Key Responsibilities</h5>
+              <ul class="list-disc pl-5 space-y-2 marker:text-primary text-slate-300">
+                <li>Lead the design and implementation of new backend services using Python and Django.</li>
+                <li>Migrate critical components from a monolithic architecture to microservices.</li>
+                <li>Optimize database queries and system performance to handle increasing traffic loads.</li>
+                <li>Conduct code reviews and provide constructive feedback to team members.</li>
+              </ul>
+              <h5 class="text-base font-semibold text-white pt-2">Requirements</h5>
+              <ul class="list-disc pl-5 space-y-2 marker:text-primary text-slate-300">
+                <li>5+ years of experience in backend development with Python.</li>
+                <li>Strong knowledge of PostgreSQL and Redis.</li>
+                <li>Experience with cloud platforms, preferably AWS.</li>
+              </ul>
+            </div>
+
+          </div>
+
+          <!-- FLOATING ACTION BAR -->
+          <div class="absolute bottom-8 left-1/2 -translate-x-1/2 w-[calc(100%-4rem)] max-w-lg z-40">
+            <div class="floating-action-bar rounded-2xl p-2 flex gap-3 shadow-2xl">
+              <button class="flex-1 py-3 rounded-xl border border-white/5 bg-surface-dark/50 text-slate-300 font-semibold text-base hover:text-white hover:border-red-500/30 hover:bg-red-500/10 transition-all duration-300 flex items-center justify-center gap-2">
+                <span class="material-symbols-outlined text-lg">close</span> Pass
+              </button>
+              <button class="flex-1 py-3 rounded-xl bg-primary text-white font-bold text-base shadow-lg shadow-primary/25 hover:bg-primary-hover hover:shadow-primary/40 hover:-translate-y-0.5 transition-all duration-300 flex items-center justify-center gap-2">
+                Pursue <span class="material-symbols-outlined text-lg">arrow_forward</span>
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+</body>
+</html>
