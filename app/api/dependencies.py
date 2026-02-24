@@ -96,7 +96,7 @@ async def get_chat_service() -> AsyncGenerator[ChatService, None]:
     g = await graph_gen.__anext__()
     s = await store_gen.__anext__()
 
-    service = ChatService(g, s)
+    service = ChatService(g, s, ProfileService(s))
     yield service
 
 

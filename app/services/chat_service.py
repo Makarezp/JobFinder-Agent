@@ -19,14 +19,16 @@ from app.agent.constants import (
 )
 from app.core.logging import log_timing, request_id_var
 from app.core.logging_utils import log_state_snapshot
+from app.services.profile_service import ProfileService
 
 logger = structlog.get_logger(__name__)
 
 
 class ChatService:
-    def __init__(self, graph: CompiledStateGraph[Any], store: BaseStore) -> None:
+    def __init__(self, graph: CompiledStateGraph[Any], store: BaseStore, profile_service: ProfileService) -> None:
         self._graph = graph
         self._store = store
+        self._profile_service = profile_service
 
     async def process_message(self, message: str, thread_id: str = DEFAULT_THREAD_ID) -> dict[str, Any]:
         """
@@ -52,7 +54,10 @@ class ChatService:
                 log_state_snapshot(logger, state, truncate_keys=[CV_RAW_TEXT_KEY])
                 final_state = state
 
-        return self._parse_agent_result(final_state, message)
+        result = self._parse_agent_result(final_state, message)
+        if result["jobs"]:
+            await self._profile_service.add_pending_jobs(result["jobs"], DEFAULT_USER_ID)
+        return result
 
     async def process_cv(self, file_bytes: bytes, filename: str, thread_id: str = DEFAULT_THREAD_ID) -> dict[str, Any]:
         """
@@ -81,7 +86,10 @@ class ChatService:
                 log_state_snapshot(logger, state, truncate_keys=[CV_RAW_TEXT_KEY])
                 final_state = state
 
-        return self._parse_agent_result(final_state, f"Uploaded CV: {filename}")
+        result = self._parse_agent_result(final_state, f"Uploaded CV: {filename}")
+        if result["jobs"]:
+            await self._profile_service.add_pending_jobs(result["jobs"], DEFAULT_USER_ID)
+        return result
 
     def _parse_agent_result(self, result: dict[str, Any], user_message: str) -> dict[str, Any]:
         """

@@ -94,7 +94,7 @@ def _make_service() -> ChatService:
     """Return a ChatService with stub dependencies (graph/store not exercised here)."""
     from unittest.mock import MagicMock
 
-    return ChatService(graph=MagicMock(), store=MagicMock())
+    return ChatService(graph=MagicMock(), store=MagicMock(), profile_service=MagicMock())
 
 
 def _make_final_answer_state(jobs: list[dict]) -> dict:  # type: ignore[type-arg]

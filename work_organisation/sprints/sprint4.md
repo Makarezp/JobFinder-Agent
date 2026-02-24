@@ -82,7 +82,7 @@ These two tickets are merged into a single paired release to avoid a breaking co
 
 ---
 
-## Ticket 4.3: Backend — Persist Jobs on Agent Response
+## Ticket 4.3: Backend — Persist Jobs on Agent Response ✅ DONE
 
 ### Overview
 When the agent returns jobs via `final_answer`, automatically write them to the pending deck store so they survive page refreshes and aren't lost on the next agent turn.
