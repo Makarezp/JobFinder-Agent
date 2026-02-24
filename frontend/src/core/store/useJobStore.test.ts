@@ -26,6 +26,7 @@ const mockJob1: Job = {
   location: "Remote",
   salary: "100k - 150k",
   description: "Great job",
+  full_description: null,
   apply_link: "https://example.com/1",
 };
 
@@ -36,6 +37,7 @@ const mockJob2: Job = {
   location: "London",
   salary: "120k",
   description: "Big data systems",
+  full_description: null,
   apply_link: "https://example.com/2",
 };
 

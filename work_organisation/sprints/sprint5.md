@@ -184,7 +184,7 @@ The LLM's only responsibility is to call `final_answer` with the `apply_link` in
 
 ---
 
-## Ticket 5.3: Frontend — Add `full_description` to `Job` Type
+## Ticket 5.3: Frontend — Add `full_description` to `Job` Type — DONE
 
 ### Overview
 Add `full_description: string | null` to the frontend `Job` interface so the carousel component can render it. This is a purely additive type change.

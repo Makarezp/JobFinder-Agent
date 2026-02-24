@@ -123,6 +123,7 @@ describe("useChatStore", () => {
             location: "Remote",
             salary: null,
             description: "desc",
+            full_description: null,
             apply_link: "https://x.com",
           },
         ],

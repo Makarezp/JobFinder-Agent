@@ -145,6 +145,7 @@ describe("Home page — tab system", () => {
         location: "Remote",
         salary: null,
         description: "...",
+        full_description: null,
         apply_link: "https://example.com",
       },
       {
@@ -154,6 +155,7 @@ describe("Home page — tab system", () => {
         location: "London",
         salary: null,
         description: "...",
+        full_description: null,
         apply_link: "https://example.com",
       },
     ];
@@ -186,6 +188,7 @@ describe("Home page — tab system", () => {
         location: "Remote",
         salary: null,
         description: "...",
+        full_description: null,
         apply_link: "https://example.com",
       },
     ];

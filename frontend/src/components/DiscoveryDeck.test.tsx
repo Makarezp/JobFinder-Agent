@@ -17,6 +17,7 @@ const mockJob1: Job = {
   location: "Remote",
   salary: "£85k - £110k",
   description: "Leading the backend migration team.",
+  full_description: null,
   apply_link: "https://example.com/apply/1",
 };
 
@@ -27,6 +28,7 @@ const mockJob2: Job = {
   location: "London (Hybrid)",
   salary: "£95k - £120k",
   description: "High-scale data ingestion systems architecture.",
+  full_description: null,
   apply_link: "https://example.com/apply/2",
 };
 

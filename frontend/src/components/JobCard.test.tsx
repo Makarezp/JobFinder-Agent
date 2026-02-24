@@ -19,6 +19,7 @@ const mockJob: Job = {
   salary: "£85k - £110k",
   description:
     "Leading the backend migration team. This role offers a direct path to Staff Engineer.",
+  full_description: null,
   apply_link: "https://example.com/apply",
 };
 

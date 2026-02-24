@@ -5,6 +5,7 @@ export interface Job {
   location: string;
   salary: string | null;
   description: string;
+  full_description: string | null;
   apply_link: string;
 }
 
