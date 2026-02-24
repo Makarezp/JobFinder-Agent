@@ -72,7 +72,7 @@ export default function JobCard({ job }: JobCardProps) {
 
       {/* Description */}
       <div className="py-3 border-t border-glass-border">
-        <p className="text-sm text-slate-400 line-clamp-2">{job.description}</p>
+        <p className="text-sm text-slate-400 line-clamp-4">{job.description}</p>
       </div>
 
       {/* Action Buttons */}
