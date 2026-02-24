@@ -63,10 +63,10 @@ describe("JobCard", () => {
     expect(screen.queryByTestId("salary-pill")).not.toBeInTheDocument();
   });
 
-  it("renders the description with line-clamp-2 class for truncation", () => {
+  it("renders the description with line-clamp-4 class for truncation", () => {
     render(<JobCard job={mockJob} />);
     const description = screen.getByText(mockJob.description);
-    expect(description).toHaveClass("line-clamp-2");
+    expect(description).toHaveClass("line-clamp-4");
   });
 
   it("renders the Pursue button as a link to apply_link", () => {

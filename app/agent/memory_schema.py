@@ -39,6 +39,7 @@ class PendingJob(BaseModel):
     location: str
     salary: str | None = None
     description: str
+    full_description: str | None = None
     apply_link: str
     added_at: str  # ISO 8601 format — store metadata, not exposed to frontend
 

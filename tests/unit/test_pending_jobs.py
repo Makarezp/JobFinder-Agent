@@ -87,3 +87,20 @@ async def test_empty_store_returns_empty_list(service: ProfileService) -> None:
     """get_pending_jobs on a fresh store returns an empty list."""
     jobs = await service.get_pending_jobs(TEST_USER)
     assert jobs == []
+
+
+def test_pending_job_without_full_description_defaults_to_none() -> None:
+    """PendingJob deserialises correctly when full_description is absent."""
+    from app.agent.memory_schema import PendingJob
+
+    job = PendingJob(**{**JOB_A, "added_at": "2026-01-01T00:00:00+00:00"})
+    assert job.full_description is None
+
+
+def test_pending_job_with_full_description_serialises_field() -> None:
+    """PendingJob with full_description serialises it into the dict."""
+    from app.agent.memory_schema import PendingJob
+
+    job = PendingJob(**{**JOB_A, "added_at": "2026-01-01T00:00:00+00:00", "full_description": "Full job text here."})
+    data = job.model_dump()
+    assert data["full_description"] == "Full job text here."
