@@ -1,19 +1,21 @@
 import pytest
 from httpx import ASGITransport, AsyncClient
 from langgraph.store.postgres import AsyncPostgresStore
+from psycopg_pool import AsyncConnectionPool
 
 from app.api.dependencies import get_store
-from app.core.database import get_connection_pool
 from app.main import app
 
+pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
 
-@pytest.mark.asyncio
-async def test_cv_persistence() -> None:
-    """Test that profile with cv_summary is persisted and visible via GET /api/profile."""
+
+async def test_cv_persistence(pg_pool: AsyncConnectionPool) -> None:
+    """Test that profile with cv_summary is persisted and visible via GET /api/profile.
+    Uses an isolated Postgres container — never touches the dev database.
+    """
     user_id = "default_user"
     namespace = (user_id, "profile")
 
-    # Simulate a profile with structured cv_summary (as stored by the onboarding agent)
     data = {
         "name": "Persistence Test",
         "role": "Senior Python Developer",
@@ -21,18 +23,15 @@ async def test_cv_persistence() -> None:
         "cv_uploaded": True,
     }
 
-    # Seed the store directly and override the dependency so the app uses the same store
-    async with get_connection_pool() as pool:
-        store = AsyncPostgresStore(pool)  # type: ignore[arg-type]
-        await store.setup()
-        await store.aput(namespace, "data", data)
+    store = AsyncPostgresStore(pg_pool)  # type: ignore[arg-type]
+    await store.aput(namespace, "data", data)
 
-        app.dependency_overrides[get_store] = lambda: store
-        try:
-            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
-                response = await ac.get("/api/profile")
-        finally:
-            app.dependency_overrides.clear()
+    app.dependency_overrides[get_store] = lambda: store
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+            response = await ac.get("/api/profile")
+    finally:
+        app.dependency_overrides.clear()
 
     assert response.status_code == 200
     data_response = response.json()

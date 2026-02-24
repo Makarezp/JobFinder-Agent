@@ -31,6 +31,7 @@ dev = [
     "ruff",
     "pre-commit",
     "pytest-cov",
+    "testcontainers[postgres]",
 ]
 
 [build-system]
@@ -43,7 +44,10 @@ include = ["app*"]
 
 [tool.pytest.ini_options]
 minversion = "6.0"
-addopts = "-ra -q"
+addopts = "-ra -q -m 'not integration'"
+markers = [
+    "integration: marks tests that hit real infrastructure (spins up a Postgres container). Run with: pytest -m integration",
+]
 testpaths = [
     "tests",
 ]

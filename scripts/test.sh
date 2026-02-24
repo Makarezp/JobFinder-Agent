@@ -6,6 +6,7 @@ set -e
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 RED='\033[0;31m'
+YELLOW='\033[0;33m'
 NC='\033[0m'
 
 # Check if we are in a virtual environment
@@ -13,11 +14,11 @@ if [[ -z "$VIRTUAL_ENV" ]]; then
     echo -e "${RED}Warning: Not running in a virtual environment. Please run 'source .venv/bin/activate' first.${NC}"
 fi
 
-echo -e "${BLUE}1. Running Formatting Check (Ruff Format)...${NC}"
-ruff format --check .
+echo -e "${BLUE}1. Running Formatter (Ruff Format)...${NC}"
+ruff format .
 
 echo -e "\n${BLUE}2. Running Lint Checks (Ruff)...${NC}"
-ruff check .
+ruff check --fix .
 
 echo -e "\n${BLUE}3. Running Type Checks (Mypy)...${NC}"
 mypy .
@@ -30,7 +31,15 @@ export LANGSMITH_TRACING_V2=false
 # If no arguments are passed, it runs all tests defined in pyproject.toml
 if [ $# -eq 0 ]; then
     pytest -ra
-    echo -e "\n${BLUE}5. Running Frontend Checks (Lint, Type, Test)...${NC}"
+
+    echo -e "\n${BLUE}5. Running Integration Tests (Pytest + Testcontainers)...${NC}"
+    if docker info > /dev/null 2>&1; then
+        pytest -m integration -ra
+    else
+        echo -e "${YELLOW}Skipping integration tests — Docker not available.${NC}"
+    fi
+
+    echo -e "\n${BLUE}6. Running Frontend Checks (Lint, Type, Test)...${NC}"
     cd frontend && npm run lint && npm run type-check && npm run test && cd ..
 else
     pytest -ra "$@"
