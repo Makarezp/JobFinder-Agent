@@ -211,7 +211,7 @@ Add `full_description: string | null` to the frontend `Job` interface so the car
 
 ---
 
-## Ticket 5.4: Frontend — Carousel Shell (`DiscoveryDeck` Redesign)
+## Ticket 5.4: Frontend — Carousel Shell (`DiscoveryDeck` Redesign) - DONE
 
 ### Overview
 Redesign `DiscoveryDeck.tsx` from a responsive grid into a full-height carousel shell. One job profile occupies the entire discovery area at a time. Left/right navigation arrows allow free browsing. Passing a job hides it locally and auto-advances to the next.
