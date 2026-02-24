@@ -78,6 +78,22 @@ async def call_job_specialist(state: AgentState) -> dict[str, Any]:
     else:
         new_attempts = state.get("search_attempts", 0)
 
+    # Check inspect attempts if inspecting
+    if input_data.mode == "inspect":
+        inspect_attempts = state.get("inspect_attempts", 0)
+        if inspect_attempts >= 5:
+            return {
+                "messages": [
+                    ToolMessage(
+                        content="SYSTEM ALERT: Maximum inspect attempts (5) reached.",
+                        tool_call_id=tool_call_id,
+                    )
+                ]
+            }
+        new_inspect_attempts = inspect_attempts + 1
+    else:
+        new_inspect_attempts = state.get("inspect_attempts", 0)
+
     # Invoke subgraph
     subgraph_state: JobSpecialistState = {
         "input": input_data,
@@ -88,28 +104,37 @@ async def call_job_specialist(state: AgentState) -> dict[str, Any]:
     # cast to Any because JobSpecialistState mismatch with compiled graph type can happen in mypy
     result = await job_search_graph.ainvoke(cast(Any, subgraph_state))
 
-    # Format output
-    output_content = ""
+    # Format output and return per mode
     if input_data.mode == "search":
         results = result.get("search_results", [])
-        if not results:
-            output_content = "No jobs found."
-        else:
-            output_content = json.dumps([r.model_dump() for r in results], indent=2)
+        output_content = json.dumps([r.model_dump() for r in results], indent=2) if results else "No jobs found."
+        return {
+            "messages": [ToolMessage(content=output_content, tool_call_id=tool_call_id)],
+            "search_attempts": new_attempts,
+        }
 
-    elif input_data.mode == "inspect":
+    if input_data.mode == "inspect":
         detail = result.get("inspect_result")
         if not detail:
-            output_content = "Failed to fetch details."
-        else:
-            output_content = detail.model_dump_json(indent=2)
+            return {
+                "messages": [ToolMessage(content="Failed to fetch details.", tool_call_id=tool_call_id)],
+                "search_attempts": new_attempts,
+                "inspect_attempts": new_inspect_attempts,
+            }
+        output_content = detail.model_dump_json(indent=2)
+        current_results = dict(state.get("inspect_results", {}))
+        if input_data.url is not None:
+            current_results[input_data.url] = detail.full_description
+        return {
+            "messages": [ToolMessage(content=output_content, tool_call_id=tool_call_id)],
+            "search_attempts": new_attempts,
+            "inspect_attempts": new_inspect_attempts,
+            "inspect_results": current_results,
+        }
 
-    # Fallback if empty (should not happen if subgraph checks mode)
-    if not output_content:
-        output_content = "Job Specialist completed with no output."
-
+    # Fallback (should not happen if subgraph checks mode)
     return {
-        "messages": [ToolMessage(content=output_content, tool_call_id=tool_call_id)],
+        "messages": [ToolMessage(content="Job Specialist completed with no output.", tool_call_id=tool_call_id)],
         "search_attempts": new_attempts,
     }
 

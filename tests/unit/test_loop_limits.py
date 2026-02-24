@@ -76,6 +76,58 @@ async def test_call_job_specialist_blocks_fourth_attempt() -> None:
 
 
 @pytest.mark.asyncio
+async def test_call_job_specialist_blocks_sixth_inspect_attempt() -> None:
+    """call_job_specialist returns SYSTEM ALERT when inspect_attempts >= 5, without invoking subgraph."""
+    from langchain_core.messages import AIMessage
+
+    msg = AIMessage(
+        content="",
+        tool_calls=[{"name": "job_specialist_tool", "args": {"mode": "inspect", "url": "http://foo.com"}, "id": "call_inspect_blocked"}],
+    )
+    state = {"inspect_attempts": 5, "search_attempts": 0, "messages": [msg]}  # type: ignore
+
+    from unittest.mock import AsyncMock, patch
+
+    with patch("app.agent.graph.job_search_graph") as mock_graph:
+        mock_graph.ainvoke = AsyncMock()
+
+        result = await call_job_specialist(state)  # type: ignore
+
+        mock_graph.ainvoke.assert_not_called()
+        assert "messages" in result
+        tool_msg = result["messages"][0]
+        assert isinstance(tool_msg, ToolMessage)
+        assert "SYSTEM ALERT" in tool_msg.content
+        assert "Maximum inspect attempts" in tool_msg.content
+
+
+@pytest.mark.asyncio
+async def test_inspect_stores_full_description_in_inspect_results() -> None:
+    """After a successful inspect, the returned dict has inspect_results keyed by URL."""
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    from langchain_core.messages import AIMessage
+
+    url = "http://example.com/job"
+    msg = AIMessage(
+        content="",
+        tool_calls=[{"name": "job_specialist_tool", "args": {"mode": "inspect", "url": url}, "id": "call_insp"}],
+    )
+    state = {"inspect_attempts": 0, "search_attempts": 0, "messages": [msg]}  # type: ignore
+
+    with patch("app.agent.graph.job_search_graph") as mock_graph:
+        mock_detail = MagicMock()
+        mock_detail.full_description = "Full job description text."
+        mock_detail.model_dump_json.return_value = '{"full_description": "Full job description text."}'
+        mock_graph.ainvoke = AsyncMock(return_value={"search_results": [], "inspect_result": mock_detail})
+
+        result = await call_job_specialist(state)  # type: ignore
+
+        assert "inspect_results" in result
+        assert result["inspect_results"][url] == "Full job description text."
+
+
+@pytest.mark.asyncio
 async def test_inspect_does_not_increment_attempts() -> None:
     """Test that 'inspect' mode does NOT increment search_attempts."""
     from unittest.mock import AsyncMock, MagicMock, patch

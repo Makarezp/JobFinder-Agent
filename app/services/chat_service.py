@@ -40,6 +40,8 @@ class ChatService:
         inputs: dict[str, Any] = {
             "messages": [HumanMessage(content=message)],
             "search_attempts": 0,
+            "inspect_attempts": 0,
+            "inspect_results": {},
         }
         config: RunnableConfig = {
             "configurable": {"thread_id": thread_id, "user_id": DEFAULT_USER_ID},
@@ -78,6 +80,9 @@ class ChatService:
         inputs: dict[str, Any] = {
             "messages": [HumanMessage(content=f"I just uploaded my CV ({filename}). Please analyze it.")],
             CV_RAW_TEXT_KEY: cv_text,
+            "search_attempts": 0,
+            "inspect_attempts": 0,
+            "inspect_results": {},
         }
 
         final_state = inputs
@@ -123,6 +128,12 @@ class ChatService:
 
         if not ai_content and not jobs:
             ai_content = "I apologize, but I couldn't generate a response. Please try asking again."
+
+        # Stitch full_description from inspect_results keyed by apply_link
+        inspect_results: dict[str, str] = result.get("inspect_results") or {}
+        for job in jobs:
+            if not job.get("full_description") and inspect_results:
+                job["full_description"] = inspect_results.get(job.get("apply_link", ""))
 
         # Inject deterministic id into each job dict for frontend tracking
         for job in jobs:

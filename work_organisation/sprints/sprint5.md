@@ -51,7 +51,7 @@ Add `full_description: str | None` as an optional field to `PendingJob` (the per
 
 ---
 
-## Ticket 5.2: Backend — Agent Inspect-First Flow
+## Ticket 5.2: Backend — Agent Inspect-First Flow — DONE
 
 ### Overview
 Update the agent to enforce a **search → filter → inspect → surface** flow. The agent currently calls `final_answer` immediately after a search.
