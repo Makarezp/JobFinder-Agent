@@ -19,7 +19,7 @@ Replace the grid of small job cards with a full-profile carousel. Each job occup
 
 ---
 
-## Ticket 5.1: Backend — Add `full_description` to the Data Pipeline
+## Ticket 5.1: Backend — Add `full_description` to the Data Pipeline — DONE
 
 ### Overview
 Add `full_description: str | None` as an optional field to `PendingJob` (the persistence model). This is a purely additive, non-breaking change — existing jobs without a full description will carry `None`.
