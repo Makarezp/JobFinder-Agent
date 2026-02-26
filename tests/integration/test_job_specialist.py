@@ -18,7 +18,7 @@ async def test_job_search_graph_search_mode() -> None:
     # But to make it robust, we should probably mock.
     # However, for this verification, running it and seeing if it crashes is a good first step.
 
-    state = cast(JobSpecialistState, {"input": input_data, "search_results": None, "inspect_result": None})
+    state = cast(JobSpecialistState, {"input": input_data, "search_results": None})
 
     result = await job_search_graph.ainvoke(cast(Any, state))
 
@@ -32,14 +32,9 @@ async def test_job_search_graph_inspect_mode() -> None:
     """Test the inspect mode."""
     input_data = JobSpecialistInput(mode="inspect", url="https://example.com/job")
 
-    state = cast(JobSpecialistState, {"input": input_data, "search_results": None, "inspect_result": None})
-
-    # helper to mock scraper would be good, but scraper uses crawl4ai
-    # We'll just run it.
+    state = cast(JobSpecialistState, {"input": input_data, "search_results": None})
 
     result = await job_search_graph.ainvoke(cast(Any, state))
 
-    assert "inspect_result" in result
-    if result["inspect_result"]:
-        assert result["inspect_result"].full_description
-    print(f"Inspect Result: {result['inspect_result']}")
+    # inspect_job is a stub (pending removal in Ticket 6.3) — returns empty dict
+    assert "inspect_result" not in result or result.get("inspect_result") is None

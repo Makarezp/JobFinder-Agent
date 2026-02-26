@@ -65,7 +65,7 @@ Implement the `jsearch_api_search` tool to fetch real-time job listings in a sin
 
 ---
 
-## Ticket 6.2: Backend — Schema Simplification (JobListing)
+## Ticket 6.2: Backend — Schema Simplification (JobListing) ✅ DONE
 
 ### Overview
 With JSearch providing sufficient description data immediately, the separation between `JobSummary` and `JobDetail` is obsolete. We will simplify the Pydantic schemas to utilize a single `JobListing` source of truth.

@@ -1,6 +1,6 @@
 from typing import TypedDict
 
-from app.agent.schemas import JobDetail, JobSpecialistInput, JobSummary
+from app.agent.schemas import JobListing, JobSpecialistInput
 
 
 class JobSpecialistState(TypedDict):
@@ -9,7 +9,4 @@ class JobSpecialistState(TypedDict):
     """
 
     input: JobSpecialistInput
-    # Output can be a list of summaries OR a single detail
-    # We can use a union or separate fields
-    search_results: list[JobSummary] | None
-    inspect_result: JobDetail | None
+    search_results: list[JobListing] | None

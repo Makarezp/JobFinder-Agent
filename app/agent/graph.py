@@ -98,7 +98,6 @@ async def call_job_specialist(state: AgentState) -> dict[str, Any]:
     subgraph_state: JobSpecialistState = {
         "input": input_data,
         "search_results": None,
-        "inspect_result": None,
     }
     # cast to Any to satisfy mypy's strict Pregel state checking
     # cast to Any because JobSpecialistState mismatch with compiled graph type can happen in mypy

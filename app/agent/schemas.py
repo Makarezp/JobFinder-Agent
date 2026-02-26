@@ -22,30 +22,8 @@ class JobSpecialistInput(BaseModel):
     summary_context: dict[str, Any] | None = Field(None, description="JobSummary dict passed from Main Agent for context (mode='inspect')")
 
 
-class JobSummary(BaseModel):
-    """Lightweight job summary for list views."""
-
-    id: str = Field(..., description="Unique identifier or URL hash.")
-    title: str = Field(..., description="The job title.")
-    company: str = Field(..., description="The name of the company.")
-    location: str = Field(..., description="The job location.")
-    salary: str = Field(default="Negotiable", description="The salary range or amount. If it contains '(Predicted)', it is an AI estimate")
-    snippet: str = Field(..., description="A very brief snippet/preview of the description.")
-    url: str = Field(..., description="The URL to apply or view details.")
-    created: str | None = Field(None, description="Date posted.")
-
-
-class JobDetail(BaseModel):
-    """Detailed job information including full description."""
-
-    summary: JobSummary
-    full_description: str = Field(..., description="The full job description text.")
-    requirements: list[str] | None = Field(default=None, description="Extracted requirements.")
-    benefits: list[str] | None = Field(default=None, description="Extracted benefits.")
-
-
 class JobListing(BaseModel):
-    """Represents a single job listing (Legacy/Main Agent compatibility)."""
+    """Single source of truth for a job listing."""
 
     id: str = Field(default="", description="Deterministic hash for frontend tracking. Computed in _parse_agent_result, not by the LLM.")
     title: str = Field(..., description="The job title.")
@@ -53,6 +31,7 @@ class JobListing(BaseModel):
     location: str = Field(..., description="The job location.")
     salary: str | None = Field(None, description="The salary range or amount. May contain '(Predicted)' for AI estimates.")
     description: str = Field(..., description="A brief summary of the job.")
+    full_description: str | None = Field(None, description="The full job description text. Truncated to 1,000 characters.")
     apply_link: str = Field(..., description="The URL to apply for the job.")
 
 
