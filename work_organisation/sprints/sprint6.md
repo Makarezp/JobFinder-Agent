@@ -27,7 +27,7 @@ The RapidAPI JSearch `GET /search` endpoint returns rich data. We will map it as
 
 ---
 
-## Ticket 6.1: Backend — JSearch API Tool Integration
+## Ticket 6.1: Backend — JSearch API Tool Integration ✅ DONE
 
 ### Overview
 Implement the `jsearch_api_search` tool to fetch real-time job listings in a single HTTP request, mapping the RapidAPI response to the internal `JobListing` schema. To protect the LLM context window during Phase 1, descriptions will be strictly truncated.
