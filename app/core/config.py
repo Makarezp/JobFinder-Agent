@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     ADZUNA_APP_ID: str | None = None
     ADZUNA_APP_KEY: str | None = None
 
+    # JSearch (RapidAPI)
+    JSEARCH_API_KEY: str | None = None
+
     # Database
     DATABASE_URL: str | None = None
     POSTGRES_USER: str = "postgres"

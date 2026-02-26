@@ -8,10 +8,10 @@ Replace the multi-hop job discovery pipeline (Adzuna + Crawl4AI) with a single-p
 ## Schema Mapping (JSearch -> Internal JobListing)
 The RapidAPI JSearch `GET /search` endpoint returns rich data. We will map it as follows to our backend `JobListing` payload (which the frontend `Job` interface expects):
 
-| Internal Field | JSearch Field | Notes |
-| :--- | :--- | :--- |
 | `id` | `job_id` | Stable identifier |
 | `title` | `job_title` | |
+| `company` | `employer_name` | |
+| `location` | `job_city`, `job_state`, `job_country` | Combine into a string (e.g., "Chicago, IL, US") |
 | `company` | `employer_name` | |
 | `location` | `job_city`, `job_state`, `job_country` | Combine into a string (e.g., "Chicago, IL, US") |
 | `salary` | `job_min_salary`, `job_max_salary`, `job_salary_period` | Format as "£X - £Y per YEAR" or similar. Fallback to `job_salary`. |
@@ -119,3 +119,23 @@ Instead of deleting the `job_search` subgraph, we will simplify it to act as a d
 - [Automated] Refactor `tests/unit/test_loop_limits.py` to verify the `search_attempts` loop protection at the `route_main` level successfully halts the agent after 3 attempts.
 - [Automated] `pytest` runs without referencing the deleted Adzuna or Scraper tools.
 - [Manual] Ask the bot "Find me Python jobs". The LangSmith/log trace shows a traversal into the `job_search` subgraph, a single tool call to `jsearch_api_search`, and a clean return to the main agent.
+
+---
+
+## Ticket 6.4: Backend — System Prompt Rewrite
+
+### Overview
+The current `SYSTEM_PROMPT` in `app/agent/main/prompts.py` contains extensive, hardcoded instructions mandating a multi-step "SEARCH -> FILTER -> INSPECT -> ANALYZE -> SURFACE" protocol using `mode="search"` and `mode="inspect"`. Because JSearch returns full descriptions immediately, this legacy protocol is broken and will confuse the LLM.
+
+### Implementation Steps
+1. **Prompt Refactor**: Edit `app/agent/main/prompts.py`.
+   - Delete the entire "Job Surfacing Protocol (MANDATORY)" section.
+   - Delete references to `mode="search"` and `mode="inspect"`.
+   - Update the instructions to simply state: *"You MUST use the `job_specialist_tool` to find jobs. The tool will return a list of jobs including a 1,000-character snippet of their `full_description`. Evaluate the jobs based on this snippet against the user's CV."*
+   - Keep the instructions regarding the `final_answer` tool and handling "No Results".
+
+### Explicit Constraints & Warnings
+- **Truthfulness**: Ensure the prompt explicitly warns the agent that it is only reading a *truncated* (1000 char) description, so it should extrapolate reasonably and not penalize a job just because the end of the strict requirements list was cut off.
+
+### Acceptance Criteria
+- [Manual] Ask the bot to search for jobs. It correctly utilizes the `job_specialist_tool` once, evaluates the results, and surfaces them via `final_answer` without hallucinating `mode="inspect"` requests.
