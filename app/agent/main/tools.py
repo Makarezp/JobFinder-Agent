@@ -1,5 +1,3 @@
-from typing import Any
-
 from langchain_core.tools import tool
 
 from app.agent.schemas import AgentResponse, JobListing, JobSpecialistInput
@@ -12,26 +10,16 @@ from app.tools.memory import (
 
 @tool(args_schema=JobSpecialistInput)
 def job_specialist_tool(
-    mode: str,
-    query: str | None = None,
-    location: str | None = None,
-    country: str = "gb",
-    results_per_page: int = 10,
-    sort_by: str | None = None,
-    max_days_old: int | None = None,
-    salary_min: int | None = None,
-    full_time: bool | None = None,
-    part_time: bool | None = None,
-    permanent: bool | None = None,
-    contract: bool | None = None,
-    url: str | None = None,
-    summary_context: dict[str, Any] | None = None,
+    query: str,
+    date_posted: str = "all",
+    employment_types: str | None = None,
+    remote_only: bool = False,
+    page: int = 1,
 ) -> str:
     """
-    Delegates job search and inspection tasks to the Job Specialist Agent.
-    - Mode 'search': Finds jobs based on query/location. Returns a list of summaries.
-      Note: Salaries may be tagged as '(Predicted)' if they are AI estimates.
-    - Mode 'inspect': Fetches full details for a specific job URL. Returns a detailed description.
+    Delegates job search to the Job Specialist Agent.
+    Returns a list of job listings with titles, companies, locations,
+    salaries, descriptions (truncated to 1,000 characters), and apply links.
     """
     return "Job Specialist invoked."
 

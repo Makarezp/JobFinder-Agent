@@ -122,20 +122,95 @@ Instead of deleting the `job_search` subgraph, we will simplify it to act as a d
 
 ---
 
-## Ticket 6.4: Backend — System Prompt Rewrite
+## Ticket 6.4: Backend — System Prompt Rewrite & Post-Migration Cleanup
 
 ### Overview
-The current `SYSTEM_PROMPT` in `app/agent/main/prompts.py` contains extensive, hardcoded instructions mandating a multi-step "SEARCH -> FILTER -> INSPECT -> ANALYZE -> SURFACE" protocol using `mode="search"` and `mode="inspect"`. Because JSearch returns full descriptions immediately, this legacy protocol is broken and will confuse the LLM.
+The current `SYSTEM_PROMPT` in `app/agent/main/prompts.py` contains a hardcoded multi-step "SEARCH → FILTER → INSPECT → ANALYZE → SURFACE" protocol using `mode="search"` and `mode="inspect"`. These parameters no longer exist in `JobSpecialistInput` after the 6.2 schema refactor. Additionally, the phantom `job_specialist_tool` in `tools.py` has a stale function signature and docstring from the Adzuna era, and `domain.md` still references deleted systems.
 
 ### Implementation Steps
-1. **Prompt Refactor**: Edit `app/agent/main/prompts.py`.
-   - Delete the entire "Job Surfacing Protocol (MANDATORY)" section.
-   - Delete references to `mode="search"` and `mode="inspect"`.
-   - Update the instructions to simply state: *"You MUST use the `job_specialist_tool` to find jobs. The tool will return a list of jobs including a 1,000-character snippet of their `full_description`. Evaluate the jobs based on this snippet against the user's CV."*
-   - Keep the instructions regarding the `final_answer` tool and handling "No Results".
+
+#### Step 1: Fix `job_specialist_tool` signature and docstring (cleanup) ✅ DONE
+**File**: `app/agent/main/tools.py`
+
+The tool is a phantom tool (legitimate LangGraph pattern) — the stub exists to give the LLM a schema via `args_schema=JobSpecialistInput`, and execution is intercepted by `route_main` → `call_job_specialist`. The pattern is correct, but the Python function signature still lists old Adzuna parameters (`mode`, `location`, `country`, `salary_min`, `url`, etc.) and the docstring describes the deleted `mode="inspect"` flow.
+
+Replace the `job_specialist_tool` function. The signature must match `JobSpecialistInput`:
+
+```python
+@tool(args_schema=JobSpecialistInput)
+def job_specialist_tool(
+    query: str,
+    date_posted: str = "all",
+    employment_types: str | None = None,
+    remote_only: bool = False,
+    page: int = 1,
+) -> str:
+    """
+    Delegates job search to the Job Specialist Agent.
+    Returns a list of job listings with titles, companies, locations,
+    salaries, descriptions (truncated to 1,000 characters), and apply links.
+    """
+    return "Job Specialist invoked."
+```
+
+Remove the `from typing import Any` import if it becomes unused after this change.
+
+#### Step 2: Rewrite `SYSTEM_PROMPT`
+**File**: `app/agent/main/prompts.py`
+
+1. **Delete** the "Job Surfacing Protocol (MANDATORY)" section entirely.
+2. **Delete** all references to `mode="search"`, `mode="inspect"`, and the SEARCH→FILTER→INSPECT→ANALYZE→SURFACE pipeline.
+3. **Replace** the "JOB SEARCH INSTRUCTIONS" section with:
+
+```
+**JOB SEARCH INSTRUCTIONS:**
+1.  **Analyze the User's Request & Profile:**
+    *   Use the structured profile above (skills, experience, domain) to inform your search.
+    *   Do NOT use generic terms like "Software Engineer" if more specific terms
+        (e.g., "Android Developer", "Kotlin", "React Native") are available in the profile.
+
+2.  **Search Jobs:**
+    *   **YOU MUST** use `job_specialist_tool` to find jobs.
+    *   Craft a specific Google-style query (e.g., "senior react developer in london").
+    *   Use `date_posted`, `employment_types`, and `remote_only` filters when
+        the user's preferences or request imply them.
+    *   The tool returns job listings including a truncated description (up to 1,000
+        characters). Evaluate fit based on this snippet — do not penalize a job solely
+        because its description appears incomplete.
+
+3.  **Present Results:**
+    *   **YOU MUST** call the `final_answer` tool to present results.
+    *   Populate `text_response` with a helpful, conversational summary.
+    *   Populate `jobs` with the structured job data returned by the specialist.
+    *   For each job, write a concise 2-3 sentence `description` summarizing why it
+        matches the user. Ensure `apply_link` is included exactly as returned.
+
+4.  **Handling No Results:**
+    *   If a search returns no jobs, try **ONE** modified query (broader keywords,
+        relaxed location, or different employment type).
+    *   **STOP** after 3 total search attempts. Do NOT loop indefinitely.
+    *   Call `final_answer` and explain what you tried and suggest alternatives.
+```
+
+**Keep unchanged**: USER PROFILE / ACTIVE PREFERENCES / RECENT USER FEEDBACK template variables, and MEMORY INSTRUCTIONS.
+
+#### Step 3: Update `domain.md`
+**File**: `documents/domain.md`
+
+- **Glossary**: Remove `Adzuna` and `Crawl4AI` entries. Add `JSearch` (RapidAPI-based job search aggregator).
+- **Business Rules**: Remove "Deep Scraping" section. Replace with a note that JSearch returns descriptions directly (truncated to 1,000 chars). Remove the Adzuna-specific "Remote Work" instruction.
 
 ### Explicit Constraints & Warnings
-- **Truthfulness**: Ensure the prompt explicitly warns the agent that it is only reading a *truncated* (1000 char) description, so it should extrapolate reasonably and not penalize a job just because the end of the strict requirements list was cut off.
+- **Do NOT change `call_job_specialist` in `graph.py`**: It correctly parses `JobSpecialistInput` from tool call args. No changes needed.
+- **Do NOT change `route_main`**: Loop protection is already correct (3-attempt limit).
+- **The `job_specialist_tool` function body remains a stub**: It returns a static string because execution is intercepted by the graph router. This is the intended phantom tool pattern.
+- **Typing**: After changes, run `mypy --strict app/agent/main/tools.py app/agent/main/prompts.py`.
 
 ### Acceptance Criteria
-- [Manual] Ask the bot to search for jobs. It correctly utilizes the `job_specialist_tool` once, evaluates the results, and surfaces them via `final_answer` without hallucinating `mode="inspect"` requests.
+- [Automated] `mypy --strict` passes on `app/agent/main/tools.py`.
+- [Automated] `ruff check` and `ruff format` pass on all modified files.
+- [Automated] Existing tests in `tests/` pass without modification.
+- [Manual] Ask the bot "Find me Python jobs in London". Verify via logs/LangSmith that:
+  - The LLM calls `job_specialist_tool` with `query=` (no `mode` argument).
+  - Results are surfaced via `final_answer`.
+  - No `mode="inspect"` hallucination occurs.

@@ -1,18 +1,14 @@
 # domain.md - Knowledge Base
 
 ## 1. Glossary
-- **Adzuna**: The primary job aggregation platform we use.
-- **Crawl4AI**: Our headless browser engine for scraping details from job pages.
+- **JSearch**: The RapidAPI-based job search aggregator used for real-time job discovery. Returns rich job data (title, company, location, salary, description) in a single API call.
 - **LangGraph**: The framework managing our Agent's state machine (cyclic execution).
 - **Nodes**: Logical steps in the Agent's graph (e.g., `chatbot`, `tools`).
 
 ## 2. Business Rules
 - **Skill Priority**: When searching, **ALWAYS** prioritize skills found in the user's `cv_text` over generic job titles.
-- **Deep Scraping**:
-    - Search results give summaries.
-    - To get full details (salary, benefits), the Agent **MUST** use `scrape_website` on the "Apply Here" link.
-    - **Limit**: Scrape max 3 top jobs to save time/bandwidth.
-- **Remote Work**: To find remote jobs on Adzuna, append "remote" to the keywords (the API/scraper handles the specific parameter logic).
+- **Description Truncation**: JSearch returns full job descriptions directly. These are truncated to 1,000 characters before being added to the agent state to protect the LLM context window. The agent must evaluate fit based on this snippet and not penalise a job for appearing incomplete.
+- **Remote Work**: To find remote jobs, set `remote_only=True` in the `job_specialist_tool` call.
 
 ## 3. Project Vision
 "The Tinder for Jobs"
