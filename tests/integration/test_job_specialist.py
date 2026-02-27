@@ -1,4 +1,5 @@
 from typing import Any, cast
+from unittest.mock import patch
 
 import pytest
 
@@ -8,33 +9,44 @@ from app.agent.schemas import JobSpecialistInput
 
 
 @pytest.mark.asyncio
-async def test_job_search_graph_search_mode() -> None:
-    """Test the search mode of the job specialist graph."""
-    input_data = JobSpecialistInput(mode="search", query="Python Developer", location="London")
-
-    # We invoke the graph with the input
-    # Note: We need to mock adzuna_api_search if we don't want real calls
-    # For now, we assume it's an integration test that might hit API or fail gracefully
-    # But to make it robust, we should probably mock.
-    # However, for this verification, running it and seeing if it crashes is a good first step.
-
+async def test_job_search_graph_returns_search_results() -> None:
+    """The job_search subgraph invokes jsearch_api_search and returns search_results."""
+    input_data = JobSpecialistInput(query="Python Developer in London")
     state = cast(JobSpecialistState, {"input": input_data, "search_results": None})
 
-    result = await job_search_graph.ainvoke(cast(Any, state))
+    mock_jsearch_response = [
+        {
+            "id": "job_123",
+            "title": "Python Developer",
+            "company": "Acme Ltd",
+            "location": "London, England, GB",
+            "salary": "$70,000 - $90,000 per YEAR",
+            "description": "Great Python role...",
+            "full_description": "Full description here.",
+            "apply_link": "https://example.com/apply",
+        }
+    ]
 
-    assert "search_results" in result
-    # We don't assert content because API might return nothing or require keys
-    print(f"Search Results: {result['search_results']}")
+    with patch("app.agent.job_search.nodes.jsearch_api_search") as mock_tool:
+        mock_tool.invoke.return_value = mock_jsearch_response
+
+        result = await job_search_graph.ainvoke(cast(Any, state))
+
+        assert "search_results" in result
+        assert len(result["search_results"]) == 1
+        assert result["search_results"][0].title == "Python Developer"
 
 
 @pytest.mark.asyncio
-async def test_job_search_graph_inspect_mode() -> None:
-    """Test the inspect mode."""
-    input_data = JobSpecialistInput(mode="inspect", url="https://example.com/job")
-
+async def test_job_search_graph_handles_tool_error_gracefully() -> None:
+    """The job_search subgraph returns an empty list when jsearch_api_search returns an error string."""
+    input_data = JobSpecialistInput(query="Python Developer in London")
     state = cast(JobSpecialistState, {"input": input_data, "search_results": None})
 
-    result = await job_search_graph.ainvoke(cast(Any, state))
+    with patch("app.agent.job_search.nodes.jsearch_api_search") as mock_tool:
+        mock_tool.invoke.return_value = "Error: JSearch API returned status 429."
 
-    # inspect_job is a stub (pending removal in Ticket 6.3) — returns empty dict
-    assert "inspect_result" not in result or result.get("inspect_result") is None
+        result = await job_search_graph.ainvoke(cast(Any, state))
+
+        assert "search_results" in result
+        assert result["search_results"] == []

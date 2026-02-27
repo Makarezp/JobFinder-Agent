@@ -16,6 +16,4 @@ class AgentState(TypedDict):
     cv_raw_text: str | None
     active_agent: str
     search_attempts: int
-    inspect_attempts: int
-    inspect_results: NotRequired[dict[str, str]]
     recent_decisions: NotRequired[list[dict[str, Any]]]

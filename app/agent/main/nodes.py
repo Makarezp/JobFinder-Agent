@@ -177,6 +177,9 @@ def route_main(state: AgentState) -> str:
         if name == FINAL_ANSWER_TOOL_NAME:
             return str(END)
         if name == "job_specialist_tool":
+            if state.get("search_attempts", 0) >= 3:
+                logger.warning("Loop protection: max search attempts reached, forcing END")
+                return str(END)
             return JOB_SPECIALIST_NODE
         return MAIN_TOOLS_NODE
     return str(END)

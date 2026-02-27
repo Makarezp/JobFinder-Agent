@@ -89,7 +89,7 @@ With JSearch providing sufficient description data immediately, the separation b
 
 ---
 
-## Ticket 6.3: Backend — Subgraph Simplification & Routing Refactor
+## Ticket 6.3: Backend — Subgraph Simplification & Routing Refactor ✅ DONE
 
 ### Overview
 Instead of deleting the `job_search` subgraph, we will simplify it to act as a deterministic boundary for the new `jsearch_api_search` tool. We will also relocate infinite loop protection to the main graph router, ensuring the agent cannot spiral out of control.
