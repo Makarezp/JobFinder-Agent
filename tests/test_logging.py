@@ -6,7 +6,7 @@ import structlog
 from _pytest.logging import LogCaptureFixture
 
 from app.core.logging import log_timing, setup_logging
-from app.core.logging_utils import sanitize_payload
+from app.core.snapshot_logging_utils import sanitize_payload
 
 
 @pytest.fixture(autouse=True)

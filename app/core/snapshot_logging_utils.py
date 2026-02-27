@@ -34,9 +34,10 @@ def sanitize_payload(data: Any, max_string_length: int | None = None) -> Any:
         return data
 
 
-def log_state_snapshot(logger: Any, state: dict[str, Any], truncate_keys: list[str] | None = None, max_string_length: int = 500) -> None:
+def log_state_snapshot(state: dict[str, Any], truncate_keys: list[str] | None = None, max_string_length: int = 500) -> None:
     """
-    Logs a snapshot of the current state, truncating specified keys to avoid noise.
+    Logs a snapshot of the current state to the dedicated state log file.
+    Truncates specified keys to avoid noise.
     """
     snapshot = state.copy()
     truncate_keys = truncate_keys or []

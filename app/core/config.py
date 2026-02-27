@@ -42,6 +42,10 @@ class Settings(BaseSettings):
     def USER_MEMORY_DB_PATH(self) -> Path:
         return self.DATA_DIR / "user_memory.db"
 
+    @property
+    def STATE_LOG_PATH(self) -> Path:
+        return self.DATA_DIR / "state_debug.log"
+
     model_config = SettingsConfigDict(env_file=".env", env_ignore_empty=True)
 
 

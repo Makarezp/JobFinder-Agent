@@ -18,7 +18,7 @@ from app.agent.constants import (
     TEXT_RESPONSE_KEY,
 )
 from app.core.logging import log_timing, request_id_var
-from app.core.logging_utils import log_state_snapshot
+from app.core.snapshot_logging_utils import log_state_snapshot
 from app.services.profile_service import ProfileService
 
 logger = structlog.get_logger(__name__)
@@ -53,7 +53,7 @@ class ChatService:
         final_state = inputs
         with log_timing("graph.astream", logger):
             async for state in self._graph.astream(inputs, config=config, stream_mode="values"):
-                log_state_snapshot(logger, state, truncate_keys=[CV_RAW_TEXT_KEY])
+                log_state_snapshot(state, truncate_keys=[CV_RAW_TEXT_KEY])
                 final_state = state
 
         result = self._parse_agent_result(final_state, message)
@@ -88,7 +88,7 @@ class ChatService:
         final_state = inputs
         with log_timing("graph.astream", logger):
             async for state in self._graph.astream(inputs, config=config, stream_mode="values"):
-                log_state_snapshot(logger, state, truncate_keys=[CV_RAW_TEXT_KEY])
+                log_state_snapshot(state, truncate_keys=[CV_RAW_TEXT_KEY])
                 final_state = state
 
         result = self._parse_agent_result(final_state, f"Uploaded CV: {filename}")

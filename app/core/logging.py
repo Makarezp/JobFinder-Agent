@@ -86,6 +86,27 @@ def setup_logging(*, level: int | str | None = None) -> None:
     root_logger.addHandler(handler)
     root_logger.setLevel(level)
 
+    # ── State snapshot file handler ──────────────────────────────────
+    # Clear the file on every startup, then attach a JSON file handler
+    # exclusively to the snapshot_logging_utils logger so that
+    # "Graph State Update" events go to file only (not console).
+    settings.STATE_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    settings.STATE_LOG_PATH.open("w").close()
+
+    file_formatter = structlog.stdlib.ProcessorFormatter(
+        foreign_pre_chain=shared_processors,
+        processors=[
+            structlog.stdlib.ProcessorFormatter.remove_processors_meta,
+            structlog.processors.JSONRenderer(),
+        ],
+    )
+    file_handler = logging.FileHandler(settings.STATE_LOG_PATH, mode="a", encoding="utf-8")
+    file_handler.setFormatter(file_formatter)
+
+    state_logger = logging.getLogger("app.core.snapshot_logging_utils")
+    state_logger.addHandler(file_handler)
+    state_logger.propagate = False
+
     # Silence noisy libraries
     logging.getLogger("uvicorn.access").handlers = []
     logging.getLogger("uvicorn.access").propagate = True
