@@ -1,4 +1,4 @@
-from typing import Annotated, Any, Literal
+from typing import Annotated, Literal
 
 import structlog
 from langchain_core.runnables import RunnableConfig
@@ -61,36 +61,35 @@ async def update_my_profile(
 async def save_preference(
     config: RunnableConfig,
     store: Annotated[BaseStore, InjectedStore],
-    key: Annotated[str, "The preference key (e.g., 'min_salary', 'location', 'tech_stack')"],
-    value: Annotated[Any, "The value (string, number, boolean, or list)"],
-    category: Annotated[Literal["hard", "soft"], "Is this a strict requirement ('hard') or just nice to have ('soft')?"] = "soft",
+    key: Annotated[
+        str, "A short machine identifier for this preference, e.g. 'min_salary', 'remote', 'tech_stack'. Used for deduplication and deletion."
+    ],
+    label: Annotated[str, "A human-readable sentence describing the preference, e.g. 'Min salary £100k', 'Remote only', 'No agencies'."],
     sentiment: Annotated[
-        Literal["positive", "negative"], "Use 'positive' when user wants something, 'negative' when they want to avoid it (e.g. 'No Java')."
+        Literal["positive", "negative"], "Use 'positive' when user wants something, 'negative' when they want to avoid it."
     ] = "positive",
 ) -> str:
     """
     Save a user preference or constraint.
-    - Hard constraints: strict filters (e.g., "Remote only", "Min $100k").
-    - Soft preferences: vibe checks (e.g., "I like startups", "No fintech").
-
-    Example: User says "I only want remote jobs", call save_preference("location", "Remote", "hard").
-    Example: User says "No agencies", call save_preference("agencies", "no agencies", "hard", sentiment="negative").
+    Example: User says "I only want remote jobs" → save_preference(key="remote", label="Remote only", sentiment="positive")
+    Example: User says "No agencies" → save_preference(key="agencies", label="No agencies", sentiment="negative")
+    Example: User says "Min £80k salary" → save_preference(key="min_salary", label="Min salary £80k", sentiment="positive")
     """
     try:
         user_id = config.get("configurable", {}).get("user_id", "default_user")
         namespace = (user_id, "preferences")
 
-        logger.info("Tool Started: save_preference", key=key, value=value, category=category, sentiment=sentiment)
+        logger.info("Tool Started: save_preference", key=key, label=label, sentiment=sentiment)
 
         # Use Pydantic model for validation
-        pref = Preference(key=key, value=value, category=category, sentiment=sentiment)
+        pref = Preference(key=key, label=label, sentiment=sentiment)
 
         # Store using model_dump
         await store.aput(namespace, key, pref.model_dump())
 
-        return f"Preference saved: {key} = {value} ({category}, {sentiment})"
+        return f"Preference saved: {key} = {label} ({sentiment})"
     except Exception as e:
-        logger.error("Failed to save preference", exc_info=True, extra={"preference_key": key, "category": category})
+        logger.error("Failed to save preference", exc_info=True, extra={"preference_key": key})
         return f"Error saving preference: {str(e)}"
 
 

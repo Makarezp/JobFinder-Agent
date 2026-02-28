@@ -23,14 +23,12 @@ const mockProfile = {
 const mockPreferences = {
   remote: {
     key: "remote",
-    value: "Remote First",
-    category: "hard" as const,
+    label: "Remote only",
     sentiment: "positive" as const,
   },
   no_agencies: {
     key: "no_agencies",
-    value: "No Agencies",
-    category: "hard" as const,
+    label: "No agencies",
     sentiment: "negative" as const,
   },
 };
@@ -111,7 +109,7 @@ describe("ProfileView", () => {
     it("renders a positive preference under Looking For", () => {
       render(<ProfileView />);
       expect(screen.getByText(/Looking For/i)).toBeInTheDocument();
-      expect(screen.getByText("Remote First")).toBeInTheDocument();
+      expect(screen.getByText("Remote only")).toBeInTheDocument();
     });
 
     it("renders a negative preference under Avoiding", () => {

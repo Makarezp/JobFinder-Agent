@@ -19,14 +19,12 @@ const mockProfileResponse: ProfileResponse = {
   preferences: {
     remote: {
       key: "remote",
-      value: true,
-      category: "hard",
+      label: "Remote only",
       sentiment: "positive",
     },
     no_agencies: {
       key: "no_agencies",
-      value: true,
-      category: "hard",
+      label: "No agencies",
       sentiment: "negative",
     },
   },

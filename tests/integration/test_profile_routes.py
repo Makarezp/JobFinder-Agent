@@ -17,7 +17,7 @@ async def test_get_profile_json() -> None:
     store.put((user_id, "profile"), "data", {"name": "Test User", "role": "Test Role"})
 
     # Seed Preference
-    store.put((user_id, "preferences"), "test_pref", {"value": "test_value", "category": "hard"})
+    store.put((user_id, "preferences"), "test_pref", {"key": "test_pref", "label": "Test preference label", "sentiment": "positive"})
 
     app.dependency_overrides[get_store] = lambda: store
 
@@ -34,7 +34,7 @@ async def test_get_profile_json() -> None:
 
         # Preference assertions
         assert "test_pref" in data["preferences"]
-        assert data["preferences"]["test_pref"]["value"] == "test_value"
+        assert data["preferences"]["test_pref"]["label"] == "Test preference label"
 
         # Decisions key present even when empty
         assert data["decisions"] == []

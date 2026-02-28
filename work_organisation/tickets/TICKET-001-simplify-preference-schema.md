@@ -1,4 +1,4 @@
-# Ticket 001: Simplify Preference Schema — Replace `key`/`value`/`category` with `label`
+# [DONE] Ticket 001: Simplify Preference Schema — Replace `key`/`value`/`category` with `label`
 
 ## Overview
 

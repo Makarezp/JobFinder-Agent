@@ -1,4 +1,4 @@
-from typing import Any, Literal
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -20,10 +20,9 @@ class Preference(BaseModel):
     A specific constraint or preference for job searching.
     """
 
-    key: str = Field(..., description="The setting name, e.g. 'min_salary', 'remote', 'tech_stack'")
-    value: Any = Field(..., description="The value. Can be string, int, list, or boolean.")
-    category: Literal["hard", "soft"] = Field("soft", description="'hard' for strict filters (must have), 'soft' for preferences (nice to have)")
-    sentiment: Literal["positive", "negative"] = Field("positive", description="'positive' for things the user wants, 'negative' for things to avoid")
+    key: str = Field(..., description="Machine identifier used as store key and for delete routing, e.g. 'min_salary', 'remote'")
+    label: str = Field(..., description="Human-readable display sentence, e.g. 'Min salary £100k', 'Remote only', 'No agencies'")
+    sentiment: Literal["positive", "negative"] = Field("positive", description="'positive' = wants it, 'negative' = wants to avoid it")
 
 
 class PendingJob(BaseModel):

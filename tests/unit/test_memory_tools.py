@@ -67,7 +67,7 @@ async def test_update_my_profile_with_cv_summary(store: InMemoryStore, config: R
 @pytest.mark.asyncio
 async def test_save_preference_success(store: InMemoryStore, config: RunnableConfig) -> None:
     # Act
-    result = await save_preference.ainvoke({"key": "loc", "value": "rem", "category": "hard", "store": store}, config=config)
+    result = await save_preference.ainvoke({"key": "loc", "label": "Remote only", "store": store}, config=config)
 
     # Assert
     assert "Preference saved" in result
@@ -77,8 +77,8 @@ async def test_save_preference_success(store: InMemoryStore, config: RunnableCon
     item = store.get(namespace, "loc")
     assert item is not None
     assert item.value["key"] == "loc"
-    assert item.value["value"] == "rem"
-    assert item.value["category"] == "hard"
+    assert item.value["label"] == "Remote only"
+    assert item.value["sentiment"] == "positive"
 
 
 @pytest.mark.asyncio
@@ -125,7 +125,7 @@ async def test_save_preference_error(config: RunnableConfig) -> None:
     failing_store = FailingPutStore()
 
     # Act
-    result = await save_preference.ainvoke({"key": "fail", "value": "val", "store": failing_store}, config=config)
+    result = await save_preference.ainvoke({"key": "fail", "label": "Failing preference", "store": failing_store}, config=config)
     # Assert
     assert "Error saving preference" in result
     assert "Database error" in result

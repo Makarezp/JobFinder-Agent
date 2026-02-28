@@ -85,12 +85,12 @@ def _format_preferences_summary(preferences: dict[str, Any] | None) -> str:
         return "No preferences set yet."
 
     lines: list[str] = []
-    for _key, pref_data in preferences.items():
+    for pref_data in preferences.values():
         if isinstance(pref_data, dict):
-            cat = pref_data.get("category", "soft")
-            lines.append(f"- {pref_data.get('key', _key)}: {pref_data.get('value', '?')} ({cat})")
-        else:
-            lines.append(f"- {_key}: {pref_data}")
+            sentiment = pref_data.get("sentiment", "positive")
+            label = pref_data.get("label", "?")
+            prefix = "WANT" if sentiment == "positive" else "AVOID"
+            lines.append(f"- [{prefix}] {label}")
 
     return "\n".join(lines) if lines else "No preferences set yet."
 

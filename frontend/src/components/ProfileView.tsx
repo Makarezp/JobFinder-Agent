@@ -4,13 +4,6 @@ import { useProfileStore } from "../core/store/useProfileStore";
 import { useChatStore } from "../core/store/useChatStore";
 import { Preference, DecisionLogEntry } from "../core/types/api";
 
-function renderPreferenceValue(
-  value: string | number | boolean | string[]
-): string {
-  if (Array.isArray(value)) return value.join(", ");
-  return String(value);
-}
-
 function IdentityCard({
   profile,
 }: {
@@ -82,9 +75,7 @@ function PreferencesCard({
                   key={key}
                   className="group flex items-center justify-between"
                 >
-                  <span className="text-sm text-slate-200">
-                    {renderPreferenceValue(pref.value)}
-                  </span>
+                  <span className="text-sm text-slate-200">{pref.label}</span>
                   <button
                     type="button"
                     onClick={() =>
@@ -122,9 +113,7 @@ function PreferencesCard({
                   key={key}
                   className="group flex items-center justify-between"
                 >
-                  <span className="text-sm text-slate-200">
-                    {renderPreferenceValue(pref.value)}
-                  </span>
+                  <span className="text-sm text-slate-200">{pref.label}</span>
                   <button
                     type="button"
                     onClick={() =>

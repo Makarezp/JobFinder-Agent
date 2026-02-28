@@ -17,8 +17,7 @@ export interface ChatResponse {
 
 export interface Preference {
   key: string;
-  value: string | number | boolean | string[];
-  category: "hard" | "soft";
+  label: string;
   sentiment: "positive" | "negative";
 }
 
