@@ -79,17 +79,22 @@ def setup_logging(*, level: int | str | None = None) -> None:
         ],
     )
 
+    # ── Console handler (excludes state snapshots) ───────────────────
+    class _ExcludeSnapshotFilter(logging.Filter):
+        def filter(self, record: logging.LogRecord) -> bool:
+            return record.name != "app.core.snapshot_logging_utils"
+
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(formatter)
+    handler.addFilter(_ExcludeSnapshotFilter())
 
     root_logger = logging.getLogger()
+    root_logger.handlers = [h for h in root_logger.handlers if not (isinstance(h, logging.StreamHandler) and h.stream is sys.stdout)]
     root_logger.addHandler(handler)
     root_logger.setLevel(level)
 
     # ── State snapshot file handler ──────────────────────────────────
-    # Clear the file on every startup, then attach a JSON file handler
-    # exclusively to the snapshot_logging_utils logger so that
-    # "Graph State Update" events go to file only (not console).
+    # Clear the file on every startup, then append-only during the session.
     settings.STATE_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
     settings.STATE_LOG_PATH.open("w").close()
 
@@ -104,8 +109,8 @@ def setup_logging(*, level: int | str | None = None) -> None:
     file_handler.setFormatter(file_formatter)
 
     state_logger = logging.getLogger("app.core.snapshot_logging_utils")
+    state_logger.handlers.clear()
     state_logger.addHandler(file_handler)
-    state_logger.propagate = False
 
     # Silence noisy libraries
     logging.getLogger("uvicorn.access").handlers = []

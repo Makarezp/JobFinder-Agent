@@ -20,6 +20,7 @@ from app.agent.main.tools import main_tools
 from app.agent.memory_schema import DecisionLog, Preference, UserProfile
 from app.agent.state import AgentState
 from app.core.config import settings
+from app.core.node_logging_utils import log_node_completed
 
 logger = structlog.get_logger(__name__)
 
@@ -160,8 +161,7 @@ def main_chatbot(state: AgentState) -> dict[str, list[BaseMessage]]:
     all_messages = system_messages + messages
     response = main_llm.invoke(all_messages)
     logger.debug("LLM Response", content=response.content)
-
-    logger.info("Node Completed: main_chatbot", extra={"response_preview": str(response.content)[:100]})
+    log_node_completed("main_chatbot", response)
     return {"messages": [response]}
 
 

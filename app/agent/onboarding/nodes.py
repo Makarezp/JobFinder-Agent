@@ -19,6 +19,7 @@ from app.agent.onboarding.prompts import ONBOARDING_PROMPT
 from app.agent.onboarding.tools import onboarding_tools
 from app.agent.state import AgentState
 from app.core.config import settings
+from app.core.node_logging_utils import log_node_completed
 
 logger = structlog.get_logger(__name__)
 
@@ -69,8 +70,7 @@ def onboarding_chatbot(state: AgentState) -> dict[str, list[BaseMessage]]:
     all_messages = system_messages + messages
     response = onboarding_llm.invoke(all_messages)
     logger.debug("LLM Response", content=response.content)
-
-    logger.info("Node Completed: onboarding_chatbot", extra={"response_preview": str(response.content)[:100]})
+    log_node_completed("onboarding_chatbot", response)
     return {"messages": [response]}
 
 
