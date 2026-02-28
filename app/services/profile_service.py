@@ -51,7 +51,6 @@ class ProfileService:
         job_title: str,
         company: str,
         action: Literal["pass", "pursue"],
-        description: str | None,
         reason: str | None,
         user_id: str = DEFAULT_USER_ID,
     ) -> None:
@@ -61,7 +60,6 @@ class ProfileService:
             job_title=job_title,
             company=company,
             action=action,
-            description=description,
             reason=reason,
             timestamp=datetime.now(UTC).isoformat(),
         )

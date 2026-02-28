@@ -1,4 +1,4 @@
-# Ticket 002: Remove `description` from `DecisionLog` and omit empty feedback section from prompt
+# [DONE] Ticket 002: Remove `description` from `DecisionLog` and omit empty feedback section from prompt
 
 ## Overview
 

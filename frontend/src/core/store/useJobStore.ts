@@ -42,7 +42,6 @@ export const useJobStore = create<JobState>((set) => ({
         job_title: job.title,
         company: job.company,
         action,
-        description: job.description ?? null,
         reason,
         job_id: job.id,
       });

@@ -54,38 +54,18 @@ def test_decision_log_reason_optional() -> None:
     assert log.reason is None
 
 
-def test_decision_log_description_optional() -> None:
-    """DecisionLog allows description to be omitted (defaults to None)."""
-    log = DecisionLog(job_title="Dev", company="Corp", action="pass", timestamp="2026-02-22T12:00:00+00:00")
-    assert log.description is None
-
-
-def test_decision_log_description_stored() -> None:
-    """DecisionLog persists the description field when provided."""
-    log = DecisionLog(
-        job_title="Dev",
-        company="Corp",
-        action="pass",
-        description="Builds microservices in Go.",
-        timestamp="2026-02-22T12:00:00+00:00",
-    )
-    assert log.description == "Builds microservices in Go."
-
-
 def test_decision_log_serializes_correctly() -> None:
     """model_dump produces the expected dict structure for store persistence."""
     log = DecisionLog(
         job_title="Backend Dev",
         company="FinTech",
         action="pass",
-        description="Builds payment APIs in Python.",
         reason="Legacy stack",
         timestamp="2026-02-22T12:00:00+00:00",
     )
     dumped = log.model_dump()
     assert dumped["job_title"] == "Backend Dev"
     assert dumped["action"] == "pass"
-    assert dumped["description"] == "Builds payment APIs in Python."
     assert dumped["reason"] == "Legacy stack"
     assert dumped["timestamp"] == "2026-02-22T12:00:00+00:00"
 

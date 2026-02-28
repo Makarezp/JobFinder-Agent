@@ -13,7 +13,6 @@ class FeedbackRequest(BaseModel):
     job_title: str
     company: str
     action: Literal["pass", "pursue"]
-    description: str | None = None
     reason: str | None = None
     job_id: str
 

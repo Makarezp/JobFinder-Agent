@@ -173,11 +173,6 @@ function DecisionLogCard({ decisions }: { decisions: DecisionLogEntry[] }) {
                 <p className="text-[10px] text-slate-500">
                   {new Date(entry.timestamp).toLocaleDateString()}
                 </p>
-                {entry.description && (
-                  <p className="text-xs text-slate-400 italic">
-                    {entry.description}
-                  </p>
-                )}
                 {entry.reason && (
                   <p className="text-sm text-slate-300">
                     &ldquo;

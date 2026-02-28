@@ -54,28 +54,23 @@ def _format_profile_summary(profile: dict[str, Any] | None) -> str:
     return "\n".join(parts) if parts else "No profile information available yet."
 
 
-def _format_decisions_summary(decisions: list[dict[str, Any]]) -> str:
-    """Format decision log into a readable summary for the system prompt."""
+def _format_decisions_summary(decisions: list[dict[str, Any]]) -> str | None:
+    """Format decision log into a readable summary for the system prompt.
+    Returns None when empty so the caller can omit the section entirely.
+    """
     if not decisions:
-        return "No feedback history yet."
+        return None
 
     lines: list[str] = []
     for d in decisions:
         action = d.get("action", "").upper()
         title = d.get("job_title", "?")
         company = d.get("company", "?")
-        description = d.get("description")
         reason = d.get("reason")
-
-        if description and reason:
-            lines.append(f'- {action} "{title}" at {company} — "{description}": "{reason}"')
-        elif description:
-            lines.append(f'- {action} "{title}" at {company} — "{description}"')
-        elif reason:
+        if reason:
             lines.append(f'- {action} "{title}" at {company}: "{reason}"')
         else:
             lines.append(f'- {action} "{title}" at {company}')
-
     return "Recent Feedback:\n" + "\n".join(lines)
 
 
@@ -149,12 +144,21 @@ def main_chatbot(state: AgentState) -> dict[str, list[BaseMessage]]:
     preferences = state.get("preferences")
     decisions = state.get("recent_decisions", [])
 
+    decisions_summary = _format_decisions_summary(decisions)
+    feedback_block = (
+        f"\n**RECENT USER FEEDBACK:**\n{decisions_summary}\n"
+        "Use this history to avoid suggesting similar jobs. "
+        "Do not mention this feedback log explicitly unless the user asks about it.\n"
+        if decisions_summary
+        else ""
+    )
+
     formatted_prompt = SYSTEM_PROMPT.format(
         name=profile.get("name", "User") if profile else "User",
         role=profile.get("role", "Job Seeker") if profile else "Job Seeker",
         profile_summary=_format_profile_summary(profile),
         preferences_summary=_format_preferences_summary(preferences),
-        decisions_summary=_format_decisions_summary(decisions),
+        feedback_block=feedback_block,
     )
 
     system_messages = [SystemMessage(content=formatted_prompt)]

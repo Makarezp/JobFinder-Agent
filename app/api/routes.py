@@ -43,7 +43,6 @@ async def submit_feedback(body: FeedbackRequest, service: ProfileServiceDep) -> 
         job_title=body.job_title,
         company=body.company,
         action=body.action,
-        description=body.description,
         reason=body.reason,
         user_id=DEFAULT_USER_ID,
     )

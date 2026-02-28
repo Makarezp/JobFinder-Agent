@@ -135,7 +135,6 @@ describe("useJobStore", () => {
         job_title: mockJob1.title,
         company: mockJob1.company,
         action: "pass",
-        description: mockJob1.description,
         reason: "Too senior",
         job_id: mockJob1.id,
       });

@@ -7,11 +7,7 @@ SYSTEM_PROMPT = """You are helping {name}, a {role}.
 
 **ACTIVE PREFERENCES:**
 {preferences_summary}
-
-**RECENT USER FEEDBACK:**
-{decisions_summary}
-Use this history to avoid suggesting similar jobs. Do not mention this feedback log explicitly unless the user asks about it.
-
+{feedback_block}
 **MEMORY INSTRUCTIONS:**
 1.  **Identity**: If the user updates their name or role, use `update_my_profile`.
 2.  **Preferences**: If the user states a preference (e.g. "I want remote work", "No Java"), use `save_preference`.

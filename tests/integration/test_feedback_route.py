@@ -22,7 +22,6 @@ async def test_post_feedback_stores_decision_log() -> None:
                     "job_title": "Dev",
                     "company": "Acme",
                     "action": "pass",
-                    "description": "A Python role building internal tooling.",
                     "reason": "Too corporate",
                     "job_id": "abc123def456",
                 },
@@ -39,7 +38,6 @@ async def test_post_feedback_stores_decision_log() -> None:
         assert entry.job_title == "Dev"
         assert entry.company == "Acme"
         assert entry.action == "pass"
-        assert entry.description == "A Python role building internal tooling."
         assert entry.reason == "Too corporate"
         # Timestamp must be a non-empty ISO 8601 string
         assert entry.timestamp and "T" in entry.timestamp
@@ -63,7 +61,6 @@ async def test_post_feedback_without_reason() -> None:
         assert response.status_code == 200
         items = store.search((DEFAULT_USER_ID, "decisions"))
         assert len(items) == 1
-        assert items[0].value["description"] is None
         assert items[0].value["reason"] is None
         assert items[0].value["action"] == "pursue"
     finally:

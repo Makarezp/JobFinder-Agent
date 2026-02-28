@@ -38,7 +38,6 @@ const mockDecisions = [
     job_title: "Fullstack Dev",
     company: "FintechCorp",
     action: "pass" as const,
-    description: "Builds internal tooling for trading desks",
     reason: "Legacy technology stack",
     timestamp: "2026-02-22T10:00:00+00:00",
   },
@@ -117,12 +116,9 @@ describe("ProfileView", () => {
       expect(screen.getByText(/Avoiding/i)).toBeInTheDocument();
     });
 
-    it("renders a decision log entry with job title, description, and reason", () => {
+    it("renders a decision log entry with job title and reason", () => {
       render(<ProfileView />);
       expect(screen.getByText("Fullstack Dev")).toBeInTheDocument();
-      expect(
-        screen.getByText("Builds internal tooling for trading desks")
-      ).toBeInTheDocument();
       expect(screen.getByText("Legacy technology stack")).toBeInTheDocument();
     });
 

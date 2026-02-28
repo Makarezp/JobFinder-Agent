@@ -52,6 +52,5 @@ class DecisionLog(BaseModel):
     job_title: str
     company: str
     action: Literal["pass", "pursue"]
-    description: str | None = None
     reason: str | None = None
     timestamp: str  # ISO 8601 format, e.g. "2026-02-22T20:32:00+00:00"
