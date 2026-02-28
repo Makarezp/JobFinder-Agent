@@ -1,4 +1,4 @@
-# Ticket 003: Trim message history to 40k token cap in `main_chatbot`
+# [DONE] Ticket 003: Trim message history to 40k token cap in `main_chatbot`
 
 ## Overview
 

@@ -1,7 +1,7 @@
 from typing import Annotated, Any, cast
 
 import structlog
-from langchain_core.messages import AIMessage, BaseMessage, SystemMessage
+from langchain_core.messages import AIMessage, BaseMessage, SystemMessage, trim_messages
 from langchain_core.runnables import RunnableConfig
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.graph import END
@@ -161,8 +161,27 @@ def main_chatbot(state: AgentState) -> dict[str, list[BaseMessage]]:
         feedback_block=feedback_block,
     )
 
+    # Trim history to ~40k tokens (160k chars @ ~4 chars/token) before invoking.
+    # Uses character count (token_counter=len) — free, local, zero latency.
+    # Does NOT mutate state; the full history is preserved in the checkpointer.
+    trimmed_messages = trim_messages(
+        messages,
+        max_tokens=160_000,
+        strategy="last",
+        token_counter=len,
+        include_system=False,
+        allow_partial=False,
+        start_on="human",
+    )
+    if len(trimmed_messages) < len(messages):
+        logger.info(
+            "Messages trimmed before LLM invocation",
+            original=len(messages),
+            trimmed=len(trimmed_messages),
+        )
+
     system_messages = [SystemMessage(content=formatted_prompt)]
-    all_messages = system_messages + messages
+    all_messages = system_messages + trimmed_messages
     response = main_llm.invoke(all_messages)
     logger.debug("LLM Response", content=response.content)
     log_node_completed("main_chatbot", response)
