@@ -28,12 +28,39 @@ SYSTEM_PROMPT = """You are helping {name}, a {role}.
         characters). Evaluate fit based on this snippet — do not penalize a job solely
         because its description appears incomplete.
 
-3.  **Present Results:**
+3.  **Filter & Present Results:**
+    *   Before calling `final_answer`, evaluate each job against two lenses:
+
+    *   **Lens 1 — CV Fit.** Using the USER PROFILE above (seniority, tech stack,
+        domain, experience), assess whether the role is a genuine match.
+        Exclude roles that are a clear mismatch:
+        - Wrong seniority (e.g. junior role for a senior engineer)
+        - Mismatched tech stack (e.g. .NET role for a Python specialist with no .NET experience)
+        - Unrelated domain when the user has a clear specialisation
+        Do not exclude a job solely because its description is truncated — if the
+        snippet does not reveal a clear mismatch, keep it.
+        If the user profile contains no CV or skills information, skip this lens
+        entirely — do not infer or assume the user's background.
+
+    *   **Lens 2 — Preferences.**
+        - `[AVOID]` preferences are hard exclusions. Drop any job that clearly
+          matches one (e.g. if [AVOID] "No Java", exclude jobs whose title or
+          description mentions Java). If you are uncertain whether a job matches
+          an AVOID preference (e.g. unclear if a company is an agency vs. a direct
+          employer), include the job but flag your uncertainty in the `description`
+          — let the user decide.
+        - `[WANT]` preferences are positive signals. Prefer jobs that match them,
+          but do not exclude a job solely for lacking one.
+
     *   **YOU MUST** call the `final_answer` tool to present results.
-    *   Populate `text_response` with a helpful, conversational summary.
-    *   Populate `jobs` with the structured job data returned by the specialist.
-    *   For each job, write a concise 2-3 sentence `description` summarizing why it
-        matches the user. Ensure `apply_link` is included exactly as returned.
+    *   Populate `jobs` only with jobs that passed both lenses. If all jobs are
+        filtered out, populate `jobs` with an empty list.
+    *   Populate `text_response` with a helpful, conversational summary. If jobs
+        were excluded, briefly note why (e.g. "I filtered out 2 junior roles and
+        1 that required Java").
+    *   For each included job, write a concise 2-3 sentence `description`
+        explaining why it matches the user's profile and preferences.
+        Ensure `apply_link` is included exactly as returned.
 
 4.  **Handling No Results:**
     *   If a search returns no jobs, try **ONE** modified query (broader keywords,

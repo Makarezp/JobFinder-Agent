@@ -1,4 +1,4 @@
-# Ticket 004: LLM filters job results by CV fit and preferences before calling `final_answer`
+# [DONE] Ticket 004: LLM filters job results by CV fit and preferences before calling `final_answer`
 
 ## Overview
 
