@@ -16,7 +16,7 @@
 
 2.  **Configure**:
     - Copy `.env.example` to `.env`
-    - Add your `GEMINI_API_KEY` and `ADZUNA_APP_ID`/`ADZUNA_APP_KEY`.
+    - Add your `GEMINI_API_KEY` and `JSEARCH_API_KEY` (via RapidAPI).
 
 3.  **Run**:
     ```bash
@@ -115,7 +115,7 @@ CVviewer/
 │   ├── agent/            # LangGraph Agent (Graph, Nodes, State)
 │   ├── core/             # Config, Logging
 │   ├── services/         # ChatService, AdminService
-│   └── tools/            # Adzuna API, Scraper
+│   └── tools/            # JSearch API client, LangGraph memory tools
 ├── frontend/             # Next.js frontend
 │   └── src/
 │       ├── app/          # Next.js App Router (pages, layout)
