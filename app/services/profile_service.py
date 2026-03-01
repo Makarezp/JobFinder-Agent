@@ -6,7 +6,8 @@ import structlog
 from langgraph.store.base import BaseStore
 
 from app.agent.constants import DEFAULT_USER_ID
-from app.agent.memory_schema import DecisionLog, PendingJob, Preference, UserProfile
+from app.agent.memory_schema import DecisionLog, PendingJob, Preference, SeenJob, UserProfile
+from app.agent.schemas import JobListing
 
 logger = structlog.get_logger(__name__)
 
@@ -90,3 +91,18 @@ class ProfileService:
         logger.info("Removing pending job", user_id=user_id, job_id=job_id)
         await self._store.aput((user_id, "pending_jobs"), job_id, {"removed": True})
         logger.info("Pending job removed", user_id=user_id, job_id=job_id)
+
+    async def get_seen_job_ids(self, user_id: str = DEFAULT_USER_ID) -> set[str]:
+        """Return the set of all job IDs previously processed by the LLM."""
+        items = await self._store.asearch((user_id, "seen_jobs"))
+        return {item.key for item in items if item.value}
+
+    async def mark_jobs_seen(
+        self,
+        jobs: list[JobListing],
+        user_id: str = DEFAULT_USER_ID,
+    ) -> None:
+        """Persist minimal identity records for all jobs returned by a search."""
+        for job in jobs:
+            seen = SeenJob(id=job.id, title=job.title, company=job.company, location=job.location)
+            await self._store.aput((user_id, "seen_jobs"), job.id, seen.model_dump())

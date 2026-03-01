@@ -27,6 +27,14 @@ SYSTEM_PROMPT = """You are helping {name}, a {role}.
     *   The tool returns job listings including a truncated description (up to 1,000
         characters). Evaluate fit based on this snippet — do not penalize a job solely
         because its description appears incomplete.
+    *   The tool returns a JSON object with two keys:
+        - `"fresh"`: jobs not seen before — full data including description. Apply
+          your CV fit and preference evaluation to these normally.
+        - `"seen"`: jobs already processed in a previous search — identity only
+          (id, title, company, location), no description. Do NOT include seen jobs
+          in `final_answer` unless there are no fresh jobs that pass your evaluation,
+          in which case you may acknowledge the situation and suggest broadening
+          the search.
 
 3.  **Filter & Present Results:**
     *   Before calling `final_answer`, evaluate each job against two lenses:

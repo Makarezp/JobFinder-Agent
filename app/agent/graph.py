@@ -10,6 +10,7 @@ from langgraph.store.base import BaseStore
 
 from app.agent.constants import (
     CHECK_ONBOARDING_NODE,
+    DEFAULT_USER_ID,
     FETCH_PROFILE_NODE,
     JOB_SPECIALIST_NODE,
     MAIN_CHATBOT_NODE,
@@ -32,14 +33,18 @@ from app.agent.onboarding.nodes import (
     route_onboarding,
 )
 from app.agent.onboarding.tools import onboarding_tools
-from app.agent.schemas import JobSpecialistInput
+from app.agent.schemas import JobListing, JobSpecialistInput
 from app.agent.state import AgentState
+from app.services.profile_service import ProfileService
 
 logger = logging.getLogger(__name__)
 
 
 # --- Node: call_job_specialist ---
-async def call_job_specialist(state: AgentState) -> dict[str, Any]:
+async def call_job_specialist(
+    state: AgentState,
+    profile_service: ProfileService,
+) -> dict[str, Any]:
     """Invokes the Job Specialist subgraph based on the last tool call."""
     messages = state["messages"]
     last_message = messages[-1]
@@ -62,9 +67,19 @@ async def call_job_specialist(state: AgentState) -> dict[str, Any]:
         "search_results": None,
     }
     result = await job_search_graph.ainvoke(cast(Any, subgraph_state))
+    results: list[JobListing] = result.get("search_results", [])
 
-    results = result.get("search_results", [])
-    output_content = json.dumps([r.model_dump() for r in results], indent=2) if results else "No jobs found."
+    # Critical ordering: (1) fetch seen IDs, (2) split, (3) mark fresh as seen.
+    # Inverting steps 1 and 3 would make all jobs appear "seen" immediately.
+    seen_ids = await profile_service.get_seen_job_ids(DEFAULT_USER_ID)
+    fresh = [r for r in results if r.id not in seen_ids]
+    seen = [r for r in results if r.id in seen_ids]
+    await profile_service.mark_jobs_seen(fresh, DEFAULT_USER_ID)
+
+    fresh_payload = [r.model_dump() for r in fresh]
+    seen_payload = [{"id": r.id, "title": r.title, "company": r.company, "location": r.location} for r in seen]
+    output_content = json.dumps({"fresh": fresh_payload, "seen": seen_payload}, indent=2)
+
     return {
         "messages": [ToolMessage(content=output_content, tool_call_id=tool_call_id)],
         "search_attempts": current_attempts + 1,
@@ -82,6 +97,7 @@ def router(state: AgentState) -> str:
 # Compile
 def get_compiled_graph(checkpointer: Any, store: BaseStore) -> Any:
     """Compiles the graph with the provided checkpointer and store."""
+    profile_service = ProfileService(store)
     builder = StateGraph(AgentState)
 
     # Nodes
@@ -91,7 +107,7 @@ def get_compiled_graph(checkpointer: Any, store: BaseStore) -> Any:
     builder.add_node(FETCH_PROFILE_NODE, functools.partial(fetch_profile, store=store))
     builder.add_node(MAIN_CHATBOT_NODE, main_chatbot)
     builder.add_node(MAIN_TOOLS_NODE, ToolNode(tools=main_tools))
-    builder.add_node(JOB_SPECIALIST_NODE, call_job_specialist)
+    builder.add_node(JOB_SPECIALIST_NODE, functools.partial(call_job_specialist, profile_service=profile_service))
 
     # Entry
     builder.add_edge(START, CHECK_ONBOARDING_NODE)

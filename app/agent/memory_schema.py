@@ -54,3 +54,17 @@ class DecisionLog(BaseModel):
     action: Literal["pass", "pursue"]
     reason: str | None = None
     timestamp: str  # ISO 8601 format, e.g. "2026-02-22T20:32:00+00:00"
+
+
+class SeenJob(BaseModel):
+    """
+    Minimal identity record for a job that has already been processed by the LLM.
+    Stored under (user_id, "seen_jobs") namespace in the LangGraph memory store.
+    Only 4 fields — deliberately excludes description, salary, apply_link to
+    minimise token cost when seen jobs appear in ToolMessage payloads.
+    """
+
+    id: str
+    title: str
+    company: str
+    location: str

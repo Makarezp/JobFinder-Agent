@@ -3,10 +3,12 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from langchain_core.messages import AIMessage
 from langgraph.graph import END
+from langgraph.store.memory import InMemoryStore
 
 from app.agent.constants import JOB_SPECIALIST_NODE, MAIN_TOOLS_NODE
 from app.agent.graph import call_job_specialist
 from app.agent.main.nodes import route_main
+from app.services.profile_service import ProfileService
 
 
 def _make_job_specialist_ai_message(search_attempts: int = 0) -> dict:  # type: ignore[type-arg]
@@ -85,8 +87,8 @@ async def test_call_job_specialist_increments_search_attempts() -> None:
 
     with patch("app.agent.graph.job_search_graph") as mock_graph:
         mock_graph.ainvoke = AsyncMock(return_value={"search_results": []})
-
-        result = await call_job_specialist(state)  # type: ignore[arg-type]
+        service = ProfileService(InMemoryStore())
+        result = await call_job_specialist(state, profile_service=service)  # type: ignore[arg-type]
 
         assert result["search_attempts"] == 2
         assert "messages" in result
