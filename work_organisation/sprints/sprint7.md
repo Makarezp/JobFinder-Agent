@@ -152,7 +152,7 @@ Add or update tests to assert the new field-level description is present and tha
 
 ---
 
-## Ticket 7.2: Backend — LangGraph Execution Resilience (LLM Fallback)
+## Ticket 7.2: Backend — LangGraph Execution Resilience (LLM Fallback) — DONE
 
 ### Overview
 Currently, if the LLM provider (Google Gemini) exhausts its SDK-level retries (e.g., repeating 503 or 429 errors), it throws an exception that crashes the LangGraph node (`main_chatbot` or `onboarding_chatbot`). While the `POST /api/chat` route catches this and returns a 200 OK with a generic error string, the *internal graph state* fails to checkpoint. This causes the system to completely drop the user's latest message from conversational memory. This ticket wraps the `llm.invoke()` calls inside the nodes with a `try/except` block to gracefully inject an AI fallback message, ensuring the state machine completes successfully and commits the interaction history to SQLite.
