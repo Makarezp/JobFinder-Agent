@@ -182,10 +182,20 @@ def main_chatbot(state: AgentState) -> dict[str, list[BaseMessage]]:
 
     system_messages = [SystemMessage(content=formatted_prompt)]
     all_messages = system_messages + trimmed_messages
-    response = main_llm.invoke(all_messages)
-    logger.debug("LLM Response", content=response.content)
-    log_node_completed("main_chatbot", response)
-    return {"messages": [response]}
+    try:
+        response = main_llm.invoke(all_messages)
+        logger.debug("LLM Response", content=response.content)
+        log_node_completed("main_chatbot", response)
+        return {"messages": [response]}
+    except Exception as e:
+        logger.error("LLM Execution Failed in main_chatbot", error=str(e))
+        fallback_msg = AIMessage(
+            content=(
+                "I'm sorry, I'm having trouble connecting to my processing network "
+                "right now due to high demand. Could you please try your request again in a moment?"
+            )
+        )
+        return {"messages": [fallback_msg]}
 
 
 # --- Routing: main agent ---

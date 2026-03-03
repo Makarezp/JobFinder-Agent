@@ -68,10 +68,20 @@ def onboarding_chatbot(state: AgentState) -> dict[str, list[BaseMessage]]:
 
     system_messages = [SystemMessage(content="\n".join(system_parts))]
     all_messages = system_messages + messages
-    response = onboarding_llm.invoke(all_messages)
-    logger.debug("LLM Response", content=response.content)
-    log_node_completed("onboarding_chatbot", response)
-    return {"messages": [response]}
+    try:
+        response = onboarding_llm.invoke(all_messages)
+        logger.debug("LLM Response", content=response.content)
+        log_node_completed("onboarding_chatbot", response)
+        return {"messages": [response]}
+    except Exception as e:
+        logger.error("LLM Execution Failed in onboarding_chatbot", error=str(e))
+        fallback_msg = AIMessage(
+            content=(
+                "I'm sorry, but my connection to the AI network is currently "
+                "experiencing heavy load. Please give me a second and try your request again."
+            )
+        )
+        return {"messages": [fallback_msg]}
 
 
 # --- Routing: onboarding agent ---

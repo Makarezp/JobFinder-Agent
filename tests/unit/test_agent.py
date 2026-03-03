@@ -116,6 +116,46 @@ async def test_router_routes_to_onboarding() -> None:
     assert result == ONBOARDING_CHATBOT_NODE
 
 
+def test_main_chatbot_handles_llm_exception() -> None:
+    """main_chatbot returns a fallback AIMessage when the LLM raises."""
+    state = {
+        "messages": [HumanMessage(content="Find me Python jobs")],
+        "user_profile": None,
+        "preferences": None,
+        "recent_decisions": [],
+    }
+
+    with patch("app.agent.main.nodes.main_llm") as mock_llm:
+        mock_llm.invoke.side_effect = Exception("503 Service Unavailable")
+
+        result = main_chatbot(state)
+
+        assert "messages" in result
+        assert len(result["messages"]) == 1
+        msg = result["messages"][0]
+        assert isinstance(msg, AIMessage)
+        assert "trouble connecting" in msg.content
+
+
+def test_onboarding_chatbot_handles_llm_exception() -> None:
+    """onboarding_chatbot returns a fallback AIMessage when the LLM raises."""
+    state = {
+        "messages": [HumanMessage(content="Hello")],
+        "cv_raw_text": None,
+    }
+
+    with patch("app.agent.onboarding.nodes.onboarding_llm") as mock_llm:
+        mock_llm.invoke.side_effect = Exception("429 Too Many Requests")
+
+        result = onboarding_chatbot(state)
+
+        assert "messages" in result
+        assert len(result["messages"]) == 1
+        msg = result["messages"][0]
+        assert isinstance(msg, AIMessage)
+        assert "heavy load" in msg.content
+
+
 def test_job_specialist_input_valid_simple_query() -> None:
     """Schema accepts a simple single-role query."""
     model = JobSpecialistInput(query="admin assistant", page=1)
