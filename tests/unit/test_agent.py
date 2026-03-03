@@ -15,6 +15,7 @@ from app.agent.constants import (
 from app.agent.graph import get_compiled_graph
 from app.agent.main.nodes import main_chatbot
 from app.agent.onboarding.nodes import onboarding_chatbot
+from app.agent.schemas import JobSpecialistInput
 from app.agent.state import AgentState
 
 # Initialize graph for testing with in-memory storage
@@ -113,6 +114,22 @@ async def test_router_routes_to_onboarding() -> None:
     }  # type: ignore[typeddict-item]
     result = router(state)
     assert result == ONBOARDING_CHATBOT_NODE
+
+
+def test_job_specialist_input_valid_simple_query() -> None:
+    """Schema accepts a simple single-role query."""
+    model = JobSpecialistInput(query="admin assistant", page=1)
+    assert model.query == "admin assistant"
+    assert model.page == 1
+    assert model.country == "us"
+
+
+def test_job_specialist_input_valid_with_location_and_country() -> None:
+    """Schema accepts a role+location query with explicit country code."""
+    model = JobSpecialistInput(query="receptionist St Albans", remote_only=False, country="gb")
+    assert model.query == "receptionist St Albans"
+    assert model.country == "gb"
+    assert model.remote_only is False
 
 
 @pytest.mark.asyncio

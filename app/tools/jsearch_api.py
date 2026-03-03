@@ -17,7 +17,15 @@ _DESCRIPTION_SNIPPET_CHARS = 300
 
 
 class JSearchApiArgs(BaseModel):
-    query: str = Field(..., description="Google-style search query (e.g., 'software engineer in london').")
+    query: str = Field(
+        ...,
+        description=(
+            "A single, simple job title keyword. "
+            "For location-scoped searches, append the location as a suffix: e.g., 'admin assistant St Albans'. "
+            "DO NOT use Boolean 'or'/'and' operators. DO NOT combine multiple roles."
+        ),
+    )
+    country: str = Field(default="us", description="2-letter ISO 3166-1 alpha-2 country code.")
     date_posted: str = Field(
         default="all",
         description="Filter by posting date. One of: 'all', 'today', '3days', 'week', 'month'.",
@@ -66,6 +74,7 @@ def _format_apply_link(job: dict[str, Any]) -> str:
 @tool("jsearch_api_search", args_schema=JSearchApiArgs)
 def jsearch_api_search(
     query: str,
+    country: str = "us",
     date_posted: str = "all",
     employment_types: str | None = None,
     remote_only: bool = False,
@@ -89,6 +98,7 @@ def jsearch_api_search(
 
     params: dict[str, Any] = {
         "query": query,
+        "country": country.lower(),
         "page": str(page),
         "num_pages": "1",  # Pagination safety: never bulk-fetch multiple pages
         "date_posted": date_posted,

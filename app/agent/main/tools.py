@@ -11,6 +11,7 @@ from app.tools.memory import (
 @tool(args_schema=JobSpecialistInput)
 def job_specialist_tool(
     query: str,
+    country: str = "us",
     date_posted: str = "all",
     employment_types: str | None = None,
     remote_only: bool = False,

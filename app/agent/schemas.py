@@ -4,9 +4,23 @@ from pydantic import BaseModel, Field
 class JobSpecialistInput(BaseModel):
     """Input for the Job Specialist Agent."""
 
-    query: str = Field(..., description="Google-style search query (e.g., 'python engineer in london').")
+    query: str = Field(
+        ...,
+        description=(
+            "A single, simple job title or role keyword. "
+            "DO NOT use Boolean operators ('or', 'and', '|'). "
+            "DO NOT combine multiple job titles in one query. "
+            "DO NOT include the location in this field — location belongs at the end of the query string only if JSearch requires it. "
+            "GOOD: 'admin assistant', 'social media coordinator', 'receptionist'. "
+            "BAD: 'admin or social media or customer service', 'part time admin or receptionist in St Albans'."
+        ),
+    )
     date_posted: str = Field(default="all", description="Filter by posting date. One of: 'all', 'today', '3days', 'week', 'month'.")
     employment_types: str | None = Field(default=None, description="Comma-separated employment types: FULLTIME, CONTRACTOR, PARTTIME, INTERN.")
+    country: str = Field(
+        default="us",
+        description="2-letter ISO 3166-1 alpha-2 country code (e.g., 'us', 'gb', 'de'). Infer this from the user's location.",
+    )
     remote_only: bool = Field(default=False, description="Restrict results to remote-only positions.")
     page: int = Field(default=1, description="Page number for pagination.")
 

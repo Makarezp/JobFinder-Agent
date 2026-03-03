@@ -5,10 +5,10 @@ Address the structural search failures identified in production logs. The LLM is
 
 ---
 
-## Ticket 7.1: Backend — Constrain `JobSpecialistInput` Query Schema to Prevent Boolean Query Poisoning
+## Ticket 7.1: Backend — Constrain `JobSpecialistInput` Query Schema to Prevent Boolean Query Poisoning — DONE
 
 ### Overview
-The LLM is exploiting the loosely described `query` field in `JobSpecialistInput` to encode complex Boolean logic into a single string (e.g., `"admin or social media or customer service in St Albans"`). The JSearch API does not support multi-term Boolean syntax; it treats the entire string as a natural-language phrase, which destroys result relevance and frequently returns zero results. This ticket surgically hardens the input schema and system prompt to enforce a single-role, single-location search pattern, and updates the prompt to guide multi-role exploration via sequential single-term calls.
+The LLM is exploiting the loosely described `query` field in `JobSpecialistInput` to encode complex Boolean logic into a single string (e.g., `"admin or social media or customer service"`). Furthermore, JSearch defaults strictly to the US index, so local searches (e.g., "St Albans") are currently returning zero results because the agent is failing to provide a country code. This ticket surgically hardens the input schema and system prompt to enforce a single-role search pattern, guides multi-role exploration via sequential single-term calls, and exposes a `country` parameter so JSearch searches the correct national index.
 
 ### Implementation Steps
 
@@ -23,17 +23,21 @@ query: str = Field(..., description="Google-style search query (e.g., 'python en
 
 Replace it with a description that explicitly prohibits Boolean logic and co-mingling of role and location:
 ```python
-query: str = Field(
-    ...,
-    description=(
-        "A single, simple job title or role keyword. "
-        "DO NOT use Boolean operators ('or', 'and', '|'). "
-        "DO NOT combine multiple job titles in one query. "
-        "DO NOT include the location in this field — location belongs at the end of the query string only if JSearch requires it. "
-        "GOOD: 'admin assistant', 'social media coordinator', 'receptionist'. "
-        "BAD: 'admin or social media or customer service', 'part time admin or receptionist in St Albans'."
-    ),
-)
+    query: str = Field(
+        ...,
+        description=(
+            "A single, simple job title or role keyword. "
+            "DO NOT use Boolean operators ('or', 'and', '|'). "
+            "DO NOT combine multiple job titles in one query. "
+            "DO NOT include the location in this field — location belongs at the end of the query string only if JSearch requires it. "
+            "GOOD: 'admin assistant', 'social media coordinator', 'receptionist'. "
+            "BAD: 'admin or social media or customer service', 'part time admin or receptionist in St Albans'."
+        ),
+    )
+    country: str = Field(
+        default="us",
+        description="2-letter ISO 3166-1 alpha-2 country code (e.g., 'us', 'gb', 'de'). Infer this from the user's location.",
+    )
 ```
 
 All other fields (`date_posted`, `employment_types`, `remote_only`, `page`) remain unchanged.
@@ -45,17 +49,38 @@ All other fields (`date_posted`, `employment_types`, `remote_only`, `page`) rema
 The `JSearchApiArgs` schema is used by the raw tool layer (called internally by `search_jobs` node, not directly by the LLM). Its `query` field description should be updated in parallel to match the new schema narrative:
 
 ```python
-query: str = Field(
-    ...,
-    description=(
-        "A single, simple job title keyword. "
-        "For location-scoped searches, append the location as a suffix: e.g., 'admin assistant St Albans'. "
-        "DO NOT use Boolean 'or'/'and' operators. DO NOT combine multiple roles."
-    ),
-)
+    query: str = Field(
+        ...,
+        description=(
+            "A single, simple job title keyword. "
+            "For location-scoped searches, append the location as a suffix: e.g., 'admin assistant St Albans'. "
+            "DO NOT use Boolean 'or'/'and' operators. DO NOT combine multiple roles."
+        ),
+    )
+    country: str = Field(default="us", description="2-letter ISO 3166-1 alpha-2 country code.")
 ```
 
-No functional change to the HTTP call is required.
+Also in `app/tools/jsearch_api.py`, update the exact tool signature and the `params` payload to inject the country into the API call:
+
+```python
+@tool("jsearch_api_search", args_schema=JSearchApiArgs)
+def jsearch_api_search(
+    query: str,
+    country: str = "us",
+    date_posted: str = "all",
+    employment_types: str | None = None,
+    remote_only: bool = False,
+    page: int = 1,
+) -> list[dict[str, Any]] | str:
+    # ... inside the function
+    params: dict[str, Any] = {
+        "query": query,
+        "country": country.lower(),
+        "page": str(page),
+        "num_pages": "1",
+        "date_posted": date_posted,
+    }
+```
 
 #### Step 3: Update `SYSTEM_PROMPT` in `app/agent/main/prompts.py`
 
@@ -71,7 +96,7 @@ Replace that bullet point with the following expanded guidance:
 *   Craft a **single, simple job title query** (e.g., "admin assistant St Albans", "social media coordinator London").
 *   **CRITICAL — DO NOT use Boolean operators**: Never use 'or', 'and', or '|' in the query string. JSearch does not support Boolean syntax and will return zero results.
 *   **ONE ROLE PER CALL**: If the user's profile suits multiple roles (e.g., admin, receptionist, social media), call `job_specialist_tool` **once per role** with a separate, simple query for each. Do not combine them in one call.
-*   If searching by location, append the city/town directly to the role keyword: e.g., query="admin assistant St Albans".
+*   If searching by location, you MUST append the city/town directly to the role keyword (query="admin assistant St Albans") AND you MUST set the `country` field to the correct 2-letter ISO code (e.g., 'gb' for UK, 'us' for USA).
 ```
 
 2. Locate item `4. **Handling No Results:**`. The current text reads:
@@ -109,13 +134,9 @@ Add or update tests to assert the new field-level description is present and tha
 
 ### Explicit Constraints & Warnings
 
-- **DO NOT add a `location` field to `JobSpecialistInput`**: A separate `location` field was considered and rejected. JSearch's `/search` endpoint works best with a combined `"role city"` string. Splitting them into separate parameters would require reconstructing the query in `app/agent/job_search/nodes.py`, creating a hidden coupling between the schema and the tool internals. The current architecture is correct — location is simply appended to the `query` string by the LLM.
-
+- **DO NOT change `job_specialist_tool` in `app/agent/main/tools.py` EXCEPT to add `country` to its stub signature**: This is a phantom tool whose schema is `args_schema=JobSpecialistInput`. Its Python function signature (`def job_specialist_tool(query: str, country: str = "us", ...):`) must remain synchronized with `JobSpecialistInput`.
+- **Update `search_jobs` node in `app/agent/job_search/nodes.py`**: You must explicitly map `input_data.country` down into the `jsearch_api_search.invoke()` dictionary, just like `query` and `page`.
 - **DO NOT add a Pydantic `@field_validator` to reject Boolean operators**: This creates a `ValidationError` exception path inside the LangGraph tool invocation. Per `CONVENTIONS.md`, tools MUST NOT raise exceptions for anticipated runtime errors — they must return descriptive strings. Blocking the LLM at schema validation time crashes the graph node, not the tool. The correct enforcement layer is the system prompt.
-
-- **DO NOT change `job_specialist_tool` in `app/agent/main/tools.py`**: This is a phantom tool whose schema is `args_schema=JobSpecialistInput`. Its Python function signature must remain synchronized with `JobSpecialistInput`. Since only the `Field(description=...)` is changing (not the field names or types), the stub function body and signature require **no changes**.
-
-- **DO NOT change `search_jobs` node in `app/agent/job_search/nodes.py`**: It reads `state["input"].query` and passes it verbatim to `jsearch_api_search`. This plumbing is correct and unchanged.
 
 - **Typing**: After changes, run `mypy --strict app/agent/schemas.py app/agent/main/prompts.py app/tools/jsearch_api.py`. No type errors are expected since only `Field(description=...)` strings are modified.
 
