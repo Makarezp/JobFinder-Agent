@@ -1,10 +1,10 @@
-"""Unit tests for ChatService.process_message job persistence (Ticket 4.3)."""
+"""Unit tests for ChatService.process_message job persistence (Ticket 4.3) and get_history filtering (Ticket 8.1)."""
 
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.store.memory import InMemoryStore
 
 from app.agent.constants import FINAL_ANSWER_TOOL_NAME, JOBS_KEY, TEXT_RESPONSE_KEY
@@ -149,3 +149,38 @@ async def test_parse_agent_result_stitches_full_description_from_inspect_results
 
     assert len(result["jobs"]) == 1
     assert result["jobs"][0]["full_description"] == full_text
+
+
+# ---------------------------------------------------------------------------
+# Ticket 8.1: get_history system trigger filtering
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_get_history_filters_system_trigger() -> None:
+    """get_history never exposes [SYSTEM TRIGGER] HumanMessages to the frontend."""
+    messages = [
+        HumanMessage(content="Hi"),
+        AIMessage(content="Hello"),
+        HumanMessage(content="[SYSTEM TRIGGER] Onboarding is now complete. Begin searching."),
+        AIMessage(content="Here are some jobs for you."),
+    ]
+
+    graph_state = MagicMock()
+    graph_state.values = {"messages": messages}
+
+    graph = MagicMock()
+    graph.aget_state = AsyncMock(return_value=graph_state)
+
+    store = InMemoryStore()
+    profile_service = MagicMock()
+    service = ChatService(graph=graph, store=store, profile_service=profile_service)
+
+    history = await service.get_history()
+
+    # No turn should have a user_message starting with [SYSTEM TRIGGER]
+    for turn in history:
+        assert not str(turn["user_message"]).startswith("[SYSTEM TRIGGER]")
+
+    # The "Hi" / "Hello" turn must be present
+    assert any(turn["user_message"] == "Hi" for turn in history)

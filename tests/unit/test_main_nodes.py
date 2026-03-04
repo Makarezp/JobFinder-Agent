@@ -1,8 +1,15 @@
 """
-Unit tests for _format_decisions_summary helper (updated for Ticket 002).
+Unit tests for main agent nodes (Ticket 002, Ticket 8.1).
 """
 
-from app.agent.main.nodes import _format_decisions_summary
+from typing import Any
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+from langchain_core.messages import HumanMessage, ToolMessage
+
+from app.agent.constants import MESSAGES_KEY
+from app.agent.main.nodes import _format_decisions_summary, fetch_profile
 from app.agent.memory_schema import DecisionLog
 
 
@@ -67,3 +74,64 @@ def test_format_decisions_summary_no_reason() -> None:
     assert "Dev" in result
     assert "Corp" in result
     assert ":" not in result.split("Corp")[1]  # no colon after company when no reason
+
+
+# ---------------------------------------------------------------------------
+# Ticket 8.1: fetch_profile trigger injection
+# ---------------------------------------------------------------------------
+
+
+def _make_store_mock() -> MagicMock:
+    """Return a store mock with aget and asearch returning minimal valid values."""
+    store = MagicMock()
+    store.aget = AsyncMock(return_value=None)
+    store.asearch = AsyncMock(return_value=[])
+    return store
+
+
+def _make_config(user_id: str = "test_user") -> dict[str, Any]:
+    return {"configurable": {"user_id": user_id}}
+
+
+@pytest.mark.asyncio
+async def test_fetch_profile_injects_trigger_on_handoff() -> None:
+    """fetch_profile appends a [SYSTEM TRIGGER] HumanMessage after onboarding handoff."""
+    onboarding_tool_msg = ToolMessage(
+        content="Onboarding complete — handing off to job hunting agent.",
+        tool_call_id="x",
+    )
+    state: dict[str, Any] = {
+        MESSAGES_KEY: [onboarding_tool_msg],
+        "user_profile": None,
+        "preferences": None,
+        "onboarding_complete": True,
+        "cv_raw_text": None,
+        "active_agent": "main",
+        "search_attempts": 0,
+    }
+
+    result = await fetch_profile(state, _make_config(), _make_store_mock())  # type: ignore[arg-type]
+
+    assert "messages" in result
+    injected = result["messages"]
+    assert len(injected) == 1
+    assert isinstance(injected[0], HumanMessage)
+    assert str(injected[0].content).startswith("[SYSTEM TRIGGER]")
+
+
+@pytest.mark.asyncio
+async def test_fetch_profile_no_trigger_on_normal_turn() -> None:
+    """fetch_profile does NOT inject a trigger when last message is a normal HumanMessage."""
+    state: dict[str, Any] = {
+        MESSAGES_KEY: [HumanMessage(content="Find me Python jobs")],
+        "user_profile": None,
+        "preferences": None,
+        "onboarding_complete": True,
+        "cv_raw_text": None,
+        "active_agent": "main",
+        "search_attempts": 0,
+    }
+
+    result = await fetch_profile(state, _make_config(), _make_store_mock())  # type: ignore[arg-type]
+
+    assert "messages" not in result

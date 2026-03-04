@@ -1,7 +1,7 @@
 from typing import Annotated, Any, cast
 
 import structlog
-from langchain_core.messages import AIMessage, BaseMessage, SystemMessage, trim_messages
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage, trim_messages
 from langchain_core.runnables import RunnableConfig
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.graph import END
@@ -32,6 +32,23 @@ llm = ChatGoogleGenerativeAI(
 )
 
 main_llm = llm.bind_tools(main_tools)
+
+
+# --- Helper: detect onboarding handoff ---
+def _is_fresh_onboarding_handoff(messages: list[BaseMessage]) -> bool:
+    """
+    Returns True when the most recent message in state is the ToolMessage
+    emitted by finalize_profile (content contains "Onboarding complete").
+    This is the signal that the graph has just transitioned from onboarding.
+
+    NOTE: This relies on no intermediate node existing between
+    ONBOARDING_TOOLS_NODE and FETCH_PROFILE_NODE in graph.py. If a node
+    is ever inserted there, this detection will break silently.
+    """
+    if not messages:
+        return False
+    last = messages[-1]
+    return isinstance(last, ToolMessage) and "Onboarding complete" in str(last.content)
 
 
 # --- Helper: format profile for system prompt ---
@@ -129,7 +146,27 @@ async def fetch_profile(state: AgentState, config: RunnableConfig, store: Annota
     logger.info(
         "Node Completed: fetch_profile", extra={"profile": profile_dict, "pref_count": len(preferences), "decisions_count": len(recent_decisions)}
     )
-    return {"user_profile": profile_dict, "preferences": preferences, "recent_decisions": recent_decisions}
+
+    patch: dict[str, Any] = {
+        "user_profile": profile_dict,
+        "preferences": preferences,
+        "recent_decisions": recent_decisions,
+    }
+
+    current_messages: list[BaseMessage] = state.get(MESSAGES_KEY, [])  # type: ignore
+    if _is_fresh_onboarding_handoff(current_messages):
+        trigger = HumanMessage(
+            content=(
+                "[SYSTEM TRIGGER] Onboarding is now complete. "
+                "The user's profile and preferences have been loaded above. "
+                "Begin searching for matching jobs immediately using job_specialist_tool. "
+                "Do NOT greet the user or ask clarifying questions — go straight to searching."
+            )
+        )
+        patch["messages"] = [trigger]
+        logger.info("Onboarding handoff detected: injecting search trigger into messages")
+
+    return patch
 
 
 # --- Node: main_chatbot ---

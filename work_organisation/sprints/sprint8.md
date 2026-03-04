@@ -7,7 +7,7 @@ Fix four structural defects identified via production trace analysis that degrad
 
 ---
 
-## Ticket 8.1: Backend — Fix "Ghost Start" After Onboarding Handoff
+## Ticket 8.1: Backend — Fix "Ghost Start" After Onboarding Handoff — DONE
 
 ### Overview
 After `finalize_profile` completes, the graph transitions to `FETCH_PROFILE_NODE → MAIN_CHATBOT_NODE`. The main chatbot sees the onboarding history, generates "I'll start looking now!" with **no tool calls**, and routes to `END`. The user must send a follow-up prompt to trigger the actual search. This ticket injects a synthetic trigger `HumanMessage` during the handoff so the main chatbot immediately begins searching, and filters it from the history returned to the frontend.

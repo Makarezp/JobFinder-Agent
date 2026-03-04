@@ -181,6 +181,9 @@ class ChatService:
         current_turn: dict[str, Any] | None = None
 
         for msg in messages:
+            # Filter out internal system trigger messages — never expose to the frontend
+            if isinstance(msg, HumanMessage) and str(msg.content).startswith("[SYSTEM TRIGGER]"):
+                continue
             if isinstance(msg, HumanMessage):
                 # Start a new turn
                 if current_turn:
