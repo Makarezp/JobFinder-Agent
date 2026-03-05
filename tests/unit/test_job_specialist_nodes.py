@@ -1,9 +1,14 @@
-from typing import cast
-from unittest.mock import patch
+from typing import Any, cast
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+from langchain_core.messages import AIMessage, ToolMessage
+
+from app.agent.graph import call_job_specialist
 from app.agent.job_search.nodes import search_jobs
 from app.agent.job_search.state import JobSpecialistState
 from app.agent.schemas import JobListing, JobSpecialistInput
+from app.agent.state import AgentState
 
 
 def _make_state(query: str = "python developer", page: int = 1) -> JobSpecialistState:
@@ -114,3 +119,70 @@ def test_search_jobs_passes_correct_args_to_tool() -> None:
                 "page": 2,
             }
         )
+
+
+# ---------------------------------------------------------------------------
+# Ticket 8.2: call_job_specialist parallel execution
+# ---------------------------------------------------------------------------
+
+
+def _make_tool_call(name: str, query: str, tc_id: str) -> dict[str, Any]:
+    return {"name": name, "args": {"query": query}, "id": tc_id}
+
+
+def _make_agent_state(tool_calls: list[dict[str, Any]]) -> AgentState:
+    ai_msg = AIMessage(content="")
+    ai_msg.tool_calls = tool_calls  # type: ignore[attr-defined, assignment]
+    return cast(
+        AgentState,
+        {
+            "messages": [ai_msg],
+            "search_attempts": 0,
+            "user_profile": None,
+            "preferences": None,
+            "onboarding_complete": True,
+            "cv_raw_text": None,
+            "active_agent": "main",
+        },
+    )
+
+
+def _make_profile_service_mock() -> MagicMock:
+    ps = MagicMock()
+    ps.get_seen_job_ids = AsyncMock(return_value=set())
+    ps.mark_jobs_seen = AsyncMock(return_value=None)
+    return ps
+
+
+@pytest.mark.asyncio
+async def test_call_job_specialist_processes_all_parallel_calls() -> None:
+    """call_job_specialist returns one ToolMessage per job_specialist_tool call."""
+    tool_calls = [
+        _make_tool_call("job_specialist_tool", "python developer", "tc-1"),
+        _make_tool_call("job_specialist_tool", "backend engineer", "tc-2"),
+        _make_tool_call("job_specialist_tool", "data scientist", "tc-3"),
+    ]
+    state = _make_agent_state(tool_calls)
+
+    with patch("app.agent.graph.job_search_graph") as mock_graph:
+        mock_graph.ainvoke = AsyncMock(return_value={"search_results": []})
+        result = await call_job_specialist(state, _make_profile_service_mock())
+
+    assert len(result["messages"]) == 3
+    assert all(isinstance(m, ToolMessage) for m in result["messages"])
+    assert result["search_attempts"] == 1
+
+
+@pytest.mark.asyncio
+async def test_call_job_specialist_single_call_unchanged() -> None:
+    """call_job_specialist with 1 tool_call returns 1 ToolMessage and search_attempts=1."""
+    tool_calls = [_make_tool_call("job_specialist_tool", "python developer", "tc-1")]
+    state = _make_agent_state(tool_calls)
+
+    with patch("app.agent.graph.job_search_graph") as mock_graph:
+        mock_graph.ainvoke = AsyncMock(return_value={"search_results": []})
+        result = await call_job_specialist(state, _make_profile_service_mock())
+
+    assert len(result["messages"]) == 1
+    assert isinstance(result["messages"][0], ToolMessage)
+    assert result["search_attempts"] == 1

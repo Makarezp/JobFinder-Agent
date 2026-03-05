@@ -1,3 +1,4 @@
+import asyncio
 import functools
 import json
 import logging
@@ -40,37 +41,26 @@ from app.services.profile_service import ProfileService
 logger = logging.getLogger(__name__)
 
 
-# --- Node: call_job_specialist ---
-async def call_job_specialist(
-    state: AgentState,
+# --- Helper: single job search execution ---
+async def _run_single_job_search(
+    tool_call: Any,
     profile_service: ProfileService,
-) -> dict[str, Any]:
-    """Invokes the Job Specialist subgraph based on the last tool call."""
-    messages = state["messages"]
-    last_message = messages[-1]
-    if not isinstance(last_message, AIMessage) or not last_message.tool_calls:
-        return {"messages": []}
-
-    tool_call = last_message.tool_calls[0]
+) -> ToolMessage:
+    """
+    Execute one job_specialist_tool call through the job search subgraph.
+    Always returns a ToolMessage — errors are caught and encoded as content strings.
+    """
     tool_call_id = tool_call["id"]
-
     try:
         args = tool_call["args"]
         input_data = JobSpecialistInput(**args)
     except Exception as e:
-        return {"messages": [ToolMessage(content=f"Error parsing input: {e}", tool_call_id=tool_call_id)]}
+        return ToolMessage(content=f"Error parsing input: {e}", tool_call_id=tool_call_id)
 
-    current_attempts = state.get("search_attempts", 0)
-
-    subgraph_state: JobSpecialistState = {
-        "input": input_data,
-        "search_results": None,
-    }
+    subgraph_state: JobSpecialistState = {"input": input_data, "search_results": None}
     result = await job_search_graph.ainvoke(cast(Any, subgraph_state))
     results: list[JobListing] = result.get("search_results", [])
 
-    # Critical ordering: (1) fetch seen IDs, (2) split, (3) mark fresh as seen.
-    # Inverting steps 1 and 3 would make all jobs appear "seen" immediately.
     seen_ids = await profile_service.get_seen_job_ids(DEFAULT_USER_ID)
     fresh = [r for r in results if r.id not in seen_ids]
     seen = [r for r in results if r.id in seen_ids]
@@ -78,10 +68,34 @@ async def call_job_specialist(
 
     fresh_payload = [r.model_dump() for r in fresh]
     seen_payload = [{"id": r.id, "title": r.title, "company": r.company, "location": r.location} for r in seen]
-    output_content = json.dumps({"fresh": fresh_payload, "seen": seen_payload}, indent=2)
+    content = json.dumps({"fresh": fresh_payload, "seen": seen_payload}, indent=2)
+    return ToolMessage(content=content, tool_call_id=tool_call_id)
 
+
+# --- Node: call_job_specialist ---
+async def call_job_specialist(
+    state: AgentState,
+    profile_service: ProfileService,
+) -> dict[str, Any]:
+    """Invokes the Job Specialist subgraph for all parallel tool calls in the last message."""
+    messages = state["messages"]
+    last_message = messages[-1]
+    if not isinstance(last_message, AIMessage) or not last_message.tool_calls:
+        return {"messages": []}
+
+    job_tool_calls = [tc for tc in last_message.tool_calls if tc["name"] == "job_specialist_tool"]
+    if not job_tool_calls:
+        return {"messages": []}
+
+    current_attempts = state.get("search_attempts", 0)
+
+    tool_messages = await asyncio.gather(*[_run_single_job_search(tc, profile_service) for tc in job_tool_calls])
+
+    # Increment by 1 per batch (preserves "number of search rounds" semantics,
+    # consistent with the loop protection threshold and the system prompt's
+    # "3 total search attempts" instruction).
     return {
-        "messages": [ToolMessage(content=output_content, tool_call_id=tool_call_id)],
+        "messages": list(tool_messages),
         "search_attempts": current_attempts + 1,
     }
 

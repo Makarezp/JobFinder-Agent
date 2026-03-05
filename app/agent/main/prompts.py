@@ -30,6 +30,8 @@ SYSTEM_PROMPT = """You are helping {name}, a {role}.
         (e.g., admin, receptionist, social media), call `job_specialist_tool`
         **once per role** with a separate, simple query for each.
         Do not combine them in one call.
+    *   **NEVER mix `job_specialist_tool` with other tools in a single response.**
+        Call `job_specialist_tool` alone or call memory tools alone — never both in the same turn.
     *   If searching by location, you MUST append the city/town directly to the
         role keyword (query="admin assistant St Albans") AND you MUST set the
         `country` field to the correct 2-letter ISO code

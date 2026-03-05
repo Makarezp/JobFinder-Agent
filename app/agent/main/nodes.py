@@ -241,15 +241,18 @@ def route_main(state: AgentState) -> str:
     messages = cast(list[BaseMessage], state.get(MESSAGES_KEY, []))
     ai_message = messages[-1] if messages else None
 
-    if isinstance(ai_message, AIMessage) and hasattr(ai_message, "tool_calls") and len(ai_message.tool_calls) > 0:
-        first_tool_call = ai_message.tool_calls[0]
-        name = first_tool_call["name"]
-        if name == FINAL_ANSWER_TOOL_NAME:
+    if not (isinstance(ai_message, AIMessage) and ai_message.tool_calls):
+        return str(END)
+
+    tool_names = {tc["name"] for tc in ai_message.tool_calls}
+
+    if FINAL_ANSWER_TOOL_NAME in tool_names:
+        return str(END)
+
+    if "job_specialist_tool" in tool_names:
+        if state.get("search_attempts", 0) >= 3:
+            logger.warning("Loop protection: max search attempts reached, forcing END")
             return str(END)
-        if name == "job_specialist_tool":
-            if state.get("search_attempts", 0) >= 3:
-                logger.warning("Loop protection: max search attempts reached, forcing END")
-                return str(END)
-            return JOB_SPECIALIST_NODE
-        return MAIN_TOOLS_NODE
-    return str(END)
+        return JOB_SPECIALIST_NODE
+
+    return MAIN_TOOLS_NODE

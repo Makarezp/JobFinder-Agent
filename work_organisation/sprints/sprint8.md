@@ -103,7 +103,7 @@ After `finalize_profile` completes, the graph transitions to `FETCH_PROFILE_NODE
 
 ---
 
-## Ticket 8.2: Backend — Fix Parallel `job_specialist_tool` Calls Being Silently Dropped
+## Ticket 8.2: Backend — Fix Parallel `job_specialist_tool` Calls Being Silently Dropped — DONE
 
 ### Overview
 When the main LLM emits an `AIMessage` with multiple `job_specialist_tool` entries in `tool_calls`, `call_job_specialist` in `graph.py` processes only `tool_calls[0]` and discards the rest. The LLM receives an AIMessage referencing N tool_call_ids but only 1 `ToolMessage` response — invalid per the Gemini API contract. This ticket fixes the node to execute all parallel calls concurrently, and fixes `route_main` to route on the *presence* of `job_specialist_tool` anywhere in `tool_calls` rather than only inspecting index 0.

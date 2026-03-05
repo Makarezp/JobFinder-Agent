@@ -6,10 +6,11 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from langchain_core.messages import AIMessage as _AIMessage
 from langchain_core.messages import HumanMessage, ToolMessage
 
-from app.agent.constants import MESSAGES_KEY
-from app.agent.main.nodes import _format_decisions_summary, fetch_profile
+from app.agent.constants import JOB_SPECIALIST_NODE, MESSAGES_KEY
+from app.agent.main.nodes import _format_decisions_summary, fetch_profile, route_main
 from app.agent.memory_schema import DecisionLog
 
 
@@ -135,3 +136,28 @@ async def test_fetch_profile_no_trigger_on_normal_turn() -> None:
     result = await fetch_profile(state, _make_config(), _make_store_mock())  # type: ignore[arg-type]
 
     assert "messages" not in result
+
+
+# ---------------------------------------------------------------------------
+# Ticket 8.2: route_main presence-based routing
+# ---------------------------------------------------------------------------
+
+
+def test_route_main_detects_job_specialist_at_any_position() -> None:
+    """route_main routes to JOB_SPECIALIST_NODE when job_specialist_tool appears at any position."""
+    ai_msg = _AIMessage(content="")
+    ai_msg.tool_calls = [  # type: ignore[attr-defined]
+        {"name": "save_preference", "args": {}, "id": "tc-1"},
+        {"name": "job_specialist_tool", "args": {"query": "python dev"}, "id": "tc-2"},
+    ]
+    state: dict[str, Any] = {
+        MESSAGES_KEY: [ai_msg],
+        "search_attempts": 0,
+        "user_profile": None,
+        "preferences": None,
+        "onboarding_complete": True,
+        "cv_raw_text": None,
+        "active_agent": "main",
+    }
+
+    assert route_main(state) == JOB_SPECIALIST_NODE  # type: ignore[arg-type]
