@@ -18,7 +18,7 @@
 
 ---
 
-## File 2: `app/agent/schemas.py`
+## File 2: `app/agent/schemas.py` - done
 
 ### 🚨 Critical Tech Debt (Must Fix)
 _None found. This file is clean._

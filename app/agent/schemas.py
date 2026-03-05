@@ -28,7 +28,7 @@ class JobSpecialistInput(BaseModel):
 class JobListing(BaseModel):
     """Single source of truth for a job listing."""
 
-    id: str = Field(default="", description="Deterministic hash for frontend tracking. Computed in _parse_agent_result, not by the LLM.")
+    id: str = Field(default="", description="Unique identifier for frontend tracking.")
     title: str = Field(..., description="The job title.")
     company: str = Field(..., description="The name of the company.")
     location: str = Field(..., description="The job location.")
@@ -42,4 +42,4 @@ class AgentResponse(BaseModel):
     """The structured response from the agent."""
 
     text_response: str = Field(..., description="The conversational response to the user.")
-    jobs: list[JobListing] | None = Field(default=[], description="A list of job listings found, if any.")
+    jobs: list[JobListing] = Field(default=[], description="A list of job listings found, if any.")
