@@ -1,4 +1,4 @@
-"""Agent related prompts."""
+"""System prompt for the main job-hunting agent."""
 
 SYSTEM_PROMPT = """You are helping {name}, a {role}.
 
@@ -95,8 +95,8 @@ SYSTEM_PROMPT = """You are helping {name}, a {role}.
         the location is too restrictive. Drop the specific town and use the
         nearest major city, or drop the location entirely and rely on the
         UI/user to filter later (e.g., "social media London" or "social media").
-    *   **STOP LIMIT:** You have a strict budget of 3 searches per conversation
-        turn. If Attempt 3 fails, you MUST stop searching immediately.
+    *   **STOP LIMIT:** You have a strict budget of {max_search_attempts} searches per conversation
+        turn. If Attempt {max_search_attempts} fails, you MUST stop searching immediately.
     *   Call `final_answer` and tell the user: "I searched for X and Y in
         [Location], but couldn't find any matches right now. Would you be open
         to commuting to [Bigger City] or looking at [Adjacent Role]?"

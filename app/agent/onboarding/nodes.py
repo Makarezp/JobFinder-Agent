@@ -13,6 +13,7 @@ from app.agent.constants import (
     FETCH_PROFILE_NODE,
     MESSAGES_KEY,
     ONBOARDING_CHATBOT_NODE,
+    ONBOARDING_COMPLETE_SIGNAL,
     ONBOARDING_TOOLS_NODE,
 )
 from app.agent.onboarding.prompts import ONBOARDING_PROMPT
@@ -90,7 +91,7 @@ def route_onboarding(state: AgentState) -> str:
     messages = cast(list[BaseMessage], state.get(MESSAGES_KEY, []))
     ai_message = messages[-1] if messages else None
 
-    if isinstance(ai_message, AIMessage) and hasattr(ai_message, "tool_calls") and len(ai_message.tool_calls) > 0:
+    if isinstance(ai_message, AIMessage) and ai_message.tool_calls:
         return ONBOARDING_TOOLS_NODE
     return str(END)
 
@@ -105,7 +106,7 @@ def route_after_onboarding_tools(state: AgentState) -> str:
 
     # Check if finalize_profile was just executed (its return message contains this)
     for msg in reversed(messages):
-        if hasattr(msg, "content") and "Onboarding complete" in str(msg.content):
+        if hasattr(msg, "content") and ONBOARDING_COMPLETE_SIGNAL in str(msg.content):
             # Immediate handoff: go to fetch_profile → main_chatbot
             return FETCH_PROFILE_NODE
         # Stop searching after we pass non-tool messages

@@ -14,7 +14,9 @@ from app.agent.constants import (
     FINAL_ANSWER_TOOL_NAME,
     JOB_SPECIALIST_NODE,
     MAIN_TOOLS_NODE,
+    MAX_SEARCH_ATTEMPTS,
     MESSAGES_KEY,
+    ONBOARDING_COMPLETE_SIGNAL,
 )
 from app.agent.main.prompts import SYSTEM_PROMPT
 from app.agent.main.tools import main_tools
@@ -49,7 +51,7 @@ def _is_fresh_onboarding_handoff(messages: list[BaseMessage]) -> bool:
     if not messages:
         return False
     last = messages[-1]
-    return isinstance(last, ToolMessage) and "Onboarding complete" in str(last.content)
+    return isinstance(last, ToolMessage) and ONBOARDING_COMPLETE_SIGNAL in str(last.content)
 
 
 # --- Helper: format profile for system prompt ---
@@ -66,7 +68,6 @@ def _format_profile_summary(profile: dict[str, Any] | None) -> str:
 
     cv = profile.get("cv_summary")
     if cv:
-        # cv is now just a string
         parts.append(f"CV Summary:\n{cv}")
 
     return "\n".join(parts) if parts else "No profile information available yet."
@@ -210,6 +211,7 @@ def main_chatbot(state: AgentState) -> dict[str, list[BaseMessage]]:
         profile_summary=_format_profile_summary(profile),
         preferences_summary=_format_preferences_summary(preferences),
         feedback_block=feedback_block,
+        max_search_attempts=MAX_SEARCH_ATTEMPTS,
     )
 
     # Strip onboarding history before trimming — reduces token count significantly
@@ -268,7 +270,7 @@ def route_main(state: AgentState) -> str:
         return str(END)
 
     if "job_specialist_tool" in tool_names:
-        if state.get("search_attempts", 0) >= 3:
+        if state.get("search_attempts", 0) >= MAX_SEARCH_ATTEMPTS:
             logger.warning("Loop protection: max search attempts reached, forcing END")
             return str(END)
         return JOB_SPECIALIST_NODE

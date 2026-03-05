@@ -1,11 +1,12 @@
 import asyncio
 import functools
 import json
-import logging
 from typing import Any, cast
 
+import structlog
 from langchain_core.messages import AIMessage, ToolMessage
 from langgraph.graph import END, START, StateGraph
+from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import ToolNode
 from langgraph.store.base import BaseStore
 
@@ -38,7 +39,14 @@ from app.agent.schemas import JobListing, JobSpecialistInput
 from app.agent.state import AgentState
 from app.services.profile_service import ProfileService
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
+
+
+def _split_fresh_seen(results: list[JobListing], seen_ids: set[str]) -> tuple[list[JobListing], list[JobListing]]:
+    """Partition search results into fresh (unseen) and previously seen listings."""
+    fresh = [r for r in results if r.id not in seen_ids]
+    seen = [r for r in results if r.id in seen_ids]
+    return fresh, seen
 
 
 # --- Helper: single job search execution ---
@@ -62,8 +70,7 @@ async def _run_single_job_search(
     results: list[JobListing] = result.get("search_results", [])
 
     seen_ids = await profile_service.get_seen_job_ids(DEFAULT_USER_ID)
-    fresh = [r for r in results if r.id not in seen_ids]
-    seen = [r for r in results if r.id in seen_ids]
+    fresh, seen = _split_fresh_seen(results, seen_ids)
     await profile_service.mark_jobs_seen(fresh, DEFAULT_USER_ID)
 
     fresh_payload = [r.model_dump() for r in fresh]
@@ -109,7 +116,7 @@ def router(state: AgentState) -> str:
 
 
 # Compile
-def get_compiled_graph(checkpointer: Any, store: BaseStore) -> Any:
+def get_compiled_graph(checkpointer: Any, store: BaseStore) -> CompiledStateGraph[Any, Any, Any, Any]:
     """Compiles the graph with the provided checkpointer and store."""
     profile_service = ProfileService(store)
     builder = StateGraph(AgentState)

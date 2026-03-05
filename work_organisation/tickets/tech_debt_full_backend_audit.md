@@ -34,7 +34,7 @@ _None found._
 
 ---
 
-## File 3: `app/agent/graph.py`
+## File 3: `app/agent/graph.py` - done
 
 ### 🚨 Critical Tech Debt (Must Fix)
 - [ ] **[graph.py:45-100] - `_run_single_job_search` + `call_job_specialist` violate SRP**: `call_job_specialist` is a single node that does four distinct things: (1) invokes the subgraph, (2) fetches seen job IDs, (3) splits fresh vs seen, (4) serializes the payload to JSON. The seen-job deduplication logic (lines 64-71) is a business rule buried inside orchestration glue. **Action**: Extract the fresh/seen split and serialization into a dedicated method on `ProfileService` (e.g., `split_and_mark_results(results, user_id) -> dict`). The node should only call the subgraph and delegate post-processing.
@@ -51,7 +51,7 @@ _None found._
 
 ---
 
-## File 4: `app/agent/constants.py`
+## File 4: `app/agent/constants.py` - done
 
 ### 🚨 Critical Tech Debt (Must Fix)
 - [ ] **[constants.py:25] - `ROUTER_NODE` is dead code**: `ROUTER_NODE: Final[str] = "router"` is defined but never imported or used anywhere in the codebase. The `router` function in `graph.py` is a conditional edge callback, not a registered node. Violates Design Principle #7 (No Dead Code). **Action**: Delete.
@@ -64,7 +64,7 @@ _None found._
 
 ---
 
-## File 5: `app/agent/memory_schema.py`
+## File 5: `app/agent/memory_schema.py` - skipped
 
 ### 🚨 Critical Tech Debt (Must Fix)
 _None found. This file is clean._
@@ -79,22 +79,22 @@ _None found._
 
 ---
 
-## File 6: `app/agent/main/nodes.py`
+## File 6: `app/agent/main/nodes.py` — ⚠️ PARTIALLY DONE
 
 ### 🚨 Critical Tech Debt (Must Fix)
-- [ ] **[nodes.py:29-35] - Module-level LLM instantiation violates Dependency Injection**: `llm = ChatGoogleGenerativeAI(...)` and `main_llm = llm.bind_tools(main_tools)` are created at **import time** as module globals. This means: (a) tests must `patch("app.agent.main.nodes.main_llm")` — a deep internal path, directly contradicting the project's own DI guidance in `AGENTS.md §Gotchas`; (b) changing the model or temperature requires restarting the process; (c) circular import risk if config is slow. Violates Design Principle #5 (Dependency Injection). **Action**: Move LLM construction into `get_compiled_graph()` and inject via `functools.partial` or closure, same pattern used for `store`.
-- [ ] **[nodes.py:186-253] - `main_chatbot` is ~67 lines and does 5 things**: (1) formats the system prompt, (2) builds the feedback block, (3) strips onboarding messages, (4) trims messages, (5) invokes the LLM with fallback. This violates SRP and makes the function hard to test in isolation. **Action**: Extract prompt construction into a `_build_system_prompt(profile, preferences, decisions) -> str` helper. The node body should be: build prompt → prepare messages → invoke → return.
-- [ ] **[nodes.py:39-52] - `_is_fresh_onboarding_handoff` has fragile coupling**: The function detects handoff by checking if the last message contains `"Onboarding complete"` as a substring. The docstring itself warns (lines 46-48): _"If a node is ever inserted there, this detection will break silently."_ This is a ticking time bomb. **Action**: Use a structured signal (e.g., a dedicated state field `handoff_pending: bool` or a sentinel `ToolMessage` subclass) instead of string matching.
+- [ ] **[nodes.py:29-35] - Module-level LLM instantiation violates Dependency Injection** — **SKIPPED: Needs dedicated refactor ticket.** Affects both `main/nodes.py` and `onboarding/nodes.py`, changes graph wiring in `get_compiled_graph()`, and requires updating all test patches. Too risky for a cleanup sweep.
+- [x] **[nodes.py:186-253] - `main_chatbot` is ~67 lines and does 5 things** — **DONE.** Extracted `_build_system_prompt(profile, preferences, decisions) -> str` helper.
+- [x] **[nodes.py:39-52] - `_is_fresh_onboarding_handoff` has fragile coupling** — **DONE.** Added `ONBOARDING_COMPLETE_SIGNAL` constant in `constants.py`. Used in both `main/nodes.py` and `onboarding/nodes.py`.
 
 ### ⚠️ Maintainability & Clean Code (Should Fix)
-- [ ] **[nodes.py:69] - Stale comment**: `# cv is now just a string` — the word "now" implies a past refactoring. This is a changelog comment, not a code comment. **Action**: Delete.
-- [ ] **[nodes.py:170] - Inline `type: ignore` with string key access**: `current_messages: list[BaseMessage] = state.get(MESSAGES_KEY, [])  # type: ignore` — the ignore is needed because `TypedDict.get()` returns a union. This is acceptable but suggests the state access pattern could use a thin accessor helper. **Action**: Acknowledge or add a typed accessor.
-- [ ] **[nodes.py:199-204] - Ternary-formatted multiline block**: The `feedback_block` ternary spans 6 lines and is hard to scan. **Action**: Extract into a one-line helper: `feedback_block = _build_feedback_block(decisions_summary)`.
+- [x] **[nodes.py:69] - Stale comment** — **DONE.** Deleted.
+- [x] **[nodes.py:170] - Inline `type: ignore` with string key access** — **SKIPPED.** LangGraph TypedDict limitation; wrapper adds complexity without safety gain.
+- [x] **[nodes.py:199-204] - Ternary-formatted multiline block** — **DONE.** Absorbed into `_build_system_prompt` extraction.
 
 ### 🔍 Nitpicks
-- [ ] **[nodes.py:241] - `main_llm.invoke` is synchronous inside a `def` node**: `main_chatbot` is `def` (sync), not `async def`. LangGraph runs it in a thread executor, so it's not blocking the event loop. But it's inconsistent with `fetch_profile` which is `async def`. **Action**: Consider making `main_chatbot` async for consistency, using `await main_llm.ainvoke()`.
+- [x] **[nodes.py:241] - `main_llm.invoke` is synchronous** — **SKIPPED.** LangGraph handles via thread executor; no functional benefit.
 
-### ✅ Verdict: **Highest debt density in the project.** Module-level globals, oversized node function, and fragile string-based handoff detection.
+### ✅ Verdict: **Partially resolved.** Remaining: module-level LLM globals need a dedicated DI refactor ticket (affects `main/nodes.py` + `onboarding/nodes.py` + `graph.py` + all test patches).
 
 ---
 
