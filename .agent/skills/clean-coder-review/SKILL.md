@@ -52,34 +52,37 @@ Because reading an entire codebase overwhelms context limits, you MUST follow th
     - NEVER attempt to read more than 1-2 files concurrently. If a file is long, focus only on it and its corresponding test file before moving on.
 
 # Task Instruction: Creating the Tech Debt Ticket
-Analyze the provided code and tests and generate a structured markdown audit report.
+Analyze the provided code and tests. Your absolute HIGHEST priority is finding standard "Clean Code" violations: methods that are too long, logic that is too deeply nested, terrible variable names, and copy-pasted code. Framework/architectural pedantry comes second.
+
 - You are an **auditor only**. Do not write complete rewritten files or implement new features.
-- **CRITICAL FILE OUTPUT**: You must save your final audit as a Markdown file directly into the `work_organisation/tickets/` directory (e.g., `work_organisation/tickets/tech_debt_[component].md`). Use the `write_to_file` tool to save the ticket.
-- **TICKET SIMPLICITY**: Keep the ticket concise. This is a Tech Debt ticket, not a full Product Specification.  Just use the simple audit template below so developers can quickly read and execute the refactors.
-- You must categorize your findings logically using the exact template below.
+- **CRITICAL FILE OUTPUT**: You must save your final audit as a Markdown file directly into the `work_organisation/tickets/` directory.
+- **TONE & FORMAT**: This is a technical Jira/GitHub ticket, NOT an essay. Use actionable, punchy language.
+- **NEVER** include the negative constraints from this prompt in your final output.
 
-### Output Ticket Format (Use exactly this template for the `.md` file)
+### Output Ticket Format (Use EXACTLY this template with checkboxes)
 
-#### 1. 🚨 Critical Violations (AI Anti-Patterns, Architecture & Async)
-*Issues that violate SOLID, layered isolation, block the event loop, or overly complex "Band-Aid" methods that desperately need to be extracted/split.*
-- **[File/Line]**: [Description of the issue, exactly why it breaks core principles or is a known AI shortcut].
-- **Recommendation**: [Brief instruction on how to refactor, including what chunks of logic to extract].
+```markdown
+# Tech Debt Audit: [Component Name]
 
-#### 2. ⚠️ Maintainability & Pythonic Refactors
-*Violations of KISS, DRY, YAGNI, bad variable names, missing type hints, or inconsistent state/naming.*
-- **[File/Line]**: [Description of the issue].
-- **Recommendation**: [Brief instruction on how to refactor].
+## 🚨 Critical Tech Debt (Must Fix)
+*Issues that violate SRP, Methods > 30 lines, deeply nested spaghetti logic (Band-Aid fixes), blocking the event loop, or flagrant design principle violations.*
+- [ ] **[File:Line] - [Short Title]**: [1 sentence explaining why it's bad]. **Action**: [Brief instruction on what to extract or how to fix it].
+- [ ] **[File:Line] - [Short Title]**: [1 sentence explaining why it's bad]. **Action**: [Brief instruction on what to extract or how to fix it].
 
-#### 3. 🧪 Test Quality Audit
-*Evaluating the clarity, naming, behavior verification, and brittle internal mocking.*
-- **[File/Line]**: [Description of poor test naming, messy Arrange-Act-Assert setup, brittle mocks, or tests that don't verify meaningful behavior].
-- **Recommendation**: [Brief instruction on how to organize, rename, or fix the mocking strategy].
+## ⚠️ Maintainability & Clean Code (Should Fix)
+*Violations of KISS, DRY, YAGNI, terrible variable names, Comment Redundancy, or missing type hints.*
+- [ ] **[File:Line] - [Short Title]**: [1 sentence explaining why it's bad]. **Action**: [Brief instruction].
 
-#### 4. 🔍 Nitpicks (Formatting & AI Comments)
-*(Nitpick)* Minor PEP 8 infractions, redundant AI comments stating the obvious, or poor docstring formatting.
-- **[File/Line]**: [Description of the nitpick].
+## 🧪 Test Quality Audit
+*Evaluating clarity, naming, behavior verification, and brittle internal mocking.*
+- [ ] **[File:Line] - [Short Title]**: [1 sentence explaining why it's bad]. **Action**: [Brief instruction].
 
-#### 5. 🛑 Negative Constraints
-- **DO NOT** rewrite the entire file for the user.
-- **DO NOT** suggest adding net-new business logic or features.
-- **DO NOT** rewrite comments; simply state that they should be deleted if they violate the "Why, not What" rule.
+## 🔍 Nitpicks
+*Minor PEP 8 infractions or formatting issues.*
+- [ ] **[File:Line]**: [Description of nitpick].
+```
+
+# Internal Directives (Do not print these)
+- DO NOT rewrite the entire file for the user.
+- DO NOT suggest adding net-new business logic or features.
+- DO NOT be chatty. Refuse to use phrases like "The test name is okay, but...". If it needs fixing, add a checkbox. If it's fine, leave it off the ticket entirely.
