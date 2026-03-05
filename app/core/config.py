@@ -1,4 +1,5 @@
 import os
+import tempfile
 from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -6,7 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     # App
-    APP_NAME: str = "AI Scraper Bot"
+    APP_NAME: str = "CVviewer"
     APP_ENV: str = "development"
     LOG_LEVEL: str = "INFO"
     DEBUG: bool = True
@@ -20,10 +21,6 @@ class Settings(BaseSettings):
     LANGCHAIN_ENDPOINT: str = "https://api.smith.langchain.com"
     LANGCHAIN_API_KEY: str | None = None
     LANGCHAIN_PROJECT: str = "default"
-
-    # Adzuna
-    ADZUNA_APP_ID: str | None = None
-    ADZUNA_APP_KEY: str | None = None
 
     # JSearch (RapidAPI)
     JSEARCH_API_KEY: str | None = None
@@ -45,8 +42,6 @@ class Settings(BaseSettings):
 
     @property
     def STATE_LOG_PATH(self) -> Path:
-        import tempfile
-
         return Path(tempfile.gettempdir()) / "cvviewer_state_debug.log"
 
     model_config = SettingsConfigDict(env_file=".env", env_ignore_empty=True)

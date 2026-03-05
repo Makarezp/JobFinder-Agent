@@ -7,7 +7,6 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from langchain_core.messages import AIMessage as AIMsg
-from langchain_core.messages import AIMessage as _AIMessage
 from langchain_core.messages import HumanMessage, ToolMessage
 
 from app.agent.constants import JOB_SPECIALIST_NODE, MESSAGES_KEY
@@ -145,7 +144,7 @@ async def test_fetch_profile_no_trigger_on_normal_turn() -> None:
 
 def test_route_main_detects_job_specialist_at_any_position() -> None:
     """route_main routes to JOB_SPECIALIST_NODE when job_specialist_tool appears at any position."""
-    ai_msg = _AIMessage(content="")
+    ai_msg = AIMsg(content="")
     ai_msg.tool_calls = [  # type: ignore[attr-defined]
         {"name": "save_preference", "args": {}, "id": "tc-1"},
         {"name": "job_specialist_tool", "args": {"query": "python dev"}, "id": "tc-2"},

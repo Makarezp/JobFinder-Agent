@@ -1,8 +1,8 @@
-import logging
+import structlog
 
 from app.core.database import reset_db_state
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class AdminService:

@@ -258,7 +258,7 @@ _None._
 
 ---
 
-## File 17: `app/api/schemas.py`
+## File 17: `app/api/schemas.py` — SKIPPED (clean, no actionable items)
 
 ### 🚨 Critical Tech Debt (Must Fix)
 _None found._
@@ -270,7 +270,7 @@ _None found._
 
 ---
 
-## File 18: `app/api/dependencies.py`
+## File 18: `app/api/dependencies.py` — SKIPPED (clean, nitpick only)
 
 ### 🚨 Critical Tech Debt (Must Fix)
 _None found._
@@ -285,7 +285,7 @@ _None found._
 
 ---
 
-## File 19: `app/api/middleware.py`
+## File 19: `app/api/middleware.py` — SKIPPED (excellent, no findings)
 
 ### 🚨 Critical Tech Debt (Must Fix)
 _None found._
@@ -297,14 +297,14 @@ _None found._
 
 ---
 
-## File 20: `app/core/config.py`
+## File 20: `app/core/config.py` — DONE
 
 ### 🚨 Critical Tech Debt (Must Fix)
-- [ ] **[config.py:24-26] - Dead Adzuna config fields**: `ADZUNA_APP_ID` and `ADZUNA_APP_KEY` remain in `Settings`. The Adzuna API was fully replaced by JSearch in Sprint 6. The legacy tools (`adzuna_api.py`, `scraper.py`) were deleted. These fields are dead config violating Design Principle #7. **Action**: Delete both fields.
+- [x] **[config.py:24-26] - Dead Adzuna config fields**: `ADZUNA_APP_ID` and `ADZUNA_APP_KEY` remain in `Settings`. The Adzuna API was fully replaced by JSearch in Sprint 6. The legacy tools (`adzuna_api.py`, `scraper.py`) were deleted. These fields are dead config violating Design Principle #7. **Action**: Delete both fields.
 
 ### ⚠️ Maintainability & Clean Code (Should Fix)
-- [ ] **[config.py:9] - `APP_NAME` says `"AI Scraper Bot"`**: This name is from the project's early prototype days. The project is now "CVviewer". **Action**: Update to `"CVviewer"` or read from an env var.
-- [ ] **[config.py:47-50] - `STATE_LOG_PATH` imports `tempfile` inside a property**: Lazy import inside a property is unusual. It works but is surprising. **Action**: Move `import tempfile` to the top of the file.
+- [x] **[config.py:9] - `APP_NAME` says `"AI Scraper Bot"`**: This name is from the project's early prototype days. The project is now "CVviewer". **Action**: Update to `"CVviewer"` or read from an env var.
+- [x] **[config.py:47-50] - `STATE_LOG_PATH` imports `tempfile` inside a property**: Lazy import inside a property is unusual. It works but is surprising. **Action**: Move `import tempfile` to the top of the file.
 
 ### 🔍 Nitpicks
 - [ ] **[config.py:55] - Module-level `settings = Settings()` singleton**: This is a common pattern but means settings are resolved at import time. Tests that need different settings must monkeypatch the object. **Action**: Accept — standard for FastAPI projects.
@@ -313,31 +313,31 @@ _None found._
 
 ---
 
-## File 21: `app/core/logging.py`
+## File 21: `app/core/logging.py` — DONE
 
 ### 🚨 Critical Tech Debt (Must Fix)
-- [ ] **[logging.py:21-23] - `add_request_id_from_context` is a dead no-op**: This function takes `logger`, `method_name`, `event_dict` and returns `event_dict` unchanged. It does nothing. It is not referenced in the `shared_processors` list (lines 49-58). Dead code. **Action**: Delete.
+- [x] **[logging.py:21-23] - `add_request_id_from_context` is a dead no-op**: This function takes `logger`, `method_name`, `event_dict` and returns `event_dict` unchanged. It does nothing. It is not referenced in the `shared_processors` list (lines 49-58). Dead code. **Action**: Delete.
 
 ### ⚠️ Maintainability & Clean Code (Should Fix)
-- [ ] **[logging.py:99] - File truncation pattern is non-obvious**: `settings.STATE_LOG_PATH.open("w").close()` truncates the log file at startup. This works but is obscure. **Action**: Replace with `settings.STATE_LOG_PATH.write_text("")` for clarity.
+- [x] **[logging.py:99] - File truncation pattern is non-obvious**: `settings.STATE_LOG_PATH.open("w").close()` truncates the log file at startup. This works but is obscure. **Action**: Replace with `settings.STATE_LOG_PATH.write_text("")` for clarity.
 
 ### ✅ Verdict: **Solid logging setup.** One dead function to remove.
 
 ---
 
-## File 22: `app/core/database.py`
+## File 22: `app/core/database.py` — DONE
 
 ### 🚨 Critical Tech Debt (Must Fix)
 _None found._
 
 ### ⚠️ Maintainability & Clean Code (Should Fix)
-- [ ] **[database.py:1] - Uses `logging` instead of `structlog`**: Convention violation. **Action**: Replace.
+- [x] **[database.py:1] - Uses `logging` instead of `structlog`**: Convention violation. **Action**: Replace.
 
 ### ✅ Verdict: **Clean.** Well-structured async database management. Proper connection pooling.
 
 ---
 
-## File 23: `app/core/node_logging_utils.py`
+## File 23: `app/core/node_logging_utils.py` — SKIPPED (perfect, no findings)
 
 ### 🚨 Critical Tech Debt (Must Fix)
 _None found._
@@ -349,7 +349,7 @@ _None found._
 
 ---
 
-## File 24: `app/core/snapshot_logging_utils.py`
+## File 24: `app/core/snapshot_logging_utils.py` — SKIPPED (excellent, no findings)
 
 ### 🚨 Critical Tech Debt (Must Fix)
 _None found._
@@ -361,14 +361,14 @@ _None found._
 
 ---
 
-## File 25: `app/main.py`
+## File 25: `app/main.py` — DONE
 
 ### 🚨 Critical Tech Debt (Must Fix)
 _None found._
 
 ### ⚠️ Maintainability & Clean Code (Should Fix)
-- [ ] **[main.py:55] - CORS origin hardcoded to `localhost:3000`**: `allow_origins=["http://localhost:3000"]` — this will break in production. **Action**: Move to `settings.CORS_ORIGINS: list[str]` and read from env.
-- [ ] **[main.py:1] - Uses `logging` instead of `structlog`**: Convention violation. **Action**: Replace.
+- [ ] **[main.py:55] - CORS origin hardcoded to `localhost:3000`** — **SKIPPED.** Needs `settings.CORS_ORIGINS` config field; separate ticket.: `allow_origins=["http://localhost:3000"]` — this will break in production. **Action**: Move to `settings.CORS_ORIGINS: list[str]` and read from env.
+- [x] **[main.py:1] - Uses `logging` instead of `structlog`**: Convention violation. **Action**: Replace.
 
 ### 🔍 Nitpicks
 - [ ] **[main.py:29] - Pool `max_size=20` duplicated**: Same pool config (`max_size=20, kwargs={"autocommit": True}`) appears here and in `database.py:39`. **Action**: Extract pool creation into `database.py` and call it from `lifespan`.
@@ -379,19 +379,19 @@ _None found._
 
 ## Files 26-34: Tests (`tests/`)
 
-### `tests/unit/test_agent.py`
+### `tests/unit/test_agent.py` — DONE
 
 #### 🚨 Critical Tech Debt (Must Fix)
-- [ ] **[test_agent.py:22] - Module-level graph compilation**: `graph = get_compiled_graph(checkpointer=MemorySaver(), store=InMemoryStore())` runs at **import time**. If the graph ever fails to compile, every test in this module fails with an obscure import error. **Action**: Move into a `@pytest.fixture(scope="module")`.
+- [x] **[test_agent.py:22] - Module-level graph compilation**: `graph = get_compiled_graph(checkpointer=MemorySaver(), store=InMemoryStore())` runs at **import time**. If the graph ever fails to compile, every test in this module fails with an obscure import error. **Action**: Move into a `@pytest.fixture(scope="module")`.
 
 #### ⚠️ Test Quality (Should Fix)
 - [ ] **[test_agent.py:42-61] - Tests patch deep internal paths**: `patch("app.agent.main.nodes.main_llm")` — this is a symptom of the module-level LLM globals issue flagged in File 6. When DI is fixed, these patches become simpler.
-- [ ] **[test_agent.py:107-116] - Test fixtures include `active_agent`**: Tests set `"active_agent": "onboarding"` — a phantom state field. When `active_agent` is deleted from state, these fixtures must be cleaned.
+- [x] **[test_agent.py:107-116] - Test fixtures include `active_agent`** — **DONE.** Already removed in earlier passes.: Tests set `"active_agent": "onboarding"` — a phantom state field. When `active_agent` is deleted from state, these fixtures must be cleaned.
 
-### `tests/unit/test_main_nodes.py`
+### `tests/unit/test_main_nodes.py` — DONE
 
 #### 🚨 Critical Tech Debt (Must Fix)
-- [ ] **[test_main_nodes.py:9-10] - Double import of `AIMessage`**: `from langchain_core.messages import AIMessage as AIMsg` AND `from langchain_core.messages import AIMessage as _AIMessage` — two aliases for the exact same class. Pick one. **Action**: Use `AIMessage` everywhere, delete the aliases.
+- [x] **[test_main_nodes.py:9-10] - Double import of `AIMessage`**: `from langchain_core.messages import AIMessage as AIMsg` AND `from langchain_core.messages import AIMessage as _AIMessage` — two aliases for the exact same class. Pick one. **Action**: Use `AIMessage` everywhere, delete the aliases.
 
 #### ⚠️ Test Quality (Should Fix)
 _Tests are well-structured. Good AAA pattern, clear docstrings._
@@ -414,15 +414,15 @@ _Tests are well-structured. Good AAA pattern, clear docstrings._
 
 ### `tests/unit/test_snapshot_logging_utils.py` — ✅ **Clean.** Covers token fields, preview truncation, None safety.
 
-### `tests/test_logging.py`
+### `tests/test_logging.py` — DONE
 
 #### ⚠️ Test Quality (Should Fix)
-- [ ] **[test_logging.py:121] - Duplicate assertion**: `assert len(caplog.records) == 1` appears twice on consecutive lines (120 and 121). Copy-paste error. **Action**: Delete the duplicate.
+- [x] **[test_logging.py:121] - Duplicate assertion**: `assert len(caplog.records) == 1` appears twice on consecutive lines (120 and 121). Copy-paste error. **Action**: Delete the duplicate.
 
-### `tests/verify_memory.py`
+### `tests/verify_memory.py` — DONE
 
 #### 🚨 Critical Tech Debt (Must Fix)
-- [ ] **[verify_memory.py] - Entire file is broken dead code**: This manual verification script calls `save_preference` with the old API signature (`value`, `category` kwargs instead of `key`, `label`, `sentiment`). It would crash if run. It's not a pytest test (runs via `__main__`), bypasses the test framework, and requires a live Postgres instance. Violates Design Principle #7 (No Dead Code). **Action**: Delete this file entirely. Its functionality is already covered by `test_memory_tools.py`.
+- [x] **[verify_memory.py] - Entire file is broken dead code** — **DONE.** Deleted.: This manual verification script calls `save_preference` with the old API signature (`value`, `category` kwargs instead of `key`, `label`, `sentiment`). It would crash if run. It's not a pytest test (runs via `__main__`), bypasses the test framework, and requires a live Postgres instance. Violates Design Principle #7 (No Dead Code). **Action**: Delete this file entirely. Its functionality is already covered by `test_memory_tools.py`.
 
 ### `tests/integration/conftest.py` — ✅ **Excellent.** Clean testcontainers setup.
 

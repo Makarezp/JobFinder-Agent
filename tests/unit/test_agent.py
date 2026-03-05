@@ -18,18 +18,21 @@ from app.agent.onboarding.nodes import onboarding_chatbot
 from app.agent.schemas import JobSpecialistInput
 from app.agent.state import AgentState
 
-# Initialize graph for testing with in-memory storage
-graph = get_compiled_graph(checkpointer=MemorySaver(), store=InMemoryStore())
+
+@pytest.fixture(scope="module")
+def graph():  # type: ignore[no-untyped-def]
+    """Compile graph once per test module with in-memory storage."""
+    return get_compiled_graph(checkpointer=MemorySaver(), store=InMemoryStore())
 
 
 @pytest.mark.asyncio
-async def test_agent_graph_initialization() -> None:
+async def test_agent_graph_initialization(graph) -> None:  # type: ignore[no-untyped-def]
     """Test that the graph compiles and can handle a basic input structure."""
     assert graph is not None
 
 
 @pytest.mark.asyncio
-async def test_agent_graph_has_correct_nodes() -> None:
+async def test_agent_graph_has_correct_nodes(graph) -> None:  # type: ignore[no-untyped-def]
     """Verify the graph contains all expected nodes for the dual-agent topology."""
     assert ONBOARDING_CHATBOT_NODE in graph.nodes
     assert ONBOARDING_TOOLS_NODE in graph.nodes

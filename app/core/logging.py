@@ -11,16 +11,11 @@ from contextvars import ContextVar
 from typing import Any
 
 import structlog
-from structlog.types import EventDict, Processor
+from structlog.types import Processor
 
 from app.core.config import settings
 
 request_id_var: ContextVar[str] = ContextVar("request_id", default="-")
-
-
-def add_request_id_from_context(logger: Any, method_name: str, event_dict: EventDict) -> EventDict:
-    """Add request_id to the event dict if present in context."""
-    return event_dict
 
 
 # ── Timing helper ───────────────────────────────────────────────────
@@ -96,7 +91,7 @@ def setup_logging(*, level: int | str | None = None) -> None:
     # ── State snapshot file handler ──────────────────────────────────
     # Clear the file on every startup, then append-only during the session.
     settings.STATE_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    settings.STATE_LOG_PATH.open("w").close()
+    settings.STATE_LOG_PATH.write_text("")
 
     file_formatter = structlog.stdlib.ProcessorFormatter(
         foreign_pre_chain=shared_processors,

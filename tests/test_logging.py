@@ -118,7 +118,6 @@ def test_debug_log_level(caplog: LogCaptureFixture, monkeypatch: pytest.MonkeyPa
         logger.debug("Test Debug Log", status="visible")
 
     assert len(caplog.records) == 1
-    assert len(caplog.records) == 1
 
     # structlog might pass a dict or a formatted string as the message
     msg = caplog.records[0].msg
