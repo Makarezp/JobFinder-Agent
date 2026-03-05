@@ -142,7 +142,6 @@ def _make_agent_state(tool_calls: list[dict[str, Any]]) -> AgentState:
             "preferences": None,
             "onboarding_complete": True,
             "cv_raw_text": None,
-            "active_agent": "main",
         },
     )
 

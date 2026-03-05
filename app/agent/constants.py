@@ -15,7 +15,6 @@ JOBS_KEY: Final[str] = "jobs"
 MESSAGES_KEY: Final[str] = "messages"
 CV_RAW_TEXT_KEY: Final[str] = "cv_raw_text"
 ONBOARDING_COMPLETE_KEY: Final[str] = "onboarding_complete"
-ACTIVE_AGENT_KEY: Final[str] = "active_agent"
 
 # Default Thread
 DEFAULT_THREAD_ID: Final[str] = "default_user_session"

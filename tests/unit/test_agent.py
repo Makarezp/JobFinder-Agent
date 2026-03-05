@@ -110,7 +110,6 @@ async def test_router_routes_to_onboarding() -> None:
         "user_profile": None,
         "preferences": None,
         "cv_raw_text": None,
-        "active_agent": "onboarding",
     }  # type: ignore[typeddict-item]
     result = router(state)
     assert result == ONBOARDING_CHATBOT_NODE
@@ -183,7 +182,6 @@ async def test_router_routes_to_main() -> None:
         "user_profile": None,
         "preferences": None,
         "cv_raw_text": None,
-        "active_agent": "main",
     }  # type: ignore[typeddict-item]
     result = router(state)
     assert result == FETCH_PROFILE_NODE

@@ -109,7 +109,6 @@ async def test_fetch_profile_injects_trigger_on_handoff() -> None:
         "preferences": None,
         "onboarding_complete": True,
         "cv_raw_text": None,
-        "active_agent": "main",
         "search_attempts": 0,
     }
 
@@ -131,7 +130,6 @@ async def test_fetch_profile_no_trigger_on_normal_turn() -> None:
         "preferences": None,
         "onboarding_complete": True,
         "cv_raw_text": None,
-        "active_agent": "main",
         "search_attempts": 0,
     }
 
@@ -159,7 +157,6 @@ def test_route_main_detects_job_specialist_at_any_position() -> None:
         "preferences": None,
         "onboarding_complete": True,
         "cv_raw_text": None,
-        "active_agent": "main",
     }
 
     assert route_main(state) == JOB_SPECIALIST_NODE  # type: ignore[arg-type]
@@ -208,7 +205,6 @@ def test_main_chatbot_strips_onboarding_with_trigger() -> None:
         "recent_decisions": [],
         "onboarding_complete": True,
         "cv_raw_text": None,
-        "active_agent": "main",
         "search_attempts": 0,
     }
 
@@ -238,7 +234,6 @@ async def test_fetch_profile_reads_store_concurrently() -> None:
         "preferences": None,
         "onboarding_complete": True,
         "cv_raw_text": None,
-        "active_agent": "main",
         "search_attempts": 0,
     }
 

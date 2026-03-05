@@ -6,7 +6,7 @@
 
 ---
 
-## File 1: `app/agent/state.py`
+## File 1: `app/agent/state.py` - done
 
 ### 🚨 Critical Tech Debt (Must Fix)
 - [ ] **[state.py:17] - `active_agent` is phantom state**: This field is defined in `AgentState` but never read by any production code. Routing is driven by `onboarding_complete` via the `router()` function in `graph.py`. Tests set it as filler but no node or router inspects it. Violates Design Principle #7 (No Phantom State). **Action**: Delete the `active_agent` field. Remove from all test fixtures.
