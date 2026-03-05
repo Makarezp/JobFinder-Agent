@@ -3,8 +3,8 @@ from typing import Any
 import httpx
 import structlog
 from langchain_core.tools import tool
-from pydantic import BaseModel, Field
 
+from app.agent.schemas import JobSpecialistInput
 from app.core.config import settings
 from app.core.logging import log_timing
 
@@ -14,28 +14,6 @@ _JSEARCH_BASE_URL = "https://jsearch.p.rapidapi.com/search"
 _JSEARCH_HOST = "jsearch.p.rapidapi.com"
 _FULL_DESCRIPTION_MAX_CHARS = 1_000
 _DESCRIPTION_SNIPPET_CHARS = 300
-
-
-class JSearchApiArgs(BaseModel):
-    query: str = Field(
-        ...,
-        description=(
-            "A single, simple job title keyword. "
-            "For location-scoped searches, append the location as a suffix: e.g., 'admin assistant St Albans'. "
-            "DO NOT use Boolean 'or'/'and' operators. DO NOT combine multiple roles."
-        ),
-    )
-    country: str = Field(default="us", description="2-letter ISO 3166-1 alpha-2 country code.")
-    date_posted: str = Field(
-        default="all",
-        description="Filter by posting date. One of: 'all', 'today', '3days', 'week', 'month'.",
-    )
-    employment_types: str | None = Field(
-        default=None,
-        description="Comma-separated employment types: FULLTIME, CONTRACTOR, PARTTIME, INTERN.",
-    )
-    remote_only: bool = Field(default=False, description="Restrict results to remote-only positions.")
-    page: int = Field(default=1, description="Page number for pagination.")
 
 
 def _format_salary(job: dict[str, Any]) -> str | None:
@@ -71,7 +49,7 @@ def _format_apply_link(job: dict[str, Any]) -> str:
     return link or ""
 
 
-@tool("jsearch_api_search", args_schema=JSearchApiArgs)
+@tool("jsearch_api_search", args_schema=JobSpecialistInput)
 def jsearch_api_search(
     query: str,
     country: str = "us",

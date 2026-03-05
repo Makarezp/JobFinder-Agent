@@ -33,9 +33,7 @@ async def update_my_profile(
 
         logger.info("Tool Started: update_my_profile", name=name, role=role, has_cv=bool(cv_summary))
 
-        # Get existing profile to merge updates
         existing = await store.aget(namespace, "data")
-        # Load into Pydantic model
         if existing:
             profile = UserProfile(**existing.value)
         else:
@@ -81,10 +79,7 @@ async def save_preference(
 
         logger.info("Tool Started: save_preference", key=key, label=label, sentiment=sentiment)
 
-        # Use Pydantic model for validation
         pref = Preference(key=key, label=label, sentiment=sentiment)
-
-        # Store using model_dump
         await store.aput(namespace, key, pref.model_dump())
 
         return f"Preference saved: {key} = {label} ({sentiment})"

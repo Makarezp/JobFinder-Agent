@@ -40,8 +40,6 @@ class ChatService:
         inputs: dict[str, Any] = {
             "messages": [HumanMessage(content=message)],
             "search_attempts": 0,
-            "inspect_attempts": 0,
-            "inspect_results": {},
         }
         config: RunnableConfig = {
             "configurable": {"thread_id": thread_id, "user_id": DEFAULT_USER_ID},
@@ -50,13 +48,13 @@ class ChatService:
             "recursion_limit": 30,  # Safety valve: prevent infinite loops
         }
 
-        final_state = inputs
+        last_state = inputs
         with log_timing("graph.astream", logger):
             async for state in self._graph.astream(inputs, config=config, stream_mode="values"):
                 log_state_snapshot(state, truncate_keys=[CV_RAW_TEXT_KEY])
-                final_state = state
+                last_state = state
 
-        result = self._parse_agent_result(final_state, message)
+        result = self._parse_agent_result(last_state, message)
         if result["jobs"]:
             await self._profile_service.add_pending_jobs(result["jobs"], DEFAULT_USER_ID)
         return result
@@ -81,20 +79,43 @@ class ChatService:
             "messages": [HumanMessage(content=f"I just uploaded my CV ({filename}). Please analyze it.")],
             CV_RAW_TEXT_KEY: cv_text,
             "search_attempts": 0,
-            "inspect_attempts": 0,
-            "inspect_results": {},
         }
 
-        final_state = inputs
+        last_state = inputs
         with log_timing("graph.astream", logger):
             async for state in self._graph.astream(inputs, config=config, stream_mode="values"):
                 log_state_snapshot(state, truncate_keys=[CV_RAW_TEXT_KEY])
-                final_state = state
+                last_state = state
 
-        result = self._parse_agent_result(final_state, f"Uploaded CV: {filename}")
+        result = self._parse_agent_result(last_state, f"Uploaded CV: {filename}")
         if result["jobs"]:
             await self._profile_service.add_pending_jobs(result["jobs"], DEFAULT_USER_ID)
         return result
+
+    @staticmethod
+    def _extract_ai_content(msg: AIMessage) -> tuple[str, list[Any]]:
+        """Extract text and jobs from an AIMessage.
+
+        Handles two formats:
+        - final_answer tool call: structured text_response + jobs
+        - Plain AI message: may be a string or a multipart list
+          (Gemini may return multipart content as a list of text/dict segments)
+        """
+        if isinstance(msg, AIMessage) and msg.tool_calls and msg.tool_calls[0]["name"] == FINAL_ANSWER_TOOL_NAME:
+            final_args = msg.tool_calls[0]["args"]
+            return final_args.get(TEXT_RESPONSE_KEY, ""), final_args.get(JOBS_KEY, [])
+
+        content = msg.content
+        if isinstance(content, list):
+            text_parts = []
+            for part in content:
+                if isinstance(part, str):
+                    text_parts.append(part)
+                elif isinstance(part, dict) and "text" in part:
+                    text_parts.append(part["text"])
+            return "\n".join(text_parts), []
+
+        return str(content), []
 
     def _parse_agent_result(self, result: dict[str, Any], user_message: str) -> dict[str, Any]:
         """
@@ -102,38 +123,11 @@ class ChatService:
         Handles both onboarding (plain AI messages) and main agent (final_answer tool).
         """
         last_message = result["messages"][-1]
-        jobs: list[Any] = []
-        ai_content = ""
 
-        if (
-            isinstance(last_message, AIMessage)
-            and hasattr(last_message, "tool_calls")
-            and len(last_message.tool_calls) > 0
-            and last_message.tool_calls[0]["name"] == FINAL_ANSWER_TOOL_NAME
-        ):
-            final_args = last_message.tool_calls[0]["args"]
-            ai_content = final_args.get(TEXT_RESPONSE_KEY, "")
-            jobs = final_args.get(JOBS_KEY, [])
-        else:
-            ai_content = last_message.content
-            # Handle multipart content if necessary
-            if isinstance(ai_content, list):
-                text_parts = []
-                for part in ai_content:
-                    if isinstance(part, str):
-                        text_parts.append(part)
-                    elif isinstance(part, dict) and "text" in part:
-                        text_parts.append(part["text"])
-                ai_content = "\n".join(text_parts)
+        ai_content, jobs = self._extract_ai_content(last_message)
 
         if not ai_content and not jobs:
             ai_content = "I apologize, but I couldn't generate a response. Please try asking again."
-
-        # Stitch full_description from inspect_results keyed by apply_link
-        inspect_results: dict[str, str] = result.get("inspect_results") or {}
-        for job in jobs:
-            if not job.get("full_description") and inspect_results:
-                job["full_description"] = inspect_results.get(job.get("apply_link", ""))
 
         # Inject deterministic id into each job dict for frontend tracking
         for job in jobs:
@@ -141,7 +135,6 @@ class ChatService:
                 slug = f"{job.get('company', '')}{job.get('title', '')}{job.get('apply_link', '')}".encode()
                 job["id"] = hashlib.md5(slug).hexdigest()[:12]  # noqa: S324 — not used for security
 
-        # Return dict for Jinja2 template
         return {
             "user_message": user_message,
             "ai_message": ai_content,
@@ -193,31 +186,10 @@ class ChatService:
                 current_turn = {"user_message": msg.content, "ai_message": "", "jobs": []}
 
             elif isinstance(msg, AIMessage):
-                # This is the response to the current turn
                 if current_turn is None:
-                    # AI message without preceding Human? (Maybe greeting or system initiated)
                     continue
 
-                # Parse the AI message
-                ai_content = ""
-                jobs = []
-
-                if hasattr(msg, "tool_calls") and len(msg.tool_calls) > 0 and msg.tool_calls[0]["name"] == FINAL_ANSWER_TOOL_NAME:
-                    final_args = msg.tool_calls[0]["args"]
-                    ai_content = final_args.get(TEXT_RESPONSE_KEY, "")
-                    jobs = final_args.get(JOBS_KEY, [])
-                else:
-                    content = msg.content
-                    if isinstance(content, list):
-                        text_parts = []
-                        for part in content:
-                            if isinstance(part, str):
-                                text_parts.append(part)
-                            elif isinstance(part, dict) and "text" in part:
-                                text_parts.append(part["text"])
-                        ai_content = "\n".join(text_parts)
-                    else:
-                        ai_content = str(content)
+                ai_content, jobs = self._extract_ai_content(msg)
 
                 # Append content (if multiple AI messages in one turn)
                 if ai_content:

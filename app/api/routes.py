@@ -1,7 +1,6 @@
-import logging
-import traceback
 from typing import Annotated
 
+import structlog
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
@@ -12,7 +11,7 @@ from app.services.admin_service import AdminService
 from app.services.chat_service import ChatService
 from app.services.profile_service import ProfileService
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/api")
 
@@ -67,7 +66,7 @@ async def chat_endpoint(body: ChatRequest, service: ChatServiceDep) -> JSONRespo
         return JSONResponse(content=result)
 
     except Exception as e:
-        logger.error("Error processing chat request: %s\n%s", str(e), traceback.format_exc())
+        logger.exception("Error processing chat request", error=str(e))
         return JSONResponse(
             status_code=200,
             content={
@@ -86,7 +85,7 @@ async def upload_cv(service: ChatServiceDep, file: UploadFile = File(...)) -> JS
         return JSONResponse(content=result)
 
     except Exception as e:
-        logger.error("Error processing CV upload: %s\n%s", str(e), traceback.format_exc())
+        logger.exception("Error processing CV upload", error=str(e))
         return JSONResponse(
             status_code=200,
             content={

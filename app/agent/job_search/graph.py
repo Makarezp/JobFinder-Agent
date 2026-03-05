@@ -1,11 +1,10 @@
-import logging
-
+import structlog
 from langgraph.graph import END, START, StateGraph
 
 from app.agent.job_search.nodes import search_jobs
 from app.agent.job_search.state import JobSpecialistState
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 SEARCH_NODE = "search_jobs"
 

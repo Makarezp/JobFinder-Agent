@@ -98,7 +98,7 @@ _None found._
 
 ---
 
-## File 7: `app/agent/main/prompts.py`
+## File 7: `app/agent/main/prompts.py` - done
 
 ### 🚨 Critical Tech Debt (Must Fix)
 - [ ] **[prompts.py:98-99] - Hardcoded "3 searches" in prompt text**: `"You have a strict budget of 3 searches per conversation turn"` — this number must match `route_main`'s `>= 3` threshold. If either changes independently, the agent and the router will disagree. **Action**: Use a template variable `{max_search_attempts}` and inject from the shared constant proposed for `constants.py`.
@@ -113,7 +113,7 @@ _None found._
 
 ---
 
-## File 8: `app/agent/main/tools.py`
+## File 8: `app/agent/main/tools.py` -done
 
 ### 🚨 Critical Tech Debt (Must Fix)
 _None found. This file is clean._
@@ -129,7 +129,7 @@ _None found._
 
 ---
 
-## File 9: `app/agent/job_search/` (nodes.py, state.py, graph.py)
+## File 9: `app/agent/job_search/` (nodes.py, state.py, graph.py)Mo
 
 ### `job_search/state.py` — ✅ **Perfect.** 13 lines, clean TypedDict. No findings.
 
@@ -157,122 +157,104 @@ _None._
 
 ---
 
-## File 10: `app/agent/onboarding/` (nodes.py, prompts.py, tools.py)
+## File 10: `app/agent/onboarding/` (nodes.py, prompts.py, tools.py) — ⚠️ PARTIALLY DONE
 
-### `onboarding/prompts.py` — ✅ **Clean.** Well-structured prompt, clear instructions. No findings.
+### `onboarding/prompts.py` — ✅ **Clean.** No findings.
 
-### `onboarding/tools.py` — ✅ **Perfect.** 14 lines, pure re-export. No findings.
+### `onboarding/tools.py` — ✅ **Clean.** No findings.
 
 ### `onboarding/nodes.py`
 
 #### 🚨 Critical Tech Debt (Must Fix)
-- [ ] **[nodes.py:27-33] - Duplicate module-level LLM instantiation**: Same anti-pattern as `main/nodes.py`. `llm = ChatGoogleGenerativeAI(...)` and `onboarding_llm = llm.bind_tools(onboarding_tools)` created at import time. Tests must `patch("app.agent.onboarding.nodes.onboarding_llm")` — deep internal path. **Action**: Same fix — inject via `functools.partial` from `get_compiled_graph()`.
-- [ ] **[nodes.py:93] - `hasattr(ai_message, "tool_calls")` is defensive band-aid**: `AIMessage` always has `tool_calls` (it's a defined attribute, defaulting to `[]`). Using `hasattr` is overly defensive and masks the real intent. Compare with `route_main` in `main/nodes.py:262` which correctly uses `isinstance(ai_message, AIMessage) and ai_message.tool_calls`. **Action**: Replace with `isinstance(ai_message, AIMessage) and ai_message.tool_calls` for consistency.
+- [ ] **[nodes.py:27-33] - Duplicate module-level LLM instantiation** — **SKIPPED: Same dedicated DI refactor ticket as File 6.** Affects both `main/nodes.py` and `onboarding/nodes.py`.
+- [x] **[nodes.py:93] - `hasattr(ai_message, "tool_calls")` is defensive band-aid** — **DONE.** Replaced with `isinstance(ai_message, AIMessage) and ai_message.tool_calls` (fixed during File 6 implementation).
 
 #### ⚠️ Maintainability & Clean Code (Should Fix)
-- [ ] **[nodes.py:107-113] - `route_after_onboarding_tools` uses fragile string detection**: Checks `"Onboarding complete" in str(msg.content)` — same fragile substring pattern as `_is_fresh_onboarding_handoff` in `main/nodes.py`. Two separate places rely on the same magic string. **Action**: Extract the magic string `"Onboarding complete"` into a shared constant in `constants.py` (e.g., `ONBOARDING_COMPLETE_SIGNAL`). Better yet, use the structured signal approach proposed for `main/nodes.py`.
-- [ ] **[nodes.py:56-84] - `onboarding_chatbot` is copy-paste of `main_chatbot` error handling**: The try/except/fallback pattern (lines 71-84) is structurally identical to `main_chatbot` (main/nodes.py:240-253). DRY violation. **Action**: Extract a shared `_invoke_llm_with_fallback(llm, messages, node_name) -> dict` helper.
+- [x] **[nodes.py:107-113] - `route_after_onboarding_tools` uses fragile string detection** — **DONE.** Now uses `ONBOARDING_COMPLETE_SIGNAL` constant (fixed during File 6 implementation).
+- [x] **[nodes.py:56-84] - Copy-pasted error handling** — **SKIPPED.** Fallback messages are intentionally different between nodes. Extracting a shared helper would require parameterising the message, adding complexity for 8 lines of duplication.
 
 ### 🔍 Nitpicks
-- [ ] **[nodes.py:56] - Sync `def` but could be async**: Same inconsistency as `main_chatbot` — `onboarding_chatbot` is sync while `check_onboarding_status` is async. **Action**: Consider async for consistency.
+- [x] **[nodes.py:56] - Sync `def` but could be async** — **SKIPPED.** LangGraph handles via thread executor; no functional benefit.
 
-### ✅ Verdict: **Mirrors main agent's debt patterns.** Duplicate LLM globals and copy-pasted error handling.
+### ✅ Verdict: **Partially resolved.** Remaining: module-level LLM globals (same dedicated DI refactor ticket as File 6).
 
 ---
 
-## File 11: `app/tools/jsearch_api.py`
+## File 11: `app/tools/jsearch_api.py` — DONE
 
 ### 🚨 Critical Tech Debt (Must Fix)
-- [ ] **[jsearch_api.py:19-38] - `JSearchApiArgs` duplicates `JobSpecialistInput`**: `JSearchApiArgs` is structurally identical to `JobSpecialistInput` in `schemas.py` — same fields, same types, same defaults. Two schemas for the same data shape is a DRY violation and a maintenance trap. **Action**: Delete `JSearchApiArgs` and use `JobSpecialistInput` as the `args_schema` directly, or extract a shared base model.
+- [x] **[jsearch_api.py:19-38] - `JSearchApiArgs` duplicates `JobSpecialistInput`** — **DONE.** Deleted `JSearchApiArgs`, replaced with `JobSpecialistInput` as `args_schema`.
 
 ### ⚠️ Maintainability & Clean Code (Should Fix)
-- [ ] **[jsearch_api.py:115-116] - Synchronous `httpx.Client` in an async-first project**: The tool uses `httpx.Client()` (blocking) rather than `httpx.AsyncClient`. Since `search_jobs` is a sync node, LangGraph runs it in a thread executor — so it doesn't block the event loop directly. But it's inconsistent with the project's async-first design. **Action**: Convert to `async def` + `httpx.AsyncClient` and update `search_jobs` to be async. Low priority unless performance becomes an issue.
-- [ ] **[jsearch_api.py:87] - `settings.JSEARCH_API_KEY` read inside function body**: The API key is read on every invocation rather than being injected. This works because of the singleton pattern, but it makes the function untestable without patching `settings`. Tests already `patch("app.tools.jsearch_api.settings")` — a deep internal path. **Action**: Accept as pragmatic for now.
+- [x] **[jsearch_api.py:115-116] - Synchronous `httpx.Client`** — **SKIPPED.** Low priority per audit; no perf issue.
+- [x] **[jsearch_api.py:87] - `settings.JSEARCH_API_KEY` read inside function body** — **SKIPPED.** Pragmatic for now per audit.
 
 ### 🔍 Nitpicks
-- [ ] **[jsearch_api.py:41-57] - `_format_salary` could use early return for `None`**: The function checks `salary_min and salary_max`, then `salary_min`, then `salary_max`, then `fallback`. Readable as-is, but a guard clause `if not any([salary_min, salary_max, fallback]): return None` at the top would eliminate one branch.
+- [x] **[jsearch_api.py:41-57] - `_format_salary` early return** — **SKIPPED.** Readable as-is.
 
-### ✅ Verdict: **Solid tool implementation.** Proper error-as-string pattern. Main issue is the duplicated schema.
+### ✅ Verdict: **Resolved.** Duplicate schema eliminated.
 
 ---
 
-## File 12: `app/tools/memory.py`
-
-### 🚨 Critical Tech Debt (Must Fix)
-_None found._
+## File 12: `app/tools/memory.py` — DONE
 
 ### ⚠️ Maintainability & Clean Code (Should Fix)
-- [ ] **[memory.py:55-57, 92-93, 121-122, 152-154] - Bare `except Exception` in every tool**: All four tools (`update_my_profile`, `save_preference`, `delete_preference`, `finalize_profile`) wrap their entire body in `try/except Exception`. This is correct per `CONVENTIONS.md §2` (tools must not raise), but the `except Exception` is too broad — it swallows `KeyboardInterrupt`, `SystemExit`, etc. **Action**: Use `except (ValueError, TypeError, RuntimeError)` or at minimum `except Exception` with `raise` for `KeyboardInterrupt/SystemExit`. Alternatively, trust that only store/Pydantic errors can occur and catch `(StoreError, ValidationError)`.
+- [x] **[memory.py:55-57, 92-93, 121-122, 152-154] - Bare `except Exception`** — **SKIPPED.** Correct per CONVENTIONS.md §2 (tools must not raise). Narrowing risks missing store errors.
 
 ### 🔍 Nitpicks
-- [ ] **[memory.py:36] - Comment is redundant**: `# Get existing profile to merge updates` — the next line is `existing = await store.aget(namespace, "data")`. The code is self-explanatory. **Action**: Delete.
-- [ ] **[memory.py:84-87] - Comments are redundant**: `# Use Pydantic model for validation` and `# Store using model_dump` — restating what the code does. **Action**: Delete.
+- [x] **[memory.py:36] - Redundant comment** — **DONE.** Deleted.
+- [x] **[memory.py:84-87] - Redundant comments** — **DONE.** Deleted.
 
-### ✅ Verdict: **Well-structured tools.** Correct error-as-string pattern. Only the overly broad exception catches need tightening.
+### ✅ Verdict: **Resolved.** Redundant comments removed.
 
 ---
 
-## File 13: `app/services/chat_service.py`
+## File 13: `app/services/chat_service.py` — DONE
 
 ### 🚨 Critical Tech Debt (Must Fix)
-- [ ] **[chat_service.py:43-44, 84-85] - Phantom state fields `inspect_attempts` and `inspect_results`**: Both `process_message` and `process_cv` inject `"inspect_attempts": 0` and `"inspect_results": {}` into the graph input. **These fields do not exist in `AgentState`** (state.py). They are ghosts of a removed "job inspection" feature. No node reads or writes them. Violates Design Principle #7 (No Phantom State). **Action**: Delete both fields from both methods' `inputs` dicts.
-- [ ] **[chat_service.py:132-136] - `inspect_results` stitching is dead logic**: `_parse_agent_result` reads `result.get("inspect_results")` and attempts to stitch `full_description` from it. Since `inspect_results` is never populated by any node, this code path never executes. It's dead logic coupled to the phantom fields above. **Action**: Delete lines 132-136.
-- [ ] **[chat_service.py:108-127 vs 201-220] - `_parse_agent_result` and `get_history` duplicate AI message parsing**: Both methods contain nearly identical logic to extract `ai_content` and `jobs` from an `AIMessage`: check for `final_answer` tool call → extract args OR fall back to `msg.content` → handle multipart content list. This is a textbook DRY violation — the same 15-line block copy-pasted twice. **Action**: Extract a shared `_extract_ai_content(msg: AIMessage) -> tuple[str, list]` helper and call it from both methods.
-- [ ] **[chat_service.py:157-236] - `get_history` is ~80 lines**: This method iterates messages, filters system triggers, pairs Human→AI turns, parses AI content, handles multipart, and appends dangling turns. That's at least 4 responsibilities. **Action**: Decompose: (1) `_pair_messages(messages) -> list[Turn]` for the iteration/pairing, (2) reuse the shared `_extract_ai_content` helper for parsing.
+- [x] **[chat_service.py:43-44, 84-85] - Phantom state fields `inspect_attempts` and `inspect_results`** — **DONE.** Deleted from both `process_message` and `process_cv` inputs.
+- [x] **[chat_service.py:132-136] - `inspect_results` stitching is dead logic** — **DONE.** Deleted dead code and removed corresponding test (`test_parse_agent_result_stitches_full_description_from_inspect_results`).
+- [x] **[chat_service.py:108-127 vs 201-220] - DRY violation in AI message parsing** — **DONE.** Extracted `_extract_ai_content(msg) -> tuple[str, list]` helper, used in both `_parse_agent_result` and `get_history`. Also fixed `hasattr` band-aids.
+- [x] **[chat_service.py:157-236] - `get_history` is ~80 lines** — **DONE (partial).** Reduced via `_extract_ai_content` extraction. Further decomposition skipped — acceptable size now.
 
 ### ⚠️ Maintainability & Clean Code (Should Fix)
-- [ ] **[chat_service.py:119-127] - Multipart content handling is defensive but undocumented**: The `isinstance(ai_content, list)` branch handles Gemini's multipart response format (list of text/dict parts). This is a known Gemini quirk but has no comment explaining **why** it's needed. A future developer will wonder what `list` content looks like. **Action**: Add a one-line comment: `# Gemini may return multipart content as a list of text/dict segments`.
-- [ ] **[chat_service.py:141-142] - MD5 hash for job id**: Uses `hashlib.md5` with a `# noqa: S324` suppression. The comment says "not used for security" which is correct, but `hashlib.sha256` would avoid the lint suppression entirely with negligible perf difference. **Action**: Consider switching to avoid the noqa.
+- [x] **[chat_service.py:119-127] - Multipart content handling undocumented** — **DONE.** Added Gemini multipart comment in `_extract_ai_content` docstring.
+- [x] **[chat_service.py:141-142] - MD5 hash for job id** — **SKIPPED.** Works fine, noqa is documented.
 
 ### 🔍 Nitpicks
-- [ ] **[chat_service.py:53] - `final_state = inputs` before loop**: This is a safe fallback pattern, but naming the variable `final_state` before the loop even starts is confusing — it's actually `default_state`. **Action**: Rename to `last_state = inputs` for clarity.
-- [ ] **[chat_service.py:144] - Comment is redundant**: `# Return dict for Jinja2 template` — the project migrated to Next.js. Jinja2 is legacy context. **Action**: Update to `# Return dict for frontend JSON response` or delete.
+- [x] **[chat_service.py:53] - `final_state = inputs` naming** — **DONE.** Renamed to `last_state`.
+- [x] **[chat_service.py:144] - Stale Jinja2 comment** — **DONE.** Deleted.
 
-### ✅ Verdict: **Second highest debt density.** Phantom state fields, dead inspect logic, and a major DRY violation between two AI-message parsers.
+### ✅ Verdict: **Resolved.** All phantom state, dead logic, and DRY violations eliminated.
 
 ---
 
-## File 14: `app/services/profile_service.py`
+## File 14: `app/services/profile_service.py` — SKIPPED (already excellent, no actionable items)
 
-### 🚨 Critical Tech Debt (Must Fix)
-_None found. This file is clean._
-
-### ⚠️ Maintainability & Clean Code (Should Fix)
-- [ ] **[profile_service.py:13-16] - `__init__` accepts `store` but not `user_id`**: All methods take a `user_id` parameter that defaults to `DEFAULT_USER_ID`. The user_id could be injected once at construction time rather than threaded through every method call. **Action**: Accept for now — the per-method signature allows future multi-tenancy. But document this design decision in a comment.
-
-### 🔍 Nitpicks
-- [ ] **[profile_service.py:22, 42, 57, 75] - Duplicate namespace construction**: `(user_id, "preferences")`, `(user_id, "decisions")`, etc. are constructed inline in every method. **Action**: Consider `_ns(user_id, kind) -> tuple` helper for consistency, or accept the repetition given its simplicity.
-
-### ✅ Verdict: **Excellent.** Clean service with clear responsibilities. Well-documented methods.
+### ✅ Verdict: **No changes needed.**
 
 ---
 
-## File 15: `app/services/admin_service.py`
-
-### 🚨 Critical Tech Debt (Must Fix)
-_None found._
+## File 15: `app/services/admin_service.py` — DONE
 
 ### ⚠️ Maintainability & Clean Code (Should Fix)
-- [ ] **[admin_service.py:1] - Uses `logging` instead of `structlog`**: Same convention violation as other files. **Action**: Replace with `structlog.get_logger(__name__)`.
+- [x] **[admin_service.py:1] - Uses `logging` instead of `structlog`** — **DONE.** Replaced.
 
-### 🔍 Nitpicks
-- [ ] **[admin_service.py:10-11] - `__init__` stores `pool` but only `reset_system` uses it**: The class is a thin wrapper around a single function call (`reset_db_state(self.pool)`). This class could be a plain function. However, Fat Service → Thin Class is an acceptable pattern for DI consistency with `ChatService` and `ProfileService`. **Action**: Accept — consistency matters more here.
-
-### ✅ Verdict: **Clean.** 19 lines, single responsibility. Only the logger choice needs fixing.
+### ✅ Verdict: **Resolved.**
 
 ---
 
-## File 16: `app/api/routes.py`
+## File 16: `app/api/routes.py` — DONE
 
 ### 🚨 Critical Tech Debt (Must Fix)
-- [ ] **[routes.py:1] - Uses `logging` instead of `structlog`**: Same convention violation. **Action**: Replace with `structlog.get_logger(__name__)`.
-- [ ] **[routes.py:63, 78] - Hardcoded `DEFAULT_USER_ID` passed to services**: `chat_service.process_message(...)` and `profile_service.get_pending_jobs(DEFAULT_USER_ID)` wire the user_id at the API layer. This means multi-tenancy would require touching every route. **Action**: Extract `user_id` from a request header or auth dependency and inject it. For now, centralize it via a `get_user_id()` dependency in `dependencies.py`.
+- [x] **[routes.py:1] - Uses `logging` instead of `structlog`** — **DONE.** Replaced. Also removed `traceback` import.
+- [x] **[routes.py:63, 78] - Hardcoded `DEFAULT_USER_ID`** — **SKIPPED.** Multi-tenancy prep; acceptable for MVP.
 
 ### ⚠️ Maintainability & Clean Code (Should Fix)
-- [ ] **[routes.py:89-95] - Broad `except Exception` in `/api/chat`**: The endpoint catches all exceptions and returns a 200 with a Markdown error string. This is intentional (soft degradation), but it swallows unexpected errors silently. **Action**: Add `logger.exception(...)` inside the catch block so errors are always visible in logs, even when the user sees a graceful response.
-- [ ] **[routes.py:37-49] - `/api/feedback` route builds `DecisionLog` inline**: The route handler manually constructs a `DecisionLog` and calls `store.aput()` directly, bypassing `ProfileService`. This violates the service-layer pattern used everywhere else. **Action**: Add a `log_decision()` method to `ProfileService` and delegate from the route.
+- [x] **[routes.py:89-95] - Broad `except Exception`** — **DONE.** Replaced manual `traceback.format_exc()` with `logger.exception()`.
+- [x] **[routes.py:37-49] - `/api/feedback` route bypasses service layer** — **ALREADY FIXED.** Route now delegates to `ProfileService.log_decision()` (audit was stale).
 
-### ✅ Verdict: **Functional but has layering violations.** Feedback route bypasses the service layer.
+### ✅ Verdict: **Resolved.**
 
 ---
 

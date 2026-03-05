@@ -22,6 +22,7 @@ def job_specialist_tool(
     Returns a list of job listings with titles, companies, locations,
     salaries, descriptions (truncated to 1,000 characters), and apply links.
     """
+    # Routing sentinel — call_job_specialist in graph.py intercepts before execution
     return "Job Specialist invoked."
 
 
@@ -31,6 +32,7 @@ def final_answer(text_response: str, jobs: list[JobListing] | None = None) -> st
     """Present the final response to the user with optional job listings."""
     if jobs is None:
         jobs = []
+    # Routing sentinel — _parse_agent_result reads tool call args, not this return
     return "Final Answer Processed"
 
 

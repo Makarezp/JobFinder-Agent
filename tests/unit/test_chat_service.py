@@ -125,32 +125,6 @@ async def test_process_message_no_jobs_does_not_call_add_pending() -> None:
         mock_add.assert_not_called()
 
 
-@pytest.mark.asyncio
-async def test_parse_agent_result_stitches_full_description_from_inspect_results() -> None:
-    """_parse_agent_result injects full_description from inspect_results keyed by apply_link."""
-    store = InMemoryStore()
-    apply_link = "https://example.com/job-1"
-    full_text = "Full scraped description."
-
-    final_state: dict[str, Any] = {
-        "messages": [_make_final_answer_message(jobs=[JOB_A])],
-        "inspect_results": {apply_link: full_text},
-    }
-
-    async def _astream(*_args: Any, **_kwargs: Any) -> Any:  # type: ignore[override]
-        yield final_state
-
-    graph = MagicMock()
-    graph.astream = _astream
-
-    profile_service = ProfileService(store=store)
-    service = ChatService(graph=graph, store=store, profile_service=profile_service)
-    result = await service.process_message("find jobs")
-
-    assert len(result["jobs"]) == 1
-    assert result["jobs"][0]["full_description"] == full_text
-
-
 # ---------------------------------------------------------------------------
 # Ticket 8.1: get_history system trigger filtering
 # ---------------------------------------------------------------------------
