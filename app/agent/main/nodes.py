@@ -1,3 +1,4 @@
+import asyncio
 from typing import Annotated, Any, cast
 
 import structlog
@@ -116,15 +117,18 @@ async def fetch_profile(state: AgentState, config: RunnableConfig, store: Annota
     logger.info("Node Started: fetch_profile")
     user_id = config.get("configurable", {}).get("user_id", "default_user")
 
-    # Fetch Profile
     namespace_profile = (user_id, "profile")
-    profile_item = await store.aget(namespace_profile, "data")
+    namespace_prefs = (user_id, "preferences")
+    namespace_decisions = (user_id, "decisions")
+
+    profile_item, prefs_items, decisions_items = await asyncio.gather(
+        store.aget(namespace_profile, "data"),
+        store.asearch(namespace_prefs),
+        store.asearch(namespace_decisions),
+    )
+
     profile = UserProfile(**profile_item.value) if profile_item else UserProfile()
     profile_dict = profile.model_dump()
-
-    # Fetch Preferences
-    namespace_prefs = (user_id, "preferences")
-    prefs_items = await store.asearch(namespace_prefs)
 
     preferences: dict[str, Any] = {}
     for item in prefs_items:
@@ -134,9 +138,6 @@ async def fetch_profile(state: AgentState, config: RunnableConfig, store: Annota
                 preferences[item.key] = pref.model_dump()
             except Exception:
                 logger.warning(f"Skipping invalid preference: {item.key}")
-
-    # Fetch Decisions (last 10, most recent first)
-    decisions_items = await store.asearch((user_id, "decisions"))
     recent_decisions = sorted(
         [DecisionLog(**item.value).model_dump() for item in decisions_items if item.value],
         key=lambda d: d["timestamp"],

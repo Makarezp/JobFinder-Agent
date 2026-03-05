@@ -161,3 +161,26 @@ def test_route_main_detects_job_specialist_at_any_position() -> None:
     }
 
     assert route_main(state) == JOB_SPECIALIST_NODE  # type: ignore[arg-type]
+
+
+@pytest.mark.asyncio
+async def test_fetch_profile_reads_store_concurrently() -> None:
+    """fetch_profile calls aget and asearch with the correct namespaces."""
+    user_id = "test_user"
+    store = _make_store_mock()
+    state: dict[str, Any] = {
+        MESSAGES_KEY: [HumanMessage(content="Find me jobs")],
+        "user_profile": None,
+        "preferences": None,
+        "onboarding_complete": True,
+        "cv_raw_text": None,
+        "active_agent": "main",
+        "search_attempts": 0,
+    }
+
+    await fetch_profile(state, _make_config(user_id), store)  # type: ignore[arg-type]
+
+    store.aget.assert_called_once_with((user_id, "profile"), "data")
+    asearch_calls = {call.args[0] for call in store.asearch.call_args_list}
+    assert (user_id, "preferences") in asearch_calls
+    assert (user_id, "decisions") in asearch_calls

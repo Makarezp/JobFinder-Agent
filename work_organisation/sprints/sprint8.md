@@ -241,7 +241,7 @@ This documented limitation and the prompt constraint together are the accepted s
 
 ---
 
-## Ticket 8.3: Backend — Parallelise `fetch_profile` Store Reads
+## Ticket 8.3: Backend — Parallelise `fetch_profile` Store Reads — DONE
 
 ### Overview
 `fetch_profile` makes three independent async reads from the LangGraph store sequentially: profile, preferences, and decisions. These have no data dependency between them and can be collapsed into a single `asyncio.gather` call, eliminating two serial round-trips on every agent turn.
