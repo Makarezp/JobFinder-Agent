@@ -291,7 +291,7 @@ This documented limitation and the prompt constraint together are the accepted s
 
 ---
 
-## Ticket 8.4: Backend — Strip Onboarding History from Main Agent Context
+## Ticket 8.4: Backend — Strip Onboarding History from Main Agent Context — DONE
 
 ### Overview
 On every turn after onboarding, `main_chatbot` receives the full message history including the entire onboarding conversation (CV text, preference-saving tool pairs, multi-turn Q&A). This data is already extracted and persisted to the store. Feeding it to the LLM inflates input token counts (~4,000+ surplus tokens per turn) and risks the model anchoring on stale context. This ticket adds a semantic filter in `main_chatbot` that strips all messages prior to the `[SYSTEM TRIGGER]` marker injected by Ticket 8.1.

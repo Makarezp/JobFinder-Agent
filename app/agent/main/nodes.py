@@ -108,6 +108,19 @@ def _format_preferences_summary(preferences: dict[str, Any] | None) -> str:
     return "\n".join(lines) if lines else "No preferences set yet."
 
 
+# --- Helper: strip onboarding history from main agent context ---
+def _strip_onboarding_messages(messages: list[BaseMessage]) -> list[BaseMessage]:
+    """
+    Remove all messages predating the onboarding handoff from the context window.
+    The handoff boundary is the first HumanMessage starting with '[SYSTEM TRIGGER]'.
+    If no such marker exists, the full list is returned unchanged.
+    """
+    for i, msg in enumerate(messages):
+        if isinstance(msg, HumanMessage) and str(msg.content).startswith("[SYSTEM TRIGGER]"):
+            return messages[i:]
+    return messages
+
+
 # --- Node: fetch_profile (main agent entry) ---
 async def fetch_profile(state: AgentState, config: RunnableConfig, store: Annotated[BaseStore, InjectedStore]) -> dict[str, Any]:
     """
@@ -198,6 +211,10 @@ def main_chatbot(state: AgentState) -> dict[str, list[BaseMessage]]:
         preferences_summary=_format_preferences_summary(preferences),
         feedback_block=feedback_block,
     )
+
+    # Strip onboarding history before trimming — reduces token count significantly
+    # for post-onboarding turns. Full history remains in the checkpointer.
+    messages = _strip_onboarding_messages(messages)
 
     # Trim history to ~40k tokens (160k chars @ ~4 chars/token) before invoking.
     # Uses character count (token_counter=len) — free, local, zero latency.

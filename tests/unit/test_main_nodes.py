@@ -6,11 +6,18 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from langchain_core.messages import AIMessage as AIMsg
 from langchain_core.messages import AIMessage as _AIMessage
 from langchain_core.messages import HumanMessage, ToolMessage
 
 from app.agent.constants import JOB_SPECIALIST_NODE, MESSAGES_KEY
-from app.agent.main.nodes import _format_decisions_summary, fetch_profile, route_main
+from app.agent.main.nodes import (
+    _format_decisions_summary,
+    _strip_onboarding_messages,
+    fetch_profile,
+    main_chatbot,
+    route_main,
+)
 from app.agent.memory_schema import DecisionLog
 
 
@@ -75,11 +82,6 @@ def test_format_decisions_summary_no_reason() -> None:
     assert "Dev" in result
     assert "Corp" in result
     assert ":" not in result.split("Corp")[1]  # no colon after company when no reason
-
-
-# ---------------------------------------------------------------------------
-# Ticket 8.1: fetch_profile trigger injection
-# ---------------------------------------------------------------------------
 
 
 def _make_store_mock() -> MagicMock:
@@ -161,6 +163,68 @@ def test_route_main_detects_job_specialist_at_any_position() -> None:
     }
 
     assert route_main(state) == JOB_SPECIALIST_NODE  # type: ignore[arg-type]
+
+
+def test_strip_onboarding_messages_removes_pre_trigger() -> None:
+    """Messages before the [SYSTEM TRIGGER] marker are removed."""
+    messages = [
+        HumanMessage(content="Hi"),
+        AIMsg(content="Hello"),
+        HumanMessage(content="[SYSTEM TRIGGER] Onboarding complete. Begin searching."),
+        AIMsg(content="Searching..."),
+    ]
+    result = _strip_onboarding_messages(messages)
+    assert len(result) == 2
+    assert result[0] is messages[2]
+    assert result[1] is messages[3]
+
+
+def test_strip_onboarding_messages_passthrough_no_trigger() -> None:
+    """Full list returned unchanged when no [SYSTEM TRIGGER] marker exists."""
+    messages = [
+        HumanMessage(content="Find me jobs"),
+        AIMsg(content="Here are some jobs."),
+    ]
+    result = _strip_onboarding_messages(messages)
+    assert result is messages
+
+
+def test_main_chatbot_strips_onboarding_with_trigger() -> None:
+    """main_chatbot passes only post-trigger messages to the LLM."""
+    from unittest.mock import patch
+
+    onboarding_msgs = [
+        HumanMessage(content="Here is my CV..."),
+        AIMsg(content="Got it, let me analyse."),
+    ]
+    trigger = HumanMessage(content="[SYSTEM TRIGGER] Onboarding complete. Begin searching.")
+    post_msgs = [AIMsg(content="Searching for jobs...")]
+    all_messages = onboarding_msgs + [trigger] + post_msgs
+
+    state: dict[str, Any] = {
+        MESSAGES_KEY: all_messages,
+        "user_profile": {"name": "Alice", "role": "Developer"},
+        "preferences": None,
+        "recent_decisions": [],
+        "onboarding_complete": True,
+        "cv_raw_text": None,
+        "active_agent": "main",
+        "search_attempts": 0,
+    }
+
+    captured: list[Any] = []
+
+    def fake_invoke(msgs: Any) -> AIMsg:
+        captured.extend(msgs)
+        return AIMsg(content="Here are jobs.")
+
+    with patch("app.agent.main.nodes.main_llm") as mock_llm:
+        mock_llm.invoke.side_effect = fake_invoke
+        main_chatbot(state)  # type: ignore[arg-type]
+
+    for msg in captured:
+        if isinstance(msg, HumanMessage):
+            assert not str(msg.content).startswith("Here is my CV")
 
 
 @pytest.mark.asyncio
