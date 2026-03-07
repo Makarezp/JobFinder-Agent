@@ -2,13 +2,16 @@
 
 import { useEffect, useRef } from "react";
 import { useChatStore } from "../core/store/useChatStore";
+import { PENDING_AI_MESSAGE } from "../core/store/useChatStore";
 import ChatMessage from "./ChatMessage";
 
-export default function AdvisoryFeed() {
-  const { messages, isPending } = useChatStore();
+import type { Workspace } from "../core/types/api";
+
+export default function AdvisoryFeed({ workspace }: { workspace: Workspace }) {
+  const messages = useChatStore((state) => state.threads[workspace]);
+  const isPending = useChatStore((state) => state.isPending[workspace]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll to bottom on new messages
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollIntoView({ behavior: "smooth" });
@@ -37,7 +40,7 @@ export default function AdvisoryFeed() {
           {msg.user_message && (
             <ChatMessage message={{ ...msg, ai_message: "" }} role="user" />
           )}
-          {msg.ai_message && msg.ai_message !== "..." && (
+          {msg.ai_message && msg.ai_message !== PENDING_AI_MESSAGE && (
             <ChatMessage message={msg} role="ai" />
           )}
         </div>

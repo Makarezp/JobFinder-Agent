@@ -14,7 +14,7 @@ describe("chat API clients", () => {
   });
 
   describe("fetchHistoryRequest", () => {
-    it("successfully fetches history", async () => {
+    it("fetches discovery history with workspace query param", async () => {
       const mockHistory = [
         { user_message: "hi", ai_message: "hello", jobs: [] },
       ];
@@ -23,10 +23,32 @@ describe("chat API clients", () => {
         json: async () => mockHistory,
       } as Response);
 
-      const result = await fetchHistoryRequest();
+      const result = await fetchHistoryRequest("discovery");
 
-      expect(fetch).toHaveBeenCalledWith("/api/history");
+      expect(fetch).toHaveBeenCalledWith("/api/history?workspace=discovery");
       expect(result).toEqual(mockHistory);
+    });
+
+    it("fetches profile history with workspace query param", async () => {
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: true,
+        json: async () => [],
+      } as Response);
+
+      await fetchHistoryRequest("profile");
+
+      expect(fetch).toHaveBeenCalledWith("/api/history?workspace=profile");
+    });
+
+    it("defaults to discovery workspace", async () => {
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: true,
+        json: async () => [],
+      } as Response);
+
+      await fetchHistoryRequest();
+
+      expect(fetch).toHaveBeenCalledWith("/api/history?workspace=discovery");
     });
 
     it("throws an error on failure", async () => {
@@ -42,7 +64,7 @@ describe("chat API clients", () => {
   });
 
   describe("sendMessageRequest", () => {
-    it("successfully sends a message", async () => {
+    it("successfully sends a message with workspace in body", async () => {
       const mockResponse = {
         user_message: "test",
         ai_message: "reply",
@@ -53,14 +75,43 @@ describe("chat API clients", () => {
         json: async () => mockResponse,
       } as Response);
 
-      const result = await sendMessageRequest("test");
+      const result = await sendMessageRequest("test", "discovery");
 
       expect(fetch).toHaveBeenCalledWith("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: "test" }),
+        body: JSON.stringify({ message: "test", workspace: "discovery" }),
       });
       expect(result).toEqual(mockResponse);
+    });
+
+    it("sends with profile workspace", async () => {
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ user_message: "x", ai_message: "y", jobs: [] }),
+      } as Response);
+
+      await sendMessageRequest("update name", "profile");
+
+      expect(fetch).toHaveBeenCalledWith("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: "update name", workspace: "profile" }),
+      });
+    });
+
+    it("defaults to discovery workspace", async () => {
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ user_message: "x", ai_message: "y", jobs: [] }),
+      } as Response);
+
+      await sendMessageRequest("hello");
+
+      const body = JSON.parse(
+        vi.mocked(fetch).mock.calls[0][1]?.body as string
+      );
+      expect(body.workspace).toBe("discovery");
     });
 
     it("throws an error on failure", async () => {

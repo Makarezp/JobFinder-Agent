@@ -3,11 +3,17 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import Home from "./page";
 
 vi.mock("../core/store/useChatStore", () => ({
-  useChatStore: vi.fn(() => ({
-    fetchHistory: vi.fn(),
-    isPending: false,
-    messages: [],
-  })),
+  useChatStore: vi.fn((selector?: (s: unknown) => unknown) => {
+    const state = {
+      threads: { discovery: [], profile: [] },
+      isPending: { discovery: false, profile: false },
+      fetchHistory: vi.fn(),
+      sendMessage: vi.fn(),
+      uploadCV: vi.fn(),
+    };
+    return selector ? selector(state) : state;
+  }),
+  PENDING_AI_MESSAGE: "...",
 }));
 
 vi.mock("../core/store/useJobStore", () => ({

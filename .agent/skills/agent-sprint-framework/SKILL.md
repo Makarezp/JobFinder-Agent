@@ -31,7 +31,8 @@ I have analyzed the ticket and am ready to proceed...
 2. Continuously self-reflect during this phase: Is this code sound? Are there edge cases? Is it performant and clean?
 3. **Mandatory:** Write comprehensive tests (unit/components) for the new implementation.
 4. Ensure all code quality tools pass.
-5. **Hard Blocker:** You must explicitly ask the human user for permission to proceed. Do not transition to `<REVIEW>` until the human user confirms they are ready to begin the review process.
+5. **Mandatory Documentation:** Write down a human-understandable summary of the code changes made. Focus mostly on logic, flow, and structural changes. Insignificant changes can be omitted. This helps the human user quickly understand what happened in the codebase.
+6. **Hard Blocker:** You must explicitly ask the human user for permission to proceed. Do not transition to `<REVIEW>` until the human user confirms they are ready to begin the review process.
 
 ## Phase 3: <REVIEW>
 **Goal:** Explain the work, facilitate human testing, and secure explicit sign-off.

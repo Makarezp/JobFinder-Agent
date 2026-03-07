@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { useChatStore } from "./useChatStore";
+import { useChatStore, PENDING_AI_MESSAGE } from "./useChatStore";
 import * as chatApi from "../api/chat";
 import { useJobStore } from "./useJobStore";
 
@@ -21,7 +21,10 @@ vi.mock("./useJobStore", () => ({
 describe("useChatStore", () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    useChatStore.setState({ messages: [], isPending: false });
+    useChatStore.setState({
+      threads: { discovery: [], profile: [] },
+      isPending: { discovery: false, profile: false },
+    });
     vi.mocked(useJobStore.getState).mockReturnValue({
       jobs: [],
       isLoading: false,
@@ -32,31 +35,43 @@ describe("useChatStore", () => {
   });
 
   describe("Initialization", () => {
-    it("initializes with empty messages and isPending false", () => {
+    it("initializes with empty threads and isPending false for both workspaces", () => {
       const state = useChatStore.getState();
-      expect(state.messages).toEqual([]);
-      expect(state.isPending).toBe(false);
+      expect(state.threads.discovery).toEqual([]);
+      expect(state.threads.profile).toEqual([]);
+      expect(state.isPending.discovery).toBe(false);
+      expect(state.isPending.profile).toBe(false);
     });
   });
 
   describe("fetchHistory", () => {
-    it("fetches history and updates state", async () => {
+    it("fetches discovery history and updates only the discovery thread", async () => {
       const mockHistory = [{ user_message: "u", ai_message: "a", jobs: [] }];
       vi.mocked(chatApi.fetchHistoryRequest).mockResolvedValueOnce(mockHistory);
 
-      const promise = useChatStore.getState().fetchHistory();
+      const promise = useChatStore.getState().fetchHistory("discovery");
 
-      // Should immediately be pending
-      expect(useChatStore.getState().isPending).toBe(true);
+      expect(useChatStore.getState().isPending.discovery).toBe(true);
+      expect(useChatStore.getState().isPending.profile).toBe(false);
 
       await promise;
 
-      // Should have results and not be pending
-      expect(useChatStore.getState().messages).toEqual(mockHistory);
-      expect(useChatStore.getState().isPending).toBe(false);
+      expect(useChatStore.getState().threads.discovery).toEqual(mockHistory);
+      expect(useChatStore.getState().threads.profile).toEqual([]);
+      expect(useChatStore.getState().isPending.discovery).toBe(false);
     });
 
-    it("handles errors gracefully", async () => {
+    it("fetches profile history and updates only the profile thread", async () => {
+      const mockHistory = [{ user_message: "p", ai_message: "b", jobs: [] }];
+      vi.mocked(chatApi.fetchHistoryRequest).mockResolvedValueOnce(mockHistory);
+
+      await useChatStore.getState().fetchHistory("profile");
+
+      expect(useChatStore.getState().threads.profile).toEqual(mockHistory);
+      expect(useChatStore.getState().threads.discovery).toEqual([]);
+    });
+
+    it("handles errors gracefully and clears pending", async () => {
       const consoleSpy = vi
         .spyOn(console, "error")
         .mockImplementation(() => {});
@@ -64,17 +79,19 @@ describe("useChatStore", () => {
         new Error("Network Error")
       );
 
-      await useChatStore.getState().fetchHistory();
+      await useChatStore.getState().fetchHistory("discovery");
 
-      expect(useChatStore.getState().messages).toEqual([]); // unchanged
-      expect(useChatStore.getState().isPending).toBe(false);
+      expect(useChatStore.getState().threads.discovery).toEqual([]);
+      expect(useChatStore.getState().isPending.discovery).toBe(false);
+      // A discovery-scoped error must not touch the profile thread
+      expect(useChatStore.getState().threads.profile).toEqual([]);
 
       consoleSpy.mockRestore();
     });
   });
 
   describe("sendMessage", () => {
-    it("performs an optimistic update and resolves actual response", async () => {
+    it("performs an optimistic update in the discovery thread and resolves actual response", async () => {
       const actualResponse = {
         user_message: "test",
         ai_message: "real ai reply",
@@ -84,25 +101,39 @@ describe("useChatStore", () => {
         actualResponse
       );
 
-      const promise = useChatStore.getState().sendMessage("test");
+      const promise = useChatStore.getState().sendMessage("test", "discovery");
 
-      // Verify optimistic update (loading indicator)
       let state = useChatStore.getState();
-      expect(state.isPending).toBe(true);
-      expect(state.messages).toHaveLength(1);
-      expect(state.messages[0].user_message).toBe("test");
-      expect(state.messages[0].ai_message).toBe("...");
+      expect(state.isPending.discovery).toBe(true);
+      expect(state.isPending.profile).toBe(false);
+      expect(state.threads.discovery).toHaveLength(1);
+      expect(state.threads.discovery[0].user_message).toBe("test");
+      expect(state.threads.discovery[0].ai_message).toBe(PENDING_AI_MESSAGE);
 
       await promise;
 
-      // Verify actual update
       state = useChatStore.getState();
-      expect(state.isPending).toBe(false);
-      expect(state.messages).toHaveLength(1);
-      expect(state.messages[0].ai_message).toBe("real ai reply");
+      expect(state.isPending.discovery).toBe(false);
+      expect(state.threads.discovery).toHaveLength(1);
+      expect(state.threads.discovery[0].ai_message).toBe("real ai reply");
+      expect(state.threads.profile).toHaveLength(0);
     });
 
-    it("calls fetchDeck (not setJobs) when response contains jobs", async () => {
+    it("sends to profile thread without touching discovery thread", async () => {
+      vi.mocked(chatApi.sendMessageRequest).mockResolvedValueOnce({
+        user_message: "update name",
+        ai_message: "done",
+        jobs: [],
+      });
+
+      await useChatStore.getState().sendMessage("update name", "profile");
+
+      const state = useChatStore.getState();
+      expect(state.threads.profile).toHaveLength(1);
+      expect(state.threads.discovery).toHaveLength(0);
+    });
+
+    it("calls fetchDeck when response contains jobs", async () => {
       const mockFetchDeck = vi.fn().mockResolvedValue(undefined);
       vi.mocked(useJobStore.getState).mockReturnValue({
         jobs: [],
@@ -132,7 +163,7 @@ describe("useChatStore", () => {
         actualResponse
       );
 
-      await useChatStore.getState().sendMessage("find jobs");
+      await useChatStore.getState().sendMessage("find jobs", "discovery");
 
       expect(mockFetchDeck).toHaveBeenCalledOnce();
     });
@@ -153,12 +184,12 @@ describe("useChatStore", () => {
         jobs: [],
       });
 
-      await useChatStore.getState().sendMessage("hello");
+      await useChatStore.getState().sendMessage("hello", "discovery");
 
       expect(mockFetchDeck).not.toHaveBeenCalled();
     });
 
-    it("handles API errors by injecting a system error message", async () => {
+    it("injects a system error message into the correct thread on API failure", async () => {
       const consoleSpy = vi
         .spyOn(console, "error")
         .mockImplementation(() => {});
@@ -166,19 +197,22 @@ describe("useChatStore", () => {
         new Error("Server down")
       );
 
-      await useChatStore.getState().sendMessage("test");
+      await useChatStore.getState().sendMessage("test", "discovery");
 
       const state = useChatStore.getState();
-      expect(state.isPending).toBe(false);
-      expect(state.messages).toHaveLength(1);
-      expect(state.messages[0].ai_message).toContain("**System Error**");
+      expect(state.isPending.discovery).toBe(false);
+      expect(state.threads.discovery).toHaveLength(1);
+      expect(state.threads.discovery[0].ai_message).toContain(
+        "**System Error**"
+      );
+      expect(state.threads.profile).toHaveLength(0);
 
       consoleSpy.mockRestore();
     });
   });
 
   describe("uploadCV", () => {
-    it("reports optimistic upload status and handles success", async () => {
+    it("targets the profile thread for optimistic update and success", async () => {
       const actualResponse = {
         user_message: "Uploaded CV: mycv.pdf",
         ai_message: "parsed",
@@ -191,17 +225,42 @@ describe("useChatStore", () => {
       });
       const promise = useChatStore.getState().uploadCV(file);
 
-      // Verify optimistic state
       let state = useChatStore.getState();
-      expect(state.isPending).toBe(true);
-      expect(state.messages[0].user_message).toBe("Uploaded CV: mycv.pdf");
-      expect(state.messages[0].ai_message).toBe("Processing CV...");
+      expect(state.isPending.profile).toBe(true);
+      expect(state.isPending.discovery).toBe(false);
+      expect(state.threads.profile[0].user_message).toBe(
+        "Uploaded CV: mycv.pdf"
+      );
+      expect(state.threads.profile[0].ai_message).toBe(PENDING_AI_MESSAGE);
 
       await promise;
 
       state = useChatStore.getState();
-      expect(state.isPending).toBe(false);
-      expect(state.messages[0].ai_message).toBe("parsed");
+      expect(state.isPending.profile).toBe(false);
+      expect(state.threads.profile[0].ai_message).toBe("parsed");
+      expect(state.threads.discovery).toHaveLength(0);
+    });
+
+    it("injects a system error message into the profile thread on failure", async () => {
+      const consoleSpy = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+      vi.mocked(chatApi.uploadCVRequest).mockRejectedValueOnce(
+        new Error("Upload failed")
+      );
+
+      const file = new File(["content"], "bad.pdf", {
+        type: "application/pdf",
+      });
+
+      await useChatStore.getState().uploadCV(file);
+
+      const state = useChatStore.getState();
+      expect(state.isPending.profile).toBe(false);
+      expect(state.threads.profile).toHaveLength(1);
+      expect(state.threads.profile[0].ai_message).toContain("**System Error**");
+
+      consoleSpy.mockRestore();
     });
   });
 });

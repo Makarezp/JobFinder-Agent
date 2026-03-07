@@ -26,11 +26,11 @@ export default function Home() {
     setActiveTab(tab);
   }
 
-  // Hydrate history on mount and avoid SSR hydration mismatch
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsMounted(true);
-    fetchHistory();
+    fetchHistory("discovery");
+    fetchHistory("profile");
     fetchDeck();
   }, [fetchHistory, fetchDeck]);
 
@@ -61,10 +61,10 @@ export default function Home() {
         </div>
 
         {/* Advisory Feed Logic (Ticket 1.3) */}
-        <AdvisoryFeed />
+        <AdvisoryFeed workspace="discovery" />
 
         {/* Premium Command Center Component */}
-        <CommandCenter />
+        <CommandCenter workspace="discovery" />
       </aside>
 
       {/* Right Pane: Tabbed Panel */}

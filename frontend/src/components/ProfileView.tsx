@@ -79,7 +79,10 @@ function PreferencesCard({
                   <button
                     type="button"
                     onClick={() =>
-                      sendMessage(`Remove my preference for "${key}"`)
+                      sendMessage(
+                        `Remove my preference for "${key}"`,
+                        "profile"
+                      )
                     }
                     className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-500 hover:text-red-400"
                     aria-label={`Remove preference ${key}`}
@@ -117,7 +120,10 @@ function PreferencesCard({
                   <button
                     type="button"
                     onClick={() =>
-                      sendMessage(`Remove my preference for "${key}"`)
+                      sendMessage(
+                        `Remove my preference for "${key}"`,
+                        "profile"
+                      )
                     }
                     className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-500 hover:text-red-400"
                     aria-label={`Remove preference ${key}`}

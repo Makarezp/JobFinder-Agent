@@ -1,3 +1,5 @@
+export type Workspace = "discovery" | "profile";
+
 export interface Job {
   id: string;
   title: string;

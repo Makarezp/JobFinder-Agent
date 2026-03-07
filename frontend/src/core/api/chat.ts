@@ -1,7 +1,9 @@
-import { ChatResponse } from "../types/api";
+import { ChatResponse, Workspace } from "../types/api";
 
-export async function fetchHistoryRequest(): Promise<ChatResponse[]> {
-  const response = await fetch("/api/history");
+export async function fetchHistoryRequest(
+  workspace: Workspace = "discovery"
+): Promise<ChatResponse[]> {
+  const response = await fetch(`/api/history?workspace=${workspace}`);
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
   }
@@ -9,14 +11,15 @@ export async function fetchHistoryRequest(): Promise<ChatResponse[]> {
 }
 
 export async function sendMessageRequest(
-  message: string
+  message: string,
+  workspace: Workspace = "discovery"
 ): Promise<ChatResponse> {
   const response = await fetch("/api/chat", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ message }),
+    body: JSON.stringify({ message, workspace }),
   });
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
