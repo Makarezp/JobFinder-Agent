@@ -60,11 +60,11 @@ export default function Home() {
           </button>
         </div>
 
-        {/* Advisory Feed Logic (Ticket 1.3) */}
-        <AdvisoryFeed workspace="discovery" />
+        {/* Advisory Feed Logic */}
+        <AdvisoryFeed workspace={activeTab} />
 
         {/* Premium Command Center Component */}
-        <CommandCenter workspace="discovery" />
+        <CommandCenter workspace={activeTab} />
       </aside>
 
       {/* Right Pane: Tabbed Panel */}

@@ -533,7 +533,7 @@ Refactor the frontend chat API and Zustand store to support multiple isolated me
 
 ---
 
-## Ticket 9.6: Workspace Layout + Contextual UI
+## Ticket 9.6: Workspace Layout + Contextual UI - done
 
 ### Overview
 Connect the frontend React components to the new workspace-aware Zustand store (from Ticket 9.5). Pass the active tab down to the `AdvisoryFeed` and `CommandCenter` so they display the correct thread and send messages to the correct backend agent. Implement contextual UI changes, such as hiding the CV upload button in the Discovery workspace.
@@ -598,7 +598,7 @@ Connect the frontend React components to the new workspace-aware Zustand store (
 
 
 
-## Ticket 9.7: Update Project Documentation (AGENTS.md)
+## Ticket 9.7: Update Project Documentation (AGENTS.md) - done
 
 ### Overview
 With the transition from a monolithic agent architecture to Contextual Workspaces (isolated `discovery` and `profile` graphs), the central project documentation in `documents/AGENTS.md` is now outdated. This ticket updates the developer manual to reflect the new boundaries, mitigating future context poisoning for AI contributors.

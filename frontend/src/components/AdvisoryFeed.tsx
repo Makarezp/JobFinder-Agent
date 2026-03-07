@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { useChatStore } from "../core/store/useChatStore";
-import { PENDING_AI_MESSAGE } from "../core/store/useChatStore";
+import { useChatStore, PENDING_AI_MESSAGE } from "../core/store/useChatStore";
+
 import ChatMessage from "./ChatMessage";
 
 import type { Workspace } from "../core/types/api";
