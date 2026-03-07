@@ -457,7 +457,7 @@ Remove the now-unused monolithic orchestrator (`app/agent/graph.py`) and shared 
 
 ---
 
-## Ticket 9.5: Thread Isolation in Chat Store
+## Ticket 9.5: Thread Isolation in Chat Store - done
 
 ### Overview
 Refactor the frontend chat API and Zustand store to support multiple isolated message threads. The backend routing is now based on the `workspace` parameter. The frontend must maintain separate state arrays for each workspace (`discovery` and `profile`) so that switching tabs does not clear or mix conversation histories.
