@@ -34,6 +34,11 @@ MAIN_CHATBOT_NODE: Final[str] = "main_chatbot"
 MAIN_TOOLS_NODE: Final[str] = "main_tools"
 JOB_SPECIALIST_NODE: Final[str] = "job_specialist_node"
 
+# Profile Agent Node Names
+PROFILE_FETCH_NODE: Final[str] = "fetch_profile_data"
+PROFILE_CHATBOT_NODE: Final[str] = "profile_chatbot"
+PROFILE_TOOLS_NODE: Final[str] = "profile_tools"
+
 # Discovery Agent Node Names
 DISCOVERY_FETCH_PROFILE_NODE: Final[str] = "fetch_profile"
 DISCOVERY_CHATBOT_NODE: Final[str] = "discovery_chatbot"

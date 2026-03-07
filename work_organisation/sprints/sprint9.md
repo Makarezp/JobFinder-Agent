@@ -80,7 +80,7 @@ Create a self-contained Discovery Agent as a standalone compiled LangGraph graph
 
 ---
 
-## Ticket 9.2: Extract Profile Agent Graph
+## Ticket 9.2: Extract Profile Agent Graph - done
 
 ### Overview
 Create a self-contained Profile Agent as a standalone compiled LangGraph graph with its own state schema. This extracts the existing `onboarding/` agent logic (nodes, prompts, tools) into a new `app/agent/profile/` package with its own `ProfileAgentState` and a `get_profile_graph()` builder. The Profile Agent must hydrate its own state from the database at the start of each turn. The monolithic `graph.py` remains untouched — this ticket is entirely additive to avoid breaking existing flows before we test.
@@ -99,7 +99,6 @@ Create a self-contained Profile Agent as a standalone compiled LangGraph graph w
    ```
    - **No `onboarding_complete`** — routing is handled externally.
    - **No `search_attempts` or `recent_decisions`** — Profile Agent does not search for jobs.
-   - Add a docstring explaining that this agent handles CV parsing, profile building, and preference capture.
 
 3. **[Update Type Hints — `app/agent/onboarding/nodes.py`]**: The node functions `check_onboarding_status`, `onboarding_chatbot`, `route_onboarding`, and `route_after_onboarding_tools` currently use `AgentState`.
    - Update the import: `from app.agent.profile.state import ProfileAgentState` (instead of `AgentState`).
@@ -625,3 +624,9 @@ With the transition from a monolithic agent architecture to Contextual Workspace
 ### Acceptance Criteria
 - [Manual] Review `documents/AGENTS.md` and verify "How to Modify the Agent" instructs developers/AIs to look in the newly created `discovery/` and `profile/` directories.
 - [Manual] Verify the monolithic file references (`app/agent/graph.py`, `app/agent/state.py`) have been entirely removed.
+
+
+
+
+> **⚠️ Tech Debt Note:** `ProfileAgentState` currently omits `recent_decisions`, but the Profile Agent should have access to it. For example, when a user says "stop showing me Java jobs", the Profile Agent needs decision history to understand the full context of what the user wants to avoid. Additionally, `fetch_profile_data` (profile/nodes.py) and `fetch_profile` (main/nodes.py) duplicate the store-reading logic for `user_profile` and `preferences`. The fix is two-fold: (1) add `recent_decisions: NotRequired[list[dict[str, Any]]]` to `ProfileAgentState`, (2) extract a shared `_hydrate_profile_and_prefs(user_id, store)` helper into a new `app/agent/memory_utils.py` that both fetch nodes call, each appending only what their state schema needs. Deferred until after Ticket 9.4 when the architecture settles.
+- Add a docstring explaining that this agent handles CV parsing, profile building, and preference capture.

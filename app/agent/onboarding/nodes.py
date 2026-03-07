@@ -18,7 +18,7 @@ from app.agent.constants import (
 )
 from app.agent.onboarding.prompts import ONBOARDING_PROMPT
 from app.agent.onboarding.tools import onboarding_tools
-from app.agent.state import AgentState
+from app.agent.profile.state import ProfileAgentState
 from app.core.config import settings
 from app.core.node_logging_utils import log_node_completed
 
@@ -35,7 +35,7 @@ onboarding_llm = llm.bind_tools(onboarding_tools)
 
 
 # --- Node: check_onboarding_status (graph entry) ---
-async def check_onboarding_status(state: AgentState, config: RunnableConfig, store: Annotated[BaseStore, InjectedStore]) -> dict[str, Any]:
+async def check_onboarding_status(state: ProfileAgentState, config: RunnableConfig, store: Annotated[BaseStore, InjectedStore]) -> dict[str, Any]:
     """
     Read onboarding status from Store and hydrate into graph state.
     Runs at graph entry on every invocation to bridge store → state.
@@ -48,13 +48,13 @@ async def check_onboarding_status(state: AgentState, config: RunnableConfig, sto
     if status_item and status_item.value.get("onboarding_complete"):
         is_complete = True
 
-    logger.info("Node Completed: check_onboarding_status", extra={"onboarding_complete": is_complete})
+    logger.info("Node Completed: check_onboarding_status", onboarding_complete=is_complete)
     return {"onboarding_complete": is_complete}
 
 
 # --- Node: onboarding_chatbot ---
 @traceable
-def onboarding_chatbot(state: AgentState) -> dict[str, list[BaseMessage]]:
+def onboarding_chatbot(state: ProfileAgentState) -> dict[str, list[BaseMessage]]:
     """Onboarding agent node — builds user profile through conversation."""
     logger.info("Node Started: onboarding_chatbot")
 
@@ -62,7 +62,6 @@ def onboarding_chatbot(state: AgentState) -> dict[str, list[BaseMessage]]:
 
     system_parts = [ONBOARDING_PROMPT]
 
-    # If CV raw text is available, add it as context
     cv_raw = state.get("cv_raw_text")
     if cv_raw:
         system_parts.append(f"\n\n**CV TEXT (uploaded by user — analyze this and store structured summary via update_my_profile):**\n{cv_raw}")
@@ -86,7 +85,7 @@ def onboarding_chatbot(state: AgentState) -> dict[str, list[BaseMessage]]:
 
 
 # --- Routing: onboarding agent ---
-def route_onboarding(state: AgentState) -> str:
+def route_onboarding(state: ProfileAgentState) -> str:
     """Route onboarding agent output: tool calls or end."""
     messages = cast(list[BaseMessage], state.get(MESSAGES_KEY, []))
     ai_message = messages[-1] if messages else None
@@ -97,19 +96,16 @@ def route_onboarding(state: AgentState) -> str:
 
 
 # --- After onboarding tools: check if finalize was called ---
-def route_after_onboarding_tools(state: AgentState) -> str:
+def route_after_onboarding_tools(state: ProfileAgentState) -> str:
     """
     After onboarding tools execute, check if we should continue onboarding
     or hand off to the main agent immediately.
     """
     messages = cast(list[BaseMessage], state.get(MESSAGES_KEY, []))
 
-    # Check if finalize_profile was just executed (its return message contains this)
     for msg in reversed(messages):
         if hasattr(msg, "content") and ONBOARDING_COMPLETE_SIGNAL in str(msg.content):
-            # Immediate handoff: go to fetch_profile → main_chatbot
             return FETCH_PROFILE_NODE
-        # Stop searching after we pass non-tool messages
         if isinstance(msg, AIMessage):
             break
 
