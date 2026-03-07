@@ -1,8 +1,8 @@
 import asyncio
-from typing import Annotated, Any, cast
+from typing import Annotated, Any
 
 import structlog
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage, trim_messages
+from langchain_core.messages import AIMessage, BaseMessage, SystemMessage, trim_messages
 from langchain_core.runnables import RunnableConfig
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.graph import END
@@ -11,12 +11,10 @@ from langgraph.store.base import BaseStore
 from langsmith import traceable
 
 from app.agent.constants import (
+    DISCOVERY_JOB_SPECIALIST_NODE,
+    DISCOVERY_TOOLS_NODE,
     FINAL_ANSWER_TOOL_NAME,
-    JOB_SPECIALIST_NODE,
-    MAIN_TOOLS_NODE,
     MAX_SEARCH_ATTEMPTS,
-    MESSAGES_KEY,
-    ONBOARDING_COMPLETE_SIGNAL,
 )
 from app.agent.discovery.state import DiscoveryAgentState
 from app.agent.main.prompts import SYSTEM_PROMPT
@@ -35,23 +33,6 @@ llm = ChatGoogleGenerativeAI(
 )
 
 main_llm = llm.bind_tools(main_tools)
-
-
-# --- Helper: detect onboarding handoff ---
-def _is_fresh_onboarding_handoff(messages: list[BaseMessage]) -> bool:
-    """
-    Returns True when the most recent message in state is the ToolMessage
-    emitted by finalize_profile (content contains "Onboarding complete").
-    This is the signal that the graph has just transitioned from onboarding.
-
-    NOTE: This relies on no intermediate node existing between
-    ONBOARDING_TOOLS_NODE and FETCH_PROFILE_NODE in graph.py. If a node
-    is ever inserted there, this detection will break silently.
-    """
-    if not messages:
-        return False
-    last = messages[-1]
-    return isinstance(last, ToolMessage) and ONBOARDING_COMPLETE_SIGNAL in str(last.content)
 
 
 # --- Helper: format profile for system prompt ---
@@ -109,19 +90,6 @@ def _format_preferences_summary(preferences: dict[str, Any] | None) -> str:
     return "\n".join(lines) if lines else "No preferences set yet."
 
 
-# --- Helper: strip onboarding history from main agent context ---
-def _strip_onboarding_messages(messages: list[BaseMessage]) -> list[BaseMessage]:
-    """
-    Remove all messages predating the onboarding handoff from the context window.
-    The handoff boundary is the first HumanMessage starting with '[SYSTEM TRIGGER]'.
-    If no such marker exists, the full list is returned unchanged.
-    """
-    for i, msg in enumerate(messages):
-        if isinstance(msg, HumanMessage) and str(msg.content).startswith("[SYSTEM TRIGGER]"):
-            return messages[i:]
-    return messages
-
-
 # --- Node: fetch_profile (main agent entry) ---
 async def fetch_profile(state: DiscoveryAgentState, config: RunnableConfig, store: Annotated[BaseStore, InjectedStore]) -> dict[str, Any]:
     """
@@ -171,19 +139,6 @@ async def fetch_profile(state: DiscoveryAgentState, config: RunnableConfig, stor
         "recent_decisions": recent_decisions,
     }
 
-    current_messages: list[BaseMessage] = state.get(MESSAGES_KEY, [])  # type: ignore
-    if _is_fresh_onboarding_handoff(current_messages):
-        trigger = HumanMessage(
-            content=(
-                "[SYSTEM TRIGGER] Onboarding is now complete. "
-                "The user's profile and preferences have been loaded above. "
-                "Begin searching for matching jobs immediately using job_specialist_tool. "
-                "Do NOT greet the user or ask clarifying questions — go straight to searching."
-            )
-        )
-        patch["messages"] = [trigger]
-        logger.info("Onboarding handoff detected: injecting search trigger into messages")
-
     return patch
 
 
@@ -193,7 +148,7 @@ def main_chatbot(state: DiscoveryAgentState) -> dict[str, list[BaseMessage]]:
     """Main job-hunting agent node — uses structured profile and preferences."""
     logger.info("Node Started: main_chatbot")
 
-    messages = state[MESSAGES_KEY]  # type: ignore
+    messages = state["messages"]
 
     profile = state.get("user_profile")
     preferences = state.get("preferences")
@@ -216,10 +171,6 @@ def main_chatbot(state: DiscoveryAgentState) -> dict[str, list[BaseMessage]]:
         feedback_block=feedback_block,
         max_search_attempts=MAX_SEARCH_ATTEMPTS,
     )
-
-    # Strip onboarding history before trimming — reduces token count significantly
-    # for post-onboarding turns. Full history remains in the checkpointer.
-    messages = _strip_onboarding_messages(messages)
 
     # Trim history to ~40k tokens (160k chars @ ~4 chars/token) before invoking.
     # Uses character count (token_counter=len) — free, local, zero latency.
@@ -261,7 +212,7 @@ def main_chatbot(state: DiscoveryAgentState) -> dict[str, list[BaseMessage]]:
 # --- Routing: main agent ---
 def route_main(state: DiscoveryAgentState) -> str:
     """Route main agent output: tool calls, final_answer, or end."""
-    messages = cast(list[BaseMessage], state.get(MESSAGES_KEY, []))
+    messages = state["messages"]
     ai_message = messages[-1] if messages else None
 
     if not (isinstance(ai_message, AIMessage) and ai_message.tool_calls):
@@ -276,6 +227,6 @@ def route_main(state: DiscoveryAgentState) -> str:
         if state.get("search_attempts", 0) >= MAX_SEARCH_ATTEMPTS:
             logger.warning("Loop protection: max search attempts reached, forcing END")
             return str(END)
-        return JOB_SPECIALIST_NODE
+        return DISCOVERY_JOB_SPECIALIST_NODE
 
-    return MAIN_TOOLS_NODE
+    return DISCOVERY_TOOLS_NODE

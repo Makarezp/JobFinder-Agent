@@ -22,17 +22,9 @@ DEFAULT_USER_ID: Final[str] = "default_user"
 # Search Limits
 MAX_SEARCH_ATTEMPTS: Final[int] = 3
 
-# Signals
-ONBOARDING_COMPLETE_SIGNAL: Final[str] = "Onboarding complete"
-
 # Node Names
-CHECK_ONBOARDING_NODE: Final[str] = "check_onboarding_status"
 ONBOARDING_CHATBOT_NODE: Final[str] = "onboarding_chatbot"
 ONBOARDING_TOOLS_NODE: Final[str] = "onboarding_tools"
-FETCH_PROFILE_NODE: Final[str] = "fetch_profile"
-MAIN_CHATBOT_NODE: Final[str] = "main_chatbot"
-MAIN_TOOLS_NODE: Final[str] = "main_tools"
-JOB_SPECIALIST_NODE: Final[str] = "job_specialist_node"
 
 # Profile Agent Node Names
 PROFILE_FETCH_NODE: Final[str] = "fetch_profile_data"

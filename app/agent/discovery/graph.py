@@ -1,28 +1,94 @@
+import asyncio
 import functools
-from typing import Any, TypeAlias
+import json
+from typing import Any, cast
 
+import structlog
+from langchain_core.messages import AIMessage, ToolMessage
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import ToolNode
 from langgraph.store.base import BaseStore
 
 from app.agent.constants import (
+    DEFAULT_USER_ID,
     DISCOVERY_CHATBOT_NODE,
     DISCOVERY_FETCH_PROFILE_NODE,
     DISCOVERY_JOB_SPECIALIST_NODE,
     DISCOVERY_TOOLS_NODE,
-    MAIN_TOOLS_NODE,
 )
 from app.agent.discovery.state import DiscoveryAgentState
-from app.agent.graph import call_job_specialist
+from app.agent.job_search.graph import job_search_graph
+from app.agent.job_search.state import JobSpecialistState
 from app.agent.main.nodes import fetch_profile, main_chatbot, route_main
 from app.agent.main.tools import main_tools
+from app.agent.schemas import JobListing, JobSpecialistInput
 from app.services.profile_service import ProfileService
 
-_DiscoveryGraph: TypeAlias = CompiledStateGraph[Any, Any, Any, Any]  # noqa: UP040
+logger = structlog.get_logger(__name__)
 
 
-def get_discovery_graph(checkpointer: Any, store: BaseStore) -> _DiscoveryGraph:
+def _split_fresh_seen(results: list[JobListing], seen_ids: set[str]) -> tuple[list[JobListing], list[JobListing]]:
+    """Partition search results into fresh (unseen) and previously seen listings."""
+    fresh = [r for r in results if r.id not in seen_ids]
+    seen = [r for r in results if r.id in seen_ids]
+    return fresh, seen
+
+
+async def _run_single_job_search(
+    tool_call: Any,
+    profile_service: ProfileService,
+) -> ToolMessage:
+    """
+    Execute one job_specialist_tool call through the job search subgraph.
+    Always returns a ToolMessage — errors are caught and encoded as content strings.
+    """
+    tool_call_id = tool_call["id"]
+    try:
+        args = tool_call["args"]
+        input_data = JobSpecialistInput(**args)
+    except Exception as e:
+        return ToolMessage(content=f"Error parsing input: {e}", tool_call_id=tool_call_id)
+
+    subgraph_state: JobSpecialistState = {"input": input_data, "search_results": None}
+    result = await job_search_graph.ainvoke(cast(Any, subgraph_state))
+    results: list[JobListing] = result.get("search_results", [])
+
+    seen_ids = await profile_service.get_seen_job_ids(DEFAULT_USER_ID)
+    fresh, seen = _split_fresh_seen(results, seen_ids)
+    await profile_service.mark_jobs_seen(fresh, DEFAULT_USER_ID)
+
+    fresh_payload = [r.model_dump() for r in fresh]
+    seen_payload = [{"id": r.id, "title": r.title, "company": r.company, "location": r.location} for r in seen]
+    content = json.dumps({"fresh": fresh_payload, "seen": seen_payload}, indent=2)
+    return ToolMessage(content=content, tool_call_id=tool_call_id)
+
+
+async def call_job_specialist(
+    state: DiscoveryAgentState,
+    profile_service: ProfileService,
+) -> dict[str, Any]:
+    """Invokes the Job Specialist subgraph for all parallel tool calls in the last message."""
+    messages = state["messages"]
+    last_message = messages[-1]
+    if not isinstance(last_message, AIMessage) or not last_message.tool_calls:
+        return {"messages": []}
+
+    job_tool_calls = [tc for tc in last_message.tool_calls if tc["name"] == "job_specialist_tool"]
+    if not job_tool_calls:
+        return {"messages": []}
+
+    current_attempts = state.get("search_attempts", 0)
+
+    tool_messages = await asyncio.gather(*[_run_single_job_search(tc, profile_service) for tc in job_tool_calls])
+
+    return {
+        "messages": list(tool_messages),
+        "search_attempts": current_attempts + 1,
+    }
+
+
+def get_discovery_graph(checkpointer: Any, store: BaseStore) -> CompiledStateGraph[Any]:
     """Build and compile the standalone Discovery Agent graph."""
     profile_service = ProfileService(store)
     builder = StateGraph(DiscoveryAgentState)
@@ -38,7 +104,7 @@ def get_discovery_graph(checkpointer: Any, store: BaseStore) -> _DiscoveryGraph:
         DISCOVERY_CHATBOT_NODE,
         route_main,
         {
-            MAIN_TOOLS_NODE: DISCOVERY_TOOLS_NODE,
+            DISCOVERY_TOOLS_NODE: DISCOVERY_TOOLS_NODE,
             DISCOVERY_JOB_SPECIALIST_NODE: DISCOVERY_JOB_SPECIALIST_NODE,
             END: END,
         },

@@ -4,11 +4,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from langchain_core.messages import AIMessage, ToolMessage
 
-from app.agent.graph import call_job_specialist
+from app.agent.discovery.graph import call_job_specialist
+from app.agent.discovery.state import DiscoveryAgentState
 from app.agent.job_search.nodes import search_jobs
 from app.agent.job_search.state import JobSpecialistState
 from app.agent.schemas import JobListing, JobSpecialistInput
-from app.agent.state import AgentState
 
 
 def _make_state(query: str = "python developer", page: int = 1) -> JobSpecialistState:
@@ -122,7 +122,7 @@ def test_search_jobs_passes_correct_args_to_tool() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Ticket 8.2: call_job_specialist parallel execution
+# call_job_specialist — parallel execution
 # ---------------------------------------------------------------------------
 
 
@@ -130,18 +130,16 @@ def _make_tool_call(name: str, query: str, tc_id: str) -> dict[str, Any]:
     return {"name": name, "args": {"query": query}, "id": tc_id}
 
 
-def _make_agent_state(tool_calls: list[dict[str, Any]]) -> AgentState:
+def _make_agent_state(tool_calls: list[dict[str, Any]]) -> DiscoveryAgentState:
     ai_msg = AIMessage(content="")
     ai_msg.tool_calls = tool_calls  # type: ignore[attr-defined, assignment]
     return cast(
-        AgentState,
+        DiscoveryAgentState,
         {
             "messages": [ai_msg],
             "search_attempts": 0,
             "user_profile": None,
             "preferences": None,
-            "onboarding_complete": True,
-            "cv_raw_text": None,
         },
     )
 
@@ -163,7 +161,7 @@ async def test_call_job_specialist_processes_all_parallel_calls() -> None:
     ]
     state = _make_agent_state(tool_calls)
 
-    with patch("app.agent.graph.job_search_graph") as mock_graph:
+    with patch("app.agent.discovery.graph.job_search_graph") as mock_graph:
         mock_graph.ainvoke = AsyncMock(return_value={"search_results": []})
         result = await call_job_specialist(state, _make_profile_service_mock())
 
@@ -178,7 +176,7 @@ async def test_call_job_specialist_single_call_unchanged() -> None:
     tool_calls = [_make_tool_call("job_specialist_tool", "python developer", "tc-1")]
     state = _make_agent_state(tool_calls)
 
-    with patch("app.agent.graph.job_search_graph") as mock_graph:
+    with patch("app.agent.discovery.graph.job_search_graph") as mock_graph:
         mock_graph.ainvoke = AsyncMock(return_value={"search_results": []})
         result = await call_job_specialist(state, _make_profile_service_mock())
 

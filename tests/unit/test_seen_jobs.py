@@ -19,8 +19,9 @@ from langchain_core.messages import AIMessage, ToolMessage
 from langgraph.store.memory import InMemoryStore
 
 from app.agent.constants import DEFAULT_USER_ID
+from app.agent.discovery.graph import call_job_specialist
+from app.agent.discovery.state import DiscoveryAgentState
 from app.agent.schemas import JobListing
-from app.agent.state import AgentState
 from app.services.profile_service import ProfileService
 
 TEST_USER = DEFAULT_USER_ID
@@ -43,8 +44,8 @@ def _make_job(job_id: str, title: str = "Engineer") -> JobListing:
     )
 
 
-def _make_state(tool_call_id: str = "tc-1") -> AgentState:
-    """Minimal AgentState that triggers call_job_specialist to proceed."""
+def _make_state(tool_call_id: str = "tc-1") -> DiscoveryAgentState:
+    """Minimal DiscoveryAgentState that triggers call_job_specialist to proceed."""
     ai_msg = AIMessage(
         content="",
         tool_calls=[
@@ -62,7 +63,7 @@ def _make_state(tool_call_id: str = "tc-1") -> AgentState:
         ],
     )
     return cast(
-        AgentState,
+        DiscoveryAgentState,
         {
             "messages": [ai_msg],
             "search_attempts": 0,
@@ -99,10 +100,8 @@ async def test_fresh_seen_split_mixed() -> None:
 
     state = _make_state()
 
-    with patch("app.agent.graph.job_search_graph") as mock_graph:
+    with patch("app.agent.discovery.graph.job_search_graph") as mock_graph:
         mock_graph.ainvoke = AsyncMock(return_value={"search_results": [job_abc, job_new1]})
-        from app.agent.graph import call_job_specialist
-
         result = await call_job_specialist(state, profile_service=service)
 
     payload = _parse_tool_message(result)
@@ -123,10 +122,8 @@ async def test_first_search_all_fresh() -> None:
     jobs = [_make_job("j1"), _make_job("j2"), _make_job("j3")]
     state = _make_state()
 
-    with patch("app.agent.graph.job_search_graph") as mock_graph:
+    with patch("app.agent.discovery.graph.job_search_graph") as mock_graph:
         mock_graph.ainvoke = AsyncMock(return_value={"search_results": jobs})
-        from app.agent.graph import call_job_specialist
-
         result = await call_job_specialist(state, profile_service=service)
 
     payload = _parse_tool_message(result)
@@ -146,10 +143,8 @@ async def test_all_results_already_seen() -> None:
 
     state = _make_state()
 
-    with patch("app.agent.graph.job_search_graph") as mock_graph:
+    with patch("app.agent.discovery.graph.job_search_graph") as mock_graph:
         mock_graph.ainvoke = AsyncMock(return_value={"search_results": jobs})
-        from app.agent.graph import call_job_specialist
-
         result = await call_job_specialist(state, profile_service=service)
 
     payload = _parse_tool_message(result)
@@ -185,9 +180,9 @@ async def test_mark_jobs_seen_called_with_fresh_only() -> None:
 
     service.mark_jobs_seen = spy_mark  # type: ignore[method-assign]
 
-    with patch("app.agent.graph.job_search_graph") as mock_graph:
+    with patch("app.agent.discovery.graph.job_search_graph") as mock_graph:
         mock_graph.ainvoke = AsyncMock(return_value={"search_results": [job_old, job_new]})
-        from app.agent.graph import call_job_specialist
+        from app.agent.discovery.graph import call_job_specialist
 
         await call_job_specialist(state, profile_service=service)
 
@@ -208,10 +203,8 @@ async def test_seen_payload_has_no_description() -> None:
 
     state = _make_state()
 
-    with patch("app.agent.graph.job_search_graph") as mock_graph:
+    with patch("app.agent.discovery.graph.job_search_graph") as mock_graph:
         mock_graph.ainvoke = AsyncMock(return_value={"search_results": [job]})
-        from app.agent.graph import call_job_specialist
-
         result = await call_job_specialist(state, profile_service=service)
 
     payload = _parse_tool_message(result)

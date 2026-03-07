@@ -10,10 +10,7 @@ from langgraph.store.base import BaseStore
 from langsmith import traceable
 
 from app.agent.constants import (
-    FETCH_PROFILE_NODE,
     MESSAGES_KEY,
-    ONBOARDING_CHATBOT_NODE,
-    ONBOARDING_COMPLETE_SIGNAL,
     ONBOARDING_TOOLS_NODE,
 )
 from app.agent.onboarding.prompts import ONBOARDING_PROMPT
@@ -93,20 +90,3 @@ def route_onboarding(state: ProfileAgentState) -> str:
     if isinstance(ai_message, AIMessage) and ai_message.tool_calls:
         return ONBOARDING_TOOLS_NODE
     return str(END)
-
-
-# --- After onboarding tools: check if finalize was called ---
-def route_after_onboarding_tools(state: ProfileAgentState) -> str:
-    """
-    After onboarding tools execute, check if we should continue onboarding
-    or hand off to the main agent immediately.
-    """
-    messages = cast(list[BaseMessage], state.get(MESSAGES_KEY, []))
-
-    for msg in reversed(messages):
-        if hasattr(msg, "content") and ONBOARDING_COMPLETE_SIGNAL in str(msg.content):
-            return FETCH_PROFILE_NODE
-        if isinstance(msg, AIMessage):
-            break
-
-    return ONBOARDING_CHATBOT_NODE
