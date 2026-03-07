@@ -333,7 +333,7 @@ Refactor the backend to route chat requests to the correct agent graph based on 
 
 ---
 
-## Ticket 9.4: Delete Monolithic Graph & Clean Up Dead Code
+## Ticket 9.4: Delete Monolithic Graph & Clean Up Dead Code - done
 
 ### Overview
 Remove the now-unused monolithic orchestrator (`app/agent/graph.py`) and shared state schema (`app/agent/state.py`). Relocate `call_job_specialist` and its helpers into the Discovery Agent package. Update all imports and type annotations across production and test code. After this ticket, the `app/agent/` directory has a clean structure with no orphan modules.
