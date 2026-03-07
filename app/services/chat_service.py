@@ -1,6 +1,6 @@
 import hashlib
 from io import BytesIO
-from typing import Any
+from typing import Any, Literal
 
 import structlog
 from langchain_core.messages import AIMessage, HumanMessage
@@ -25,32 +25,47 @@ logger = structlog.get_logger(__name__)
 
 
 class ChatService:
-    def __init__(self, graph: CompiledStateGraph[Any], store: BaseStore, profile_service: ProfileService) -> None:
-        self._graph = graph
+    def __init__(
+        self,
+        discovery_graph: CompiledStateGraph[Any],
+        profile_graph: CompiledStateGraph[Any],
+        store: BaseStore,
+        profile_service: ProfileService,
+    ) -> None:
+        self._discovery_graph = discovery_graph
+        self._profile_graph = profile_graph
         self._store = store
         self._profile_service = profile_service
 
-    async def process_message(self, message: str, thread_id: str = DEFAULT_THREAD_ID) -> dict[str, Any]:
+    def _get_graph(self, workspace: Literal["discovery", "profile"]) -> CompiledStateGraph[Any]:
+        if workspace == "profile":
+            return self._profile_graph
+        return self._discovery_graph
+
+    async def process_message(
+        self, message: str, thread_id: str = DEFAULT_THREAD_ID, workspace: Literal["discovery", "profile"] = "discovery"
+    ) -> dict[str, Any]:
         """
         Processes a user message through the LangGraph agent.
         Returns a dictionary suitable for the frontend template.
         """
-        logger.info("Processing chat message", extra={"thread_id": thread_id})
+        logger.info("Processing chat message", thread_id=thread_id, workspace=workspace)
 
-        inputs: dict[str, Any] = {
-            "messages": [HumanMessage(content=message)],
-            "search_attempts": 0,
-        }
+        inputs: dict[str, Any] = {"messages": [HumanMessage(content=message)]}
+        if workspace == "discovery":
+            inputs["search_attempts"] = 0
+
         config: RunnableConfig = {
-            "configurable": {"thread_id": thread_id, "user_id": DEFAULT_USER_ID},
+            "configurable": {"thread_id": f"{thread_id}_{workspace}", "user_id": DEFAULT_USER_ID},
             "metadata": {"request_id": request_id_var.get()},
             "tags": ["chat"],
-            "recursion_limit": 30,  # Safety valve: prevent infinite loops
+            "recursion_limit": 30,
         }
 
+        graph = self._get_graph(workspace)
         last_state = inputs
         with log_timing("graph.astream", logger):
-            async for state in self._graph.astream(inputs, config=config, stream_mode="values"):
+            async for state in graph.astream(inputs, config=config, stream_mode="values"):
                 log_state_snapshot(state, truncate_keys=[CV_RAW_TEXT_KEY])
                 last_state = state
 
@@ -61,29 +76,27 @@ class ChatService:
 
     async def process_cv(self, file_bytes: bytes, filename: str, thread_id: str = DEFAULT_THREAD_ID) -> dict[str, Any]:
         """
-        Extracts text from a PDF and injects it into the graph as cv_raw_text.
-        The onboarding agent will analyze it and store a structured summary.
+        Extracts text from a PDF and injects it into the profile graph as cv_raw_text.
+        CV upload is always a profile workspace action.
         """
-        logger.info("Processing CV upload", extra={"cv_filename": filename, "thread_id": thread_id})
+        logger.info("Processing CV upload", cv_filename=filename, thread_id=thread_id)
 
         cv_text = self._extract_text_from_pdf(file_bytes)
 
         config: RunnableConfig = {
-            "configurable": {"thread_id": thread_id, "user_id": DEFAULT_USER_ID},
+            "configurable": {"thread_id": f"{thread_id}_profile", "user_id": DEFAULT_USER_ID},
             "metadata": {"request_id": request_id_var.get()},
             "tags": ["upload-cv"],
         }
 
-        # Inject CV text as state + user message — onboarding agent handles the rest
         inputs: dict[str, Any] = {
             "messages": [HumanMessage(content=f"I just uploaded my CV ({filename}). Please analyze it.")],
             CV_RAW_TEXT_KEY: cv_text,
-            "search_attempts": 0,
         }
 
         last_state = inputs
         with log_timing("graph.astream", logger):
-            async for state in self._graph.astream(inputs, config=config, stream_mode="values"):
+            async for state in self._profile_graph.astream(inputs, config=config, stream_mode="values"):
                 log_state_snapshot(state, truncate_keys=[CV_RAW_TEXT_KEY])
                 last_state = state
 
@@ -129,7 +142,6 @@ class ChatService:
         if not ai_content and not jobs:
             ai_content = "I apologize, but I couldn't generate a response. Please try asking again."
 
-        # Inject deterministic id into each job dict for frontend tracking
         for job in jobs:
             if not job.get("id"):
                 slug = f"{job.get('company', '')}{job.get('title', '')}{job.get('apply_link', '')}".encode()
@@ -147,29 +159,27 @@ class ChatService:
         pdf = PdfReader(BytesIO(file_bytes))
         return "\n".join(page.extract_text() for page in pdf.pages)
 
-    async def get_history(self, thread_id: str = DEFAULT_THREAD_ID) -> list[dict[str, Any]]:
+    async def get_history(self, thread_id: str = DEFAULT_THREAD_ID, workspace: Literal["discovery", "profile"] = "discovery") -> list[dict[str, Any]]:
         """
         Retrieves the chat history for a given thread, formatted for the UI.
         Returns a list of message turns (User -> AI).
         """
-        logger.info("Fetching chat history", extra={"thread_id": thread_id})
+        logger.info("Fetching chat history", thread_id=thread_id, workspace=workspace)
 
         config: RunnableConfig = {
-            "configurable": {"thread_id": thread_id, "user_id": DEFAULT_USER_ID},
+            "configurable": {"thread_id": f"{thread_id}_{workspace}", "user_id": DEFAULT_USER_ID},
         }
 
-        # fetch current state
-        state = await self._graph.aget_state(config)
+        graph = self._get_graph(workspace)
+        state = await graph.aget_state(config)
         if not state.values:
             return []
 
         messages = state.values.get("messages", [])
         history: list[dict[str, Any]] = []
 
-        # Simple pairing strategy: iterate and group Human -> AI
-        # We skip SystemMessages.
-        # This assumes a somewhat strict turn-taking (Human -> AI -> Human -> AI)
-        # adaptable if we have multiple tool calls in between.
+        # Assumes strict turn-taking (Human → AI). Tool call messages in between
+        # are skipped; only the final AIMessage per turn is surfaced.
 
         current_turn: dict[str, Any] | None = None
 

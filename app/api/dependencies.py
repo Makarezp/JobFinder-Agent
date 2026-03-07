@@ -13,15 +13,20 @@ def get_store(request: Request) -> BaseStore:  # type: ignore[type-arg]
     return request.app.state.store  # type: ignore[no-any-return]
 
 
-def get_graph(request: Request) -> CompiledStateGraph[Any]:  # type: ignore[type-arg]
-    return request.app.state.graph  # type: ignore[no-any-return]
+def get_discovery_graph(request: Request) -> CompiledStateGraph[Any]:  # type: ignore[type-arg]
+    return request.app.state.discovery_graph  # type: ignore[no-any-return]
+
+
+def get_profile_graph(request: Request) -> CompiledStateGraph[Any]:  # type: ignore[type-arg]
+    return request.app.state.profile_graph  # type: ignore[no-any-return]
 
 
 def get_chat_service(
-    graph: Annotated[CompiledStateGraph[Any], Depends(get_graph)],
+    discovery_graph: Annotated[CompiledStateGraph[Any], Depends(get_discovery_graph)],
+    profile_graph: Annotated[CompiledStateGraph[Any], Depends(get_profile_graph)],
     store: Annotated[BaseStore, Depends(get_store)],
 ) -> ChatService:
-    return ChatService(graph, store, ProfileService(store))
+    return ChatService(discovery_graph, profile_graph, store, ProfileService(store))
 
 
 def get_profile_service(

@@ -7,6 +7,7 @@ from app.agent.memory_schema import PendingJob
 
 class ChatRequest(BaseModel):
     message: str
+    workspace: Literal["discovery", "profile"] = "discovery"
 
 
 class FeedbackRequest(BaseModel):

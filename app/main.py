@@ -8,7 +8,8 @@ from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.store.postgres import AsyncPostgresStore
 from psycopg_pool import AsyncConnectionPool
 
-from app.agent.graph import get_compiled_graph
+from app.agent.discovery.graph import get_discovery_graph
+from app.agent.profile.graph import get_profile_graph
 from app.api.middleware import RequestIdMiddleware
 from app.api.routes import router as api_router
 from app.core.config import settings
@@ -33,11 +34,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await checkpointer.setup()
     store = AsyncPostgresStore(pool)  # type: ignore[arg-type]
     await store.setup()
-    graph = get_compiled_graph(checkpointer=checkpointer, store=store)
-
     app.state.pool = pool
     app.state.store = store
-    app.state.graph = graph
+    app.state.discovery_graph = get_discovery_graph(checkpointer=checkpointer, store=store)
+    app.state.profile_graph = get_profile_graph(checkpointer=checkpointer, store=store)
 
     logger.info("Application ready.")
     yield

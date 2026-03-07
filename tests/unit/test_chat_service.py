@@ -1,11 +1,13 @@
-"""Unit tests for ChatService.process_message job persistence (Ticket 4.3) and get_history filtering (Ticket 8.1)."""
+"""Unit tests for ChatService.process_message job persistence (Ticket 4.3), get_history filtering (Ticket 8.1), and workspace routing (Ticket 9.3)."""
 
+import io
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.store.memory import InMemoryStore
+from pypdf import PdfWriter
 
 from app.agent.constants import FINAL_ANSWER_TOOL_NAME, JOBS_KEY, TEXT_RESPONSE_KEY
 from app.services.chat_service import ChatService
@@ -62,9 +64,15 @@ def _make_graph_mock(jobs: list[dict[str, Any]]) -> MagicMock:
 
 
 def _make_service(store: InMemoryStore) -> ChatService:
-    graph = _make_graph_mock([JOB_A, JOB_B])
+    discovery_graph = _make_graph_mock([JOB_A, JOB_B])
+    profile_graph = _make_graph_mock([])
     profile_service = ProfileService(store=store)
-    return ChatService(graph=graph, store=store, profile_service=profile_service)
+    return ChatService(
+        discovery_graph=discovery_graph,
+        profile_graph=profile_graph,
+        store=store,
+        profile_service=profile_service,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -120,14 +128,14 @@ async def test_process_message_no_jobs_does_not_call_add_pending() -> None:
 
     profile_service = ProfileService(store=store)
     with patch.object(profile_service, "add_pending_jobs", new_callable=AsyncMock) as mock_add:
-        service = ChatService(graph=graph, store=store, profile_service=profile_service)
+        service = ChatService(
+            discovery_graph=graph,
+            profile_graph=_make_graph_mock([]),
+            store=store,
+            profile_service=profile_service,
+        )
         await service.process_message("tell me something")
         mock_add.assert_not_called()
-
-
-# ---------------------------------------------------------------------------
-# Ticket 8.1: get_history system trigger filtering
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -148,7 +156,12 @@ async def test_get_history_filters_system_trigger() -> None:
 
     store = InMemoryStore()
     profile_service = MagicMock()
-    service = ChatService(graph=graph, store=store, profile_service=profile_service)
+    service = ChatService(
+        discovery_graph=graph,
+        profile_graph=MagicMock(),
+        store=store,
+        profile_service=profile_service,
+    )
 
     history = await service.get_history()
 
@@ -158,3 +171,85 @@ async def test_get_history_filters_system_trigger() -> None:
 
     # The "Hi" / "Hello" turn must be present
     assert any(turn["user_message"] == "Hi" for turn in history)
+
+
+def _make_spy_graph(jobs: list[dict[str, Any]]) -> tuple[MagicMock, list[bool]]:
+    """Return a graph mock and a single-element mutable flag.
+
+    flag[0] is set True when astream is called, allowing routing assertions
+    without nonlocal boilerplate.
+    """
+    graph = _make_graph_mock(jobs)
+    called: list[bool] = [False]
+    original = graph.astream
+
+    async def _spy(*args: Any, **kwargs: Any) -> Any:
+        called[0] = True
+        async for s in original(*args, **kwargs):
+            yield s
+
+    graph.astream = _spy
+    return graph, called
+
+
+def _make_blank_pdf() -> bytes:
+    buf = io.BytesIO()
+    PdfWriter().write(buf)
+    return buf.getvalue()
+
+
+@pytest.mark.asyncio
+async def test_process_message_routes_to_discovery_by_default() -> None:
+    """Default workspace routes to the discovery graph."""
+    store = InMemoryStore()
+    discovery_graph, discovery_called = _make_spy_graph([])
+    profile_graph, profile_called = _make_spy_graph([])
+
+    service = ChatService(
+        discovery_graph=discovery_graph,
+        profile_graph=profile_graph,
+        store=store,
+        profile_service=ProfileService(store=store),
+    )
+    await service.process_message("find jobs")
+
+    assert discovery_called[0]
+    assert not profile_called[0]
+
+
+@pytest.mark.asyncio
+async def test_process_message_routes_to_profile() -> None:
+    """Explicit workspace='profile' routes to the profile graph."""
+    store = InMemoryStore()
+    discovery_graph, discovery_called = _make_spy_graph([])
+    profile_graph, profile_called = _make_spy_graph([])
+
+    service = ChatService(
+        discovery_graph=discovery_graph,
+        profile_graph=profile_graph,
+        store=store,
+        profile_service=ProfileService(store=store),
+    )
+    await service.process_message("update my name", workspace="profile")
+
+    assert profile_called[0]
+    assert not discovery_called[0]
+
+
+@pytest.mark.asyncio
+async def test_process_cv_always_uses_profile_graph() -> None:
+    """process_cv always uses the profile graph regardless of workspace."""
+    store = InMemoryStore()
+    discovery_graph, discovery_called = _make_spy_graph([])
+    profile_graph, profile_called = _make_spy_graph([])
+
+    service = ChatService(
+        discovery_graph=discovery_graph,
+        profile_graph=profile_graph,
+        store=store,
+        profile_service=ProfileService(store=store),
+    )
+    await service.process_cv(_make_blank_pdf(), filename="cv.pdf")
+
+    assert profile_called[0]
+    assert not discovery_called[0]

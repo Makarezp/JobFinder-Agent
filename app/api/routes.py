@@ -1,7 +1,7 @@
-from typing import Annotated
+from typing import Annotated, Literal
 
 import structlog
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import JSONResponse
 
 from app.agent.constants import DEFAULT_USER_ID
@@ -62,7 +62,7 @@ async def chat_endpoint(body: ChatRequest, service: ChatServiceDep) -> JSONRespo
         raise HTTPException(status_code=400, detail="Message is required")
 
     try:
-        result = await service.process_message(body.message)
+        result = await service.process_message(body.message, workspace=body.workspace)
         return JSONResponse(content=result)
 
     except Exception as e:
@@ -97,7 +97,10 @@ async def upload_cv(service: ChatServiceDep, file: UploadFile = File(...)) -> JS
 
 
 @router.get("/history")
-async def get_history(service: ChatServiceDep) -> JSONResponse:
+async def get_history(
+    service: ChatServiceDep,
+    workspace: Literal["discovery", "profile"] = Query(default="discovery"),
+) -> JSONResponse:
     """Return the chat history as a JSON array."""
-    history = await service.get_history()
+    history = await service.get_history(workspace=workspace)
     return JSONResponse(content=history)

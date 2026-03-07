@@ -196,7 +196,7 @@ Create a self-contained Profile Agent as a standalone compiled LangGraph graph w
 
 ---
 
-## Ticket 9.3: Wire Workspace Routing
+## Ticket 9.3: Wire Workspace Routing - done
 
 ### Overview
 Refactor the backend to route chat requests to the correct agent graph based on a `workspace` property in the API payload. After this ticket, the application runs entirely on the two standalone graphs from Tickets 9.1 and 9.2. The monolithic `graph.py` is no longer invoked at runtime but is **not deleted yet** (that happens in Ticket 9.4).
