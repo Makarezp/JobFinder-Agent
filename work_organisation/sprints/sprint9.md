@@ -1,11 +1,11 @@
-# Sprint 9: Contextual Workspaces
+``# Sprint 9: Contextual Workspaces
 
 **Spec**: [contextual-workspaces.md](../spec/contextual-workspaces.md)
 **Goal**: Transition from a monolithic dual-agent graph to isolated, workspace-specific agents (Discovery + Profile), routed at the service layer.
 
 ---
 
-## Ticket 9.1: Extract Discovery Agent Graph
+## Ticket 9.1: Extract Discovery Agent Graph - done
 
 ### Overview
 Create a self-contained Discovery Agent as a standalone compiled LangGraph graph with its own state schema. This extracts the existing `main/` agent logic (nodes, prompts, tools) into a new `app/agent/discovery/` package with its own `DiscoveryAgentState` and `get_discovery_graph()` builder. The monolithic `graph.py` remains untouched — this ticket only **adds**, it does not delete or rewire anything.

@@ -130,10 +130,3 @@ CVviewer/
     ├── bugs/             # Bug tracker (Explicit request only)
     └── sprints/          # Sprint plans (Explicit request only)
 ```
-
-## Status
-**Phase 2: React Native Migration**
-- Sprint 0 (In Progress): Next.js scaffold, Backend JSON API refactor, Zustand store.
-- Sprint 1: Stitch design system integration.
-- Sprint 2: Full agent chat UI.
-- Sprint 3: Interactivity loop (Pass/Pursue feedback).

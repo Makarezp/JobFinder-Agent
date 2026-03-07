@@ -18,10 +18,10 @@ from app.agent.constants import (
     MESSAGES_KEY,
     ONBOARDING_COMPLETE_SIGNAL,
 )
+from app.agent.discovery.state import DiscoveryAgentState
 from app.agent.main.prompts import SYSTEM_PROMPT
 from app.agent.main.tools import main_tools
 from app.agent.memory_schema import DecisionLog, Preference, UserProfile
-from app.agent.state import AgentState
 from app.core.config import settings
 from app.core.node_logging_utils import log_node_completed
 
@@ -123,7 +123,7 @@ def _strip_onboarding_messages(messages: list[BaseMessage]) -> list[BaseMessage]
 
 
 # --- Node: fetch_profile (main agent entry) ---
-async def fetch_profile(state: AgentState, config: RunnableConfig, store: Annotated[BaseStore, InjectedStore]) -> dict[str, Any]:
+async def fetch_profile(state: DiscoveryAgentState, config: RunnableConfig, store: Annotated[BaseStore, InjectedStore]) -> dict[str, Any]:
     """
     Read user profile and preferences from Store and inject into state.
     Used as the entry point for the main agent path.
@@ -151,7 +151,7 @@ async def fetch_profile(state: AgentState, config: RunnableConfig, store: Annota
                 pref = Preference(**item.value)
                 preferences[item.key] = pref.model_dump()
             except Exception:
-                logger.warning(f"Skipping invalid preference: {item.key}")
+                logger.warning("Skipping invalid preference", key=item.key)
     recent_decisions = sorted(
         [DecisionLog(**item.value).model_dump() for item in decisions_items if item.value],
         key=lambda d: d["timestamp"],
@@ -159,7 +159,10 @@ async def fetch_profile(state: AgentState, config: RunnableConfig, store: Annota
     )[:10]
 
     logger.info(
-        "Node Completed: fetch_profile", extra={"profile": profile_dict, "pref_count": len(preferences), "decisions_count": len(recent_decisions)}
+        "Node Completed: fetch_profile",
+        profile=profile_dict,
+        pref_count=len(preferences),
+        decisions_count=len(recent_decisions),
     )
 
     patch: dict[str, Any] = {
@@ -186,7 +189,7 @@ async def fetch_profile(state: AgentState, config: RunnableConfig, store: Annota
 
 # --- Node: main_chatbot ---
 @traceable
-def main_chatbot(state: AgentState) -> dict[str, list[BaseMessage]]:
+def main_chatbot(state: DiscoveryAgentState) -> dict[str, list[BaseMessage]]:
     """Main job-hunting agent node — uses structured profile and preferences."""
     logger.info("Node Started: main_chatbot")
 
@@ -256,7 +259,7 @@ def main_chatbot(state: AgentState) -> dict[str, list[BaseMessage]]:
 
 
 # --- Routing: main agent ---
-def route_main(state: AgentState) -> str:
+def route_main(state: DiscoveryAgentState) -> str:
     """Route main agent output: tool calls, final_answer, or end."""
     messages = cast(list[BaseMessage], state.get(MESSAGES_KEY, []))
     ai_message = messages[-1] if messages else None
