@@ -53,8 +53,7 @@ def _format_apply_link(job: dict[str, Any]) -> str:
 def jsearch_api_search(
     query: str,
     country: str,
-    date_posted: str = "all",
-    employment_types: str | None = None,
+    date_posted: str = "month",
     remote_only: bool = False,
     page: int = 1,
 ) -> list[dict[str, Any]] | str:
@@ -81,9 +80,6 @@ def jsearch_api_search(
         "date_posted": date_posted,
         "country": country,
     }
-
-    if employment_types:
-        params["employment_types"] = employment_types
 
     if remote_only:
         params["work_from_home"] = "true"

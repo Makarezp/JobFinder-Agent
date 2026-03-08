@@ -56,7 +56,6 @@ def _make_state(tool_call_id: str = "tc-1") -> DiscoveryAgentState:
                     "query": "python engineer london",
                     "country": "gb",
                     "date_posted": "all",
-                    "employment_types": None,
                     "remote_only": False,
                     "page": 1,
                 },

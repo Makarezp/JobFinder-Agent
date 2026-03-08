@@ -7,11 +7,11 @@ class JobSpecialistInput(BaseModel):
     query: str = Field(
         ...,
         description=(
-            "A single, simple job title or role keyword. "
+            "A job title or role keyword, optionally including location and employment type. "
+            "Use the format '[Role] jobs in [Location]'. "
+            "Include semantic keywords like 'contract', 'part-time', or 'permanent' directly in the query string instead of using separate filters. "
             "DO NOT use Boolean operators ('or', 'and', '|'). "
-            "DO NOT combine multiple job titles in one query. "
-            "You MUST include the exact location at the end of the query string, especially outside the US. "
-            "GOOD: 'admin assistant London', 'social media coordinator UK'. "
+            "GOOD: 'admin assistant London', 'Android Developer contract London', 'social media coordinator UK part-time'. "
             "BAD: 'admin or social media or customer service', 'receptionist'."
         ),
     )
@@ -21,8 +21,13 @@ class JobSpecialistInput(BaseModel):
             "2-letter ISO 3166-1 alpha-2 country code (e.g., 'us', 'gb', 'de'). MANDATORY. Infer this from the user's location, CV, or preferences."
         ),
     )
-    date_posted: str = Field(default="all", description="Filter by posting date. One of: 'all', 'today', '3days', 'week', 'month'.")
-    employment_types: str | None = Field(default=None, description="Comma-separated employment types: FULLTIME, CONTRACTOR, PARTTIME, INTERN.")
+    date_posted: str = Field(
+        default="month",
+        description=(
+            "Filter by posting date. One of: 'all', 'today', '3days', 'week', 'month'. "
+            "Defaults to 'month' to avoid missing high-quality roles posted just outside a 7-day window."
+        ),
+    )
     remote_only: bool = Field(default=False, description="Restrict results to remote-only positions.")
     page: int = Field(default=1, description="Page number for pagination.")
 

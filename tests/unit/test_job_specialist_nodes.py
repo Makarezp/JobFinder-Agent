@@ -89,15 +89,14 @@ def test_search_jobs_applies_defaults_for_missing_fields() -> None:
 
 
 def test_search_jobs_passes_correct_args_to_tool() -> None:
-    """search_jobs forwards all JobSpecialistInput fields to jsearch_api_search."""
+    """search_jobs forwards all JobSpecialistInput fields to jsearch_api_search without employment_types."""
     state = cast(
         JobSpecialistState,
         {
             "input": JobSpecialistInput(
-                query="golang engineer",
+                query="golang engineer contract",
                 country="us",
                 date_posted="week",
-                employment_types="FULLTIME,CONTRACTOR",
                 remote_only=True,
                 page=2,
             ),
@@ -112,9 +111,8 @@ def test_search_jobs_passes_correct_args_to_tool() -> None:
 
         mock_tool.invoke.assert_called_once_with(
             {
-                "query": "golang engineer",
+                "query": "golang engineer contract",
                 "date_posted": "week",
-                "employment_types": "FULLTIME,CONTRACTOR",
                 "remote_only": True,
                 "page": 2,
                 "country": "us",
