@@ -23,6 +23,7 @@ def search_jobs(state: JobSpecialistState) -> dict[str, Any]:
             "employment_types": input_data.employment_types,
             "remote_only": input_data.remote_only,
             "page": input_data.page,
+            "country": input_data.country,
         }
     )
 

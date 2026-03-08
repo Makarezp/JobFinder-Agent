@@ -107,13 +107,13 @@ def test_onboarding_chatbot_handles_llm_exception() -> None:
 
 def test_job_specialist_input_valid_simple_query() -> None:
     """Schema accepts a simple single-role query."""
-    model = JobSpecialistInput(query="admin assistant", page=1)
+    model = JobSpecialistInput(query="admin assistant", country="us", page=1)
     assert model.query == "admin assistant"
     assert model.page == 1
 
 
 def test_job_specialist_input_valid_with_location_and_country() -> None:
     """Schema accepts a role+location query with explicit location string."""
-    model = JobSpecialistInput(query="receptionist St Albans gb", remote_only=False)
+    model = JobSpecialistInput(query="receptionist St Albans gb", country="gb", remote_only=False)
     assert model.query == "receptionist St Albans gb"
     assert model.remote_only is False

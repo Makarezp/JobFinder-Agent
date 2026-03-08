@@ -15,6 +15,12 @@ class JobSpecialistInput(BaseModel):
             "BAD: 'admin or social media or customer service', 'receptionist'."
         ),
     )
+    country: str = Field(
+        ...,
+        description=(
+            "2-letter ISO 3166-1 alpha-2 country code (e.g., 'us', 'gb', 'de'). MANDATORY. Infer this from the user's location, CV, or preferences."
+        ),
+    )
     date_posted: str = Field(default="all", description="Filter by posting date. One of: 'all', 'today', '3days', 'week', 'month'.")
     employment_types: str | None = Field(default=None, description="Comma-separated employment types: FULLTIME, CONTRACTOR, PARTTIME, INTERN.")
     remote_only: bool = Field(default=False, description="Restrict results to remote-only positions.")

@@ -54,6 +54,7 @@ def _make_state(tool_call_id: str = "tc-1") -> DiscoveryAgentState:
                 "name": "job_specialist_tool",
                 "args": {
                     "query": "python engineer london",
+                    "country": "gb",
                     "date_posted": "all",
                     "employment_types": None,
                     "remote_only": False,

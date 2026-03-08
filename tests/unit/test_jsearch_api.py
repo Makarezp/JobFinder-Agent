@@ -57,7 +57,7 @@ class TestJSearchFieldMapping:
         raw = _make_raw_job()
         with patch("httpx.Client") as mock_client_cls:
             mock_client_cls.return_value.__enter__.return_value.get.return_value = _mock_response([raw])
-            result = jsearch_api_search.invoke({"query": "software engineer"})
+            result = jsearch_api_search.invoke({"query": "software engineer", "country": "us"})
 
         assert isinstance(result, list)
         assert len(result) == 1
@@ -71,7 +71,7 @@ class TestJSearchFieldMapping:
         raw = _make_raw_job(job_city="London", job_state="", job_country="GB")
         with patch("httpx.Client") as mock_client_cls:
             mock_client_cls.return_value.__enter__.return_value.get.return_value = _mock_response([raw])
-            result = jsearch_api_search.invoke({"query": "python developer"})
+            result = jsearch_api_search.invoke({"query": "python developer", "country": "gb"})
 
         assert isinstance(result, list)
         job = result[0]
@@ -82,7 +82,7 @@ class TestJSearchFieldMapping:
         raw = _make_raw_job(job_city="Chicago", job_state="IL", job_country="US")
         with patch("httpx.Client") as mock_client_cls:
             mock_client_cls.return_value.__enter__.return_value.get.return_value = _mock_response([raw])
-            result = jsearch_api_search.invoke({"query": "engineer"})
+            result = jsearch_api_search.invoke({"query": "engineer", "country": "us"})
 
         assert isinstance(result, list)
         assert result[0]["location"] == "Chicago, IL, US"
@@ -93,7 +93,7 @@ class TestSalaryFormatting:
         raw = _make_raw_job(job_min_salary=80_000, job_max_salary=120_000, job_salary_period="YEAR")
         with patch("httpx.Client") as mock_client_cls:
             mock_client_cls.return_value.__enter__.return_value.get.return_value = _mock_response([raw])
-            result = jsearch_api_search.invoke({"query": "engineer"})
+            result = jsearch_api_search.invoke({"query": "engineer", "country": "us"})
 
         assert isinstance(result, list)
         assert result[0]["salary"] == "$80,000 - $120,000 per YEAR"
@@ -102,7 +102,7 @@ class TestSalaryFormatting:
         raw = _make_raw_job(job_min_salary=50_000, job_max_salary=None, job_salary_period="YEAR")
         with patch("httpx.Client") as mock_client_cls:
             mock_client_cls.return_value.__enter__.return_value.get.return_value = _mock_response([raw])
-            result = jsearch_api_search.invoke({"query": "engineer"})
+            result = jsearch_api_search.invoke({"query": "engineer", "country": "us"})
 
         assert isinstance(result, list)
         assert result[0]["salary"] == "From $50,000 per YEAR"
@@ -111,7 +111,7 @@ class TestSalaryFormatting:
         raw = _make_raw_job(job_min_salary=None, job_max_salary=None, job_salary=70_000)
         with patch("httpx.Client") as mock_client_cls:
             mock_client_cls.return_value.__enter__.return_value.get.return_value = _mock_response([raw])
-            result = jsearch_api_search.invoke({"query": "engineer"})
+            result = jsearch_api_search.invoke({"query": "engineer", "country": "us"})
 
         assert isinstance(result, list)
         assert result[0]["salary"] == "70000"
@@ -120,7 +120,7 @@ class TestSalaryFormatting:
         raw = _make_raw_job(job_min_salary=None, job_max_salary=None, job_salary=None)
         with patch("httpx.Client") as mock_client_cls:
             mock_client_cls.return_value.__enter__.return_value.get.return_value = _mock_response([raw])
-            result = jsearch_api_search.invoke({"query": "engineer"})
+            result = jsearch_api_search.invoke({"query": "engineer", "country": "us"})
 
         assert isinstance(result, list)
         assert result[0]["salary"] is None
@@ -131,7 +131,7 @@ class TestDescriptionTruncation:
         raw = _make_raw_job(job_description="X" * 5000)
         with patch("httpx.Client") as mock_client_cls:
             mock_client_cls.return_value.__enter__.return_value.get.return_value = _mock_response([raw])
-            result = jsearch_api_search.invoke({"query": "engineer"})
+            result = jsearch_api_search.invoke({"query": "engineer", "country": "us"})
 
         assert isinstance(result, list)
         assert len(result[0]["full_description"]) == 1000
@@ -141,7 +141,7 @@ class TestDescriptionTruncation:
         raw = _make_raw_job(job_description=short_desc)
         with patch("httpx.Client") as mock_client_cls:
             mock_client_cls.return_value.__enter__.return_value.get.return_value = _mock_response([raw])
-            result = jsearch_api_search.invoke({"query": "engineer"})
+            result = jsearch_api_search.invoke({"query": "engineer", "country": "us"})
 
         assert isinstance(result, list)
         assert result[0]["full_description"] == short_desc
@@ -150,7 +150,7 @@ class TestDescriptionTruncation:
         raw = _make_raw_job(job_description="Y" * 1000)
         with patch("httpx.Client") as mock_client_cls:
             mock_client_cls.return_value.__enter__.return_value.get.return_value = _mock_response([raw])
-            result = jsearch_api_search.invoke({"query": "engineer"})
+            result = jsearch_api_search.invoke({"query": "engineer", "country": "us"})
 
         assert isinstance(result, list)
         assert len(result[0]["description"]) == 300
@@ -166,7 +166,7 @@ class TestApplyLinkFallback:
         raw["job_apply_link"] = None
         with patch("httpx.Client") as mock_client_cls:
             mock_client_cls.return_value.__enter__.return_value.get.return_value = _mock_response([raw])
-            result = jsearch_api_search.invoke({"query": "engineer"})
+            result = jsearch_api_search.invoke({"query": "engineer", "country": "us"})
 
         assert isinstance(result, list)
         assert result[0]["apply_link"] == "https://fallback.com/apply"
@@ -176,7 +176,7 @@ class TestErrorHandling:
     def test_returns_error_string_when_api_key_missing(self) -> None:
         with patch("app.tools.jsearch_api.settings") as mock_settings:
             mock_settings.JSEARCH_API_KEY = None
-            result = jsearch_api_search.invoke({"query": "engineer"})
+            result = jsearch_api_search.invoke({"query": "engineer", "country": "us"})
 
         assert isinstance(result, str)
         assert "JSEARCH_API_KEY" in result
@@ -191,7 +191,7 @@ class TestErrorHandling:
             mock_resp.raise_for_status.side_effect = httpx.HTTPStatusError("429", request=MagicMock(), response=mock_resp)
             mock_client_cls.return_value.__enter__.return_value.get.return_value = mock_resp
 
-            result = jsearch_api_search.invoke({"query": "engineer"})
+            result = jsearch_api_search.invoke({"query": "engineer", "country": "us"})
 
         assert isinstance(result, str)
         assert "429" in result
@@ -201,7 +201,7 @@ class TestErrorHandling:
 
         with patch("httpx.Client") as mock_client_cls:
             mock_client_cls.return_value.__enter__.return_value.get.side_effect = httpx.RequestError("Connection refused")
-            result = jsearch_api_search.invoke({"query": "engineer"})
+            result = jsearch_api_search.invoke({"query": "engineer", "country": "us"})
 
         assert isinstance(result, str)
         assert "Error" in result
@@ -209,7 +209,7 @@ class TestErrorHandling:
     def test_returns_empty_list_when_data_is_empty(self) -> None:
         with patch("httpx.Client") as mock_client_cls:
             mock_client_cls.return_value.__enter__.return_value.get.return_value = _mock_response([])
-            result = jsearch_api_search.invoke({"query": "engineer"})
+            result = jsearch_api_search.invoke({"query": "engineer", "country": "us"})
 
         assert result == []
 
@@ -221,7 +221,7 @@ class TestRequestParams:
             mock_get = mock_client_cls.return_value.__enter__.return_value.get
             mock_get.return_value = _mock_response([raw])
 
-            jsearch_api_search.invoke({"query": "engineer", "page": 3})
+            jsearch_api_search.invoke({"query": "engineer", "country": "us", "page": 3})
 
             call_kwargs = mock_get.call_args
             params = call_kwargs.kwargs.get("params") or call_kwargs.args[1] if call_kwargs.args else call_kwargs.kwargs["params"]
@@ -234,7 +234,7 @@ class TestRequestParams:
             mock_get = mock_client_cls.return_value.__enter__.return_value.get
             mock_get.return_value = _mock_response([raw])
 
-            jsearch_api_search.invoke({"query": "engineer", "remote_only": True})
+            jsearch_api_search.invoke({"query": "engineer", "country": "us", "remote_only": True})
 
             call_kwargs = mock_get.call_args
             params = call_kwargs.kwargs["params"]

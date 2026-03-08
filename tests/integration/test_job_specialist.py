@@ -11,7 +11,7 @@ from app.agent.schemas import JobSpecialistInput
 @pytest.mark.asyncio
 async def test_job_search_graph_returns_search_results() -> None:
     """The job_search subgraph invokes jsearch_api_search and returns search_results."""
-    input_data = JobSpecialistInput(query="Python Developer in London")
+    input_data = JobSpecialistInput(query="Python Developer in London", country="gb")
     state = cast(JobSpecialistState, {"input": input_data, "search_results": None})
 
     mock_jsearch_response = [
@@ -40,7 +40,7 @@ async def test_job_search_graph_returns_search_results() -> None:
 @pytest.mark.asyncio
 async def test_job_search_graph_handles_tool_error_gracefully() -> None:
     """The job_search subgraph returns an empty list when jsearch_api_search returns an error string."""
-    input_data = JobSpecialistInput(query="Python Developer in London")
+    input_data = JobSpecialistInput(query="Python Developer in London", country="gb")
     state = cast(JobSpecialistState, {"input": input_data, "search_results": None})
 
     with patch("app.agent.job_search.nodes.jsearch_api_search") as mock_tool:

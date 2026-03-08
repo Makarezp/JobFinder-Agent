@@ -14,7 +14,7 @@ from app.agent.schemas import JobListing, JobSpecialistInput
 def _make_state(query: str = "python developer", page: int = 1) -> JobSpecialistState:
     return cast(
         JobSpecialistState,
-        {"input": JobSpecialistInput(query=query, page=page), "search_results": None},
+        {"input": JobSpecialistInput(query=query, country="us", page=page), "search_results": None},
     )
 
 
@@ -95,6 +95,7 @@ def test_search_jobs_passes_correct_args_to_tool() -> None:
         {
             "input": JobSpecialistInput(
                 query="golang engineer",
+                country="us",
                 date_posted="week",
                 employment_types="FULLTIME,CONTRACTOR",
                 remote_only=True,
@@ -116,6 +117,7 @@ def test_search_jobs_passes_correct_args_to_tool() -> None:
                 "employment_types": "FULLTIME,CONTRACTOR",
                 "remote_only": True,
                 "page": 2,
+                "country": "us",
             }
         )
 
