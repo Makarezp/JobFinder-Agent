@@ -41,3 +41,29 @@ def test_discovery_state_has_no_onboarding_fields() -> None:
     annotations = DiscoveryAgentState.__annotations__
     assert "onboarding_complete" not in annotations
     assert "cv_raw_text" not in annotations
+
+
+def test_route_after_tools_routes_to_end_on_final_answer() -> None:
+    from langchain_core.messages import AIMessage
+
+    from app.agent.constants import FINAL_ANSWER_TOOL_NAME
+    from app.agent.discovery.graph import route_after_tools
+
+    msg = AIMessage(
+        content="",
+        tool_calls=[{"name": FINAL_ANSWER_TOOL_NAME, "args": {}, "id": "1"}],
+    )
+    assert route_after_tools({"messages": [msg]}) == "__end__"  # type: ignore
+
+
+def test_route_after_tools_routes_to_chatbot_on_other_tools() -> None:
+    from langchain_core.messages import AIMessage
+
+    from app.agent.constants import DISCOVERY_CHATBOT_NODE
+    from app.agent.discovery.graph import route_after_tools
+
+    msg = AIMessage(
+        content="",
+        tool_calls=[{"name": "some_other_tool", "args": {}, "id": "1"}],
+    )
+    assert route_after_tools({"messages": [msg]}) == DISCOVERY_CHATBOT_NODE  # type: ignore

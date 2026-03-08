@@ -2,7 +2,6 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from langchain_core.messages import AIMessage
-from langgraph.graph import END
 from langgraph.store.memory import InMemoryStore
 
 from app.agent.constants import DISCOVERY_JOB_SPECIALIST_NODE, DISCOVERY_TOOLS_NODE
@@ -42,20 +41,6 @@ def test_route_main_routes_to_job_specialist_at_two_attempts() -> None:
     assert result == DISCOVERY_JOB_SPECIALIST_NODE
 
 
-def test_route_main_blocks_at_three_attempts() -> None:
-    """route_main returns END when search_attempts >= 3, blocking further subgraph calls."""
-    state = _make_job_specialist_ai_message(search_attempts=3)
-    result = route_main(state)  # type: ignore[arg-type]
-    assert result == str(END)
-
-
-def test_route_main_blocks_above_three_attempts() -> None:
-    """route_main returns END for any search_attempts >= 3."""
-    state = _make_job_specialist_ai_message(search_attempts=10)
-    result = route_main(state)  # type: ignore[arg-type]
-    assert result == str(END)
-
-
 def test_route_main_routes_other_tools_to_discovery_tools_node() -> None:
     """route_main routes non-job-specialist tool calls to DISCOVERY_TOOLS_NODE regardless of search_attempts."""
     msg = AIMessage(
@@ -92,3 +77,30 @@ async def test_call_job_specialist_increments_search_attempts() -> None:
 
         assert result["search_attempts"] == 2
         assert "messages" in result
+
+
+@pytest.mark.asyncio
+async def test_call_job_specialist_blocks_at_limit() -> None:
+    """call_job_specialist blocks execution and returns error ToolMessage at max attempts."""
+    msg = AIMessage(
+        content="",
+        tool_calls=[
+            {
+                "name": "job_specialist_tool",
+                "args": {"query": "Python engineer"},
+                "id": "call_1",
+            }
+        ],
+    )
+    state = {"search_attempts": 3, "messages": [msg]}
+
+    with patch("app.agent.discovery.graph.job_search_graph") as mock_graph:
+        mock_graph.ainvoke = AsyncMock(return_value={"search_results": []})
+        service = ProfileService(InMemoryStore())
+        result = await call_job_specialist(state, profile_service=service)  # type: ignore[arg-type]
+
+        # Ensure subgraph graph was never called
+        mock_graph.ainvoke.assert_not_called()
+        assert result["search_attempts"] == 4
+        assert len(result["messages"]) == 1
+        assert "Max search attempts reached" in result["messages"][0].content

@@ -16,6 +16,8 @@ from app.agent.constants import (
     DISCOVERY_FETCH_PROFILE_NODE,
     DISCOVERY_JOB_SPECIALIST_NODE,
     DISCOVERY_TOOLS_NODE,
+    FINAL_ANSWER_TOOL_NAME,
+    MAX_SEARCH_ATTEMPTS,
 )
 from app.agent.discovery.state import DiscoveryAgentState
 from app.agent.job_search.graph import job_search_graph
@@ -74,18 +76,47 @@ async def call_job_specialist(
     if not isinstance(last_message, AIMessage) or not last_message.tool_calls:
         return {"messages": []}
 
-    job_tool_calls = [tc for tc in last_message.tool_calls if tc["name"] == "job_specialist_tool"]
-    if not job_tool_calls:
-        return {"messages": []}
-
     current_attempts = state.get("search_attempts", 0)
 
-    tool_messages = await asyncio.gather(*[_run_single_job_search(tc, profile_service) for tc in job_tool_calls])
+    # Loop protection — answer all tool calls with an error message
+    if current_attempts >= MAX_SEARCH_ATTEMPTS:
+        logger.warning("Loop protection: max search attempts reached", tool_calls=len(last_message.tool_calls))
+        tool_msgs = [
+            ToolMessage(content="System: Max search attempts reached. You must provide a final answer stopping the search.", tool_call_id=tc["id"])
+            for tc in last_message.tool_calls
+        ]
+        return {"messages": tool_msgs, "search_attempts": current_attempts + 1}
+
+    tool_messages = []
+    job_tool_calls_to_run = []
+
+    # Normal execution, responding to ALL tool calls to appease strict LLMs
+    for tc in last_message.tool_calls:
+        if tc["name"] == "job_specialist_tool":
+            job_tool_calls_to_run.append(tc)
+        else:
+            tool_messages.append(
+                ToolMessage(content=f"Error: {tc['name']} cannot be combined with job_specialist_tool. Ignored.", tool_call_id=tc["id"])
+            )
+
+    if job_tool_calls_to_run:
+        job_results = await asyncio.gather(*[_run_single_job_search(tc, profile_service) for tc in job_tool_calls_to_run])
+        tool_messages.extend(job_results)
 
     return {
-        "messages": list(tool_messages),
+        "messages": tool_messages,
         "search_attempts": current_attempts + 1,
     }
+
+
+def route_after_tools(state: DiscoveryAgentState) -> str:
+    """Route output of ToolNode. If final_answer was called, end the graph."""
+    messages = state["messages"]
+    last_ai_message = next((m for m in reversed(messages) if isinstance(m, AIMessage)), None)
+    if last_ai_message and last_ai_message.tool_calls:
+        if any(tc["name"] == FINAL_ANSWER_TOOL_NAME for tc in last_ai_message.tool_calls):
+            return str(END)
+    return DISCOVERY_CHATBOT_NODE
 
 
 def get_discovery_graph(checkpointer: Any, store: BaseStore) -> CompiledStateGraph[Any]:
@@ -109,7 +140,14 @@ def get_discovery_graph(checkpointer: Any, store: BaseStore) -> CompiledStateGra
             END: END,
         },
     )
-    builder.add_edge(DISCOVERY_TOOLS_NODE, DISCOVERY_CHATBOT_NODE)
+    builder.add_conditional_edges(
+        DISCOVERY_TOOLS_NODE,
+        route_after_tools,
+        {
+            DISCOVERY_CHATBOT_NODE: DISCOVERY_CHATBOT_NODE,
+            END: END,
+        },
+    )
     builder.add_edge(DISCOVERY_JOB_SPECIALIST_NODE, DISCOVERY_CHATBOT_NODE)
 
     return builder.compile(checkpointer=checkpointer, store=store)

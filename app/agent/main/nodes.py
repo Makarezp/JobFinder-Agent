@@ -13,7 +13,6 @@ from langsmith import traceable
 from app.agent.constants import (
     DISCOVERY_JOB_SPECIALIST_NODE,
     DISCOVERY_TOOLS_NODE,
-    FINAL_ANSWER_TOOL_NAME,
     MAX_SEARCH_ATTEMPTS,
 )
 from app.agent.discovery.state import DiscoveryAgentState
@@ -215,13 +214,7 @@ def route_main(state: DiscoveryAgentState) -> str:
 
     tool_names = {tc["name"] for tc in ai_message.tool_calls}
 
-    if FINAL_ANSWER_TOOL_NAME in tool_names:
-        return str(END)
-
     if "job_specialist_tool" in tool_names:
-        if state.get("search_attempts", 0) >= MAX_SEARCH_ATTEMPTS:
-            logger.warning("Loop protection: max search attempts reached, forcing END")
-            return str(END)
         return DISCOVERY_JOB_SPECIALIST_NODE
 
     return DISCOVERY_TOOLS_NODE

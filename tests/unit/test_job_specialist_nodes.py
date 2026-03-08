@@ -112,7 +112,6 @@ def test_search_jobs_passes_correct_args_to_tool() -> None:
         mock_tool.invoke.assert_called_once_with(
             {
                 "query": "golang engineer",
-                "country": "us",
                 "date_posted": "week",
                 "employment_types": "FULLTIME,CONTRACTOR",
                 "remote_only": True,

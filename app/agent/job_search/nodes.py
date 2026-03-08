@@ -19,7 +19,6 @@ def search_jobs(state: JobSpecialistState) -> dict[str, Any]:
     raw_results = jsearch_api_search.invoke(
         {
             "query": input_data.query,
-            "country": input_data.country,
             "date_posted": input_data.date_posted,
             "employment_types": input_data.employment_types,
             "remote_only": input_data.remote_only,

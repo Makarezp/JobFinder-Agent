@@ -135,9 +135,17 @@ class ChatService:
         Parses the LangGraph result to extract the final answer and jobs.
         Handles both onboarding (plain AI messages) and main agent (final_answer tool).
         """
-        last_message = result["messages"][-1]
+        messages = result["messages"]
+        last_ai_message = next((m for m in reversed(messages) if isinstance(m, AIMessage)), None)
 
-        ai_content, jobs = self._extract_ai_content(last_message)
+        if not last_ai_message:
+            return {
+                "user_message": user_message,
+                "ai_message": "I apologize, but I couldn't generate a response. Please try asking again.",
+                "jobs": [],
+            }
+
+        ai_content, jobs = self._extract_ai_content(last_ai_message)
 
         if not ai_content and not jobs:
             ai_content = "I apologize, but I couldn't generate a response. Please try asking again."

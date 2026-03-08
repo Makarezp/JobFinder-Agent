@@ -10,17 +10,13 @@ class JobSpecialistInput(BaseModel):
             "A single, simple job title or role keyword. "
             "DO NOT use Boolean operators ('or', 'and', '|'). "
             "DO NOT combine multiple job titles in one query. "
-            "DO NOT include the location in this field — location belongs at the end of the query string only if JSearch requires it. "
-            "GOOD: 'admin assistant', 'social media coordinator', 'receptionist'. "
-            "BAD: 'admin or social media or customer service', 'part time admin or receptionist in St Albans'."
+            "You MUST include the exact location at the end of the query string, especially outside the US. "
+            "GOOD: 'admin assistant London', 'social media coordinator UK'. "
+            "BAD: 'admin or social media or customer service', 'receptionist'."
         ),
     )
     date_posted: str = Field(default="all", description="Filter by posting date. One of: 'all', 'today', '3days', 'week', 'month'.")
     employment_types: str | None = Field(default=None, description="Comma-separated employment types: FULLTIME, CONTRACTOR, PARTTIME, INTERN.")
-    country: str = Field(
-        default="us",
-        description="2-letter ISO 3166-1 alpha-2 country code (e.g., 'us', 'gb', 'de'). Infer this from the user's location.",
-    )
     remote_only: bool = Field(default=False, description="Restrict results to remote-only positions.")
     page: int = Field(default=1, description="Page number for pagination.")
 

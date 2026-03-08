@@ -110,12 +110,10 @@ def test_job_specialist_input_valid_simple_query() -> None:
     model = JobSpecialistInput(query="admin assistant", page=1)
     assert model.query == "admin assistant"
     assert model.page == 1
-    assert model.country == "us"
 
 
 def test_job_specialist_input_valid_with_location_and_country() -> None:
-    """Schema accepts a role+location query with explicit country code."""
-    model = JobSpecialistInput(query="receptionist St Albans", remote_only=False, country="gb")
-    assert model.query == "receptionist St Albans"
-    assert model.country == "gb"
+    """Schema accepts a role+location query with explicit location string."""
+    model = JobSpecialistInput(query="receptionist St Albans gb", remote_only=False)
+    assert model.query == "receptionist St Albans gb"
     assert model.remote_only is False

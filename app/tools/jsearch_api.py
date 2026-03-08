@@ -52,7 +52,6 @@ def _format_apply_link(job: dict[str, Any]) -> str:
 @tool("jsearch_api_search", args_schema=JobSpecialistInput)
 def jsearch_api_search(
     query: str,
-    country: str = "us",
     date_posted: str = "all",
     employment_types: str | None = None,
     remote_only: bool = False,
@@ -76,7 +75,6 @@ def jsearch_api_search(
 
     params: dict[str, Any] = {
         "query": query,
-        "country": country.lower(),
         "page": str(page),
         "num_pages": "1",  # Pagination safety: never bulk-fetch multiple pages
         "date_posted": date_posted,
