@@ -1,3 +1,4 @@
+import functools
 from typing import Any, TypeAlias
 
 from langgraph.graph import END, START, StateGraph
@@ -23,7 +24,7 @@ def get_profile_graph(checkpointer: Any, store: BaseStore) -> _ProfileGraph:
     """Build and compile the standalone Profile Agent graph."""
     builder = StateGraph(ProfileAgentState)
 
-    builder.add_node(PROFILE_FETCH_NODE, fetch_profile_data)
+    builder.add_node(PROFILE_FETCH_NODE, functools.partial(fetch_profile_data, store=store))
     builder.add_node(PROFILE_CHATBOT_NODE, onboarding_chatbot)
     builder.add_node(PROFILE_TOOLS_NODE, ToolNode(tools=onboarding_tools))
 

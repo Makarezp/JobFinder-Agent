@@ -1,9 +1,8 @@
 import asyncio
-from typing import Annotated, Any
+from typing import Any
 
 import structlog
 from langchain_core.runnables import RunnableConfig
-from langgraph.prebuilt import InjectedStore
 from langgraph.store.base import BaseStore
 
 from app.agent.memory_schema import Preference, UserProfile
@@ -15,7 +14,7 @@ logger = structlog.get_logger(__name__)
 async def fetch_profile_data(
     state: ProfileAgentState,
     config: RunnableConfig,
-    store: Annotated[BaseStore, InjectedStore],
+    store: BaseStore,
 ) -> dict[str, Any]:
     """Read user profile and preferences from Store and inject into state."""
     logger.info("Node Started: fetch_profile_data")
