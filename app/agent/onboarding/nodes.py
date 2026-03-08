@@ -1,9 +1,9 @@
 from typing import Annotated, Any, cast
 
 import structlog
+from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.graph import END
 from langgraph.prebuilt import InjectedStore
 from langgraph.store.base import BaseStore
@@ -16,19 +16,14 @@ from app.agent.constants import (
 from app.agent.onboarding.prompts import ONBOARDING_PROMPT
 from app.agent.onboarding.tools import onboarding_tools
 from app.agent.profile.state import ProfileAgentState
-from app.core.config import settings
+from app.core.llm import get_active_model
 from app.core.node_logging_utils import log_node_completed
 
 logger = structlog.get_logger(__name__)
 
 # --- LLM initialization ---
-llm = ChatGoogleGenerativeAI(
-    model=settings.GEMINI_MODEL_NAME,
-    temperature=0,
-    google_api_key=settings.GEMINI_API_KEY,
-)
-
-onboarding_llm = llm.bind_tools(onboarding_tools)
+base_llm: BaseChatModel = get_active_model(temperature=0)
+onboarding_llm = base_llm.bind_tools(onboarding_tools)
 
 
 # --- Node: check_onboarding_status (graph entry) ---

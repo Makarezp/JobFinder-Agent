@@ -16,7 +16,23 @@
 
 2.  **Configure**:
     - Copy `.env.example` to `.env`
-    - Add your `GEMINI_API_KEY` and `JSEARCH_API_KEY` (via RapidAPI).
+    - Add your `JSEARCH_API_KEY` (via RapidAPI) and the API key for your chosen LLM provider (see below).
+
+### LLM Provider
+
+The active model is controlled by `ACTIVE_LLM_MODEL` in `.env`. Supported values:
+
+| `ACTIVE_LLM_MODEL` | Required key | Provider |
+| :--- | :--- | :--- |
+| `gemini-flash-latest` | `GEMINI_API_KEY` | Google Gemini |
+| `deepseek-chat` | `DEEPSEEK_API_KEY` | DeepSeek |
+
+To switch to DeepSeek, set in `.env`:
+```env
+ACTIVE_LLM_MODEL=deepseek-chat
+DEEPSEEK_API_KEY=sk-...
+```
+Then restart the backend.
 
 3.  **Run**:
     ```bash

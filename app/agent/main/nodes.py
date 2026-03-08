@@ -2,9 +2,9 @@ import asyncio
 from typing import Annotated, Any
 
 import structlog
+from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, SystemMessage, trim_messages
 from langchain_core.runnables import RunnableConfig
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.graph import END
 from langgraph.prebuilt import InjectedStore
 from langgraph.store.base import BaseStore
@@ -20,19 +20,14 @@ from app.agent.discovery.state import DiscoveryAgentState
 from app.agent.main.prompts import SYSTEM_PROMPT
 from app.agent.main.tools import main_tools
 from app.agent.memory_schema import DecisionLog, Preference, UserProfile
-from app.core.config import settings
+from app.core.llm import get_active_model
 from app.core.node_logging_utils import log_node_completed
 
 logger = structlog.get_logger(__name__)
 
 # --- LLM initialization ---
-llm = ChatGoogleGenerativeAI(
-    model=settings.GEMINI_MODEL_NAME,
-    temperature=0,
-    google_api_key=settings.GEMINI_API_KEY,
-)
-
-main_llm = llm.bind_tools(main_tools)
+base_llm: BaseChatModel = get_active_model(temperature=0)
+main_llm = base_llm.bind_tools(main_tools)
 
 
 # --- Helper: format profile for system prompt ---

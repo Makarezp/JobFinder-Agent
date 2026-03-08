@@ -13,8 +13,9 @@ class Settings(BaseSettings):
     DEBUG: bool = True
 
     # LLM
-    GEMINI_API_KEY: str
-    GEMINI_MODEL_NAME: str = "gemini-flash-latest"
+    ACTIVE_LLM_MODEL: str = "gemini-flash-latest"
+    GEMINI_API_KEY: str | None = None
+    DEEPSEEK_API_KEY: str | None = None
 
     # LangSmith
     LANGCHAIN_TRACING_V2: bool = False
