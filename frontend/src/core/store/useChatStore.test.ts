@@ -31,6 +31,7 @@ describe("useChatStore", () => {
       error: null,
       fetchDeck: vi.fn().mockResolvedValue(undefined),
       submitFeedback: vi.fn(),
+      resetDiscovery: vi.fn(),
     });
   });
 
@@ -141,6 +142,7 @@ describe("useChatStore", () => {
         error: null,
         fetchDeck: mockFetchDeck,
         submitFeedback: vi.fn(),
+        resetDiscovery: vi.fn(),
       });
 
       const actualResponse = {
@@ -176,6 +178,7 @@ describe("useChatStore", () => {
         error: null,
         fetchDeck: mockFetchDeck,
         submitFeedback: vi.fn(),
+        resetDiscovery: vi.fn(),
       });
 
       vi.mocked(chatApi.sendMessageRequest).mockResolvedValueOnce({

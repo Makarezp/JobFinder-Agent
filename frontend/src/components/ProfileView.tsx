@@ -2,6 +2,7 @@
 
 import { useProfileStore } from "../core/store/useProfileStore";
 import { useChatStore } from "../core/store/useChatStore";
+import { useJobStore } from "../core/store/useJobStore";
 import { Preference, DecisionLogEntry } from "../core/types/api";
 
 function IdentityCard({
@@ -195,6 +196,50 @@ function DecisionLogCard({ decisions }: { decisions: DecisionLogEntry[] }) {
   );
 }
 
+function DangerZoneCard() {
+  const { resetDiscovery, isLoading } = useJobStore();
+
+  const handleResetDiscovery = async () => {
+    await resetDiscovery();
+    // Clear the local discovery chat thread so the UI reflects the fresh state
+    useChatStore.setState((state) => ({
+      threads: { ...state.threads, discovery: [] },
+    }));
+  };
+
+  return (
+    <div className="glass-panel rounded-2xl p-6 flex flex-col gap-4 border border-red-900/40">
+      <div className="flex items-center gap-2">
+        <span className="material-symbols-outlined text-sm text-red-400">
+          warning
+        </span>
+        <h3 className="text-sm font-semibold uppercase tracking-wider text-red-400">
+          Danger Zone
+        </h3>
+      </div>
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <p className="text-sm font-medium text-white">
+            Reset Job Search History
+          </p>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Clears your pending jobs, seen jobs, and chat history. Your profile
+            and preferences are preserved.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={handleResetDiscovery}
+          disabled={isLoading}
+          className="shrink-0 px-4 py-2 text-xs font-semibold text-red-400 border border-red-900/60 rounded-lg hover:bg-red-900/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isLoading ? "Resetting..." : "Reset"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function ProfileView() {
   const { profile, preferences, decisions, isPending } = useProfileStore();
 
@@ -233,6 +278,7 @@ export default function ProfileView() {
       <IdentityCard profile={profile} />
       <PreferencesCard preferences={preferences} />
       <DecisionLogCard decisions={decisions} />
+      <DangerZoneCard />
     </div>
   );
 }

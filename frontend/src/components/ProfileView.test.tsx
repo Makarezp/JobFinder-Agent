@@ -1,13 +1,27 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import ProfileView from "./ProfileView";
+
+const mockResetDiscovery = vi.fn();
 
 vi.mock("../core/store/useProfileStore", () => ({
   useProfileStore: vi.fn(),
 }));
 
 vi.mock("../core/store/useChatStore", () => ({
-  useChatStore: vi.fn(() => vi.fn()),
+  useChatStore: Object.assign(
+    vi.fn(() => vi.fn()),
+    {
+      setState: vi.fn(),
+    }
+  ),
+}));
+
+vi.mock("../core/store/useJobStore", () => ({
+  useJobStore: vi.fn(() => ({
+    resetDiscovery: mockResetDiscovery,
+    isLoading: false,
+  })),
 }));
 
 import { useProfileStore } from "../core/store/useProfileStore";
@@ -133,6 +147,23 @@ describe("ProfileView", () => {
 
       render(<ProfileView />);
       expect(screen.getByText(/No feedback yet/i)).toBeInTheDocument();
+    });
+
+    it("renders the Reset Job Search History button", () => {
+      render(<ProfileView />);
+      expect(screen.getByText("Reset")).toBeInTheDocument();
+      expect(screen.getByText("Reset Job Search History")).toBeInTheDocument();
+    });
+
+    it("calls resetDiscovery when the Reset button is clicked", async () => {
+      mockResetDiscovery.mockResolvedValueOnce(undefined);
+
+      render(<ProfileView />);
+      fireEvent.click(screen.getByText("Reset"));
+
+      await waitFor(() => {
+        expect(mockResetDiscovery).toHaveBeenCalledOnce();
+      });
     });
   });
 });

@@ -24,6 +24,7 @@ vi.mock("../core/store/useJobStore", () => ({
       error: null,
       fetchDeck: vi.fn(),
       submitFeedback: vi.fn(),
+      resetDiscovery: vi.fn(),
     };
     return selector ? selector(state) : state;
   }),
@@ -70,6 +71,7 @@ describe("Home page — tab system", () => {
           error: null,
           fetchDeck: vi.fn(),
           submitFeedback: vi.fn(),
+          resetDiscovery: vi.fn(),
         };
         return selector ? selector(state) : state;
       }
@@ -173,6 +175,7 @@ describe("Home page — tab system", () => {
           error: null,
           fetchDeck: vi.fn(),
           submitFeedback: vi.fn(),
+          resetDiscovery: vi.fn(),
         };
         return selector ? selector(state) : state;
       }
@@ -206,6 +209,7 @@ describe("Home page — tab system", () => {
           error: null,
           fetchDeck: vi.fn(),
           submitFeedback: vi.fn(),
+          resetDiscovery: vi.fn(),
         };
         return selector ? selector(state) : state;
       }

@@ -9,6 +9,7 @@ vi.mock("../api/profile", () => ({
   fetchProfileRequest: vi.fn(),
   fetchDeckRequest: vi.fn(),
   submitFeedbackRequest: vi.fn(),
+  resetDiscoveryRequest: vi.fn(),
 }));
 
 vi.mock("./useProfileStore", () => ({
@@ -159,7 +160,7 @@ describe("useJobStore", () => {
       expect(mockFetchProfile).toHaveBeenCalledOnce();
     });
 
-    it("logs error but does not roll back optimistic removal on failure", async () => {
+    it("logs error and does not roll back optimistic removal on failure", async () => {
       const consoleSpy = vi
         .spyOn(console, "error")
         .mockImplementation(() => {});
@@ -173,6 +174,54 @@ describe("useJobStore", () => {
       // Card stays removed even after failure
       expect(useJobStore.getState().jobs).toHaveLength(1);
       expect(consoleSpy).toHaveBeenCalledOnce();
+
+      consoleSpy.mockRestore();
+    });
+  });
+
+  describe("resetDiscovery", () => {
+    it("clears jobs state on success", async () => {
+      useJobStore.setState({ jobs: [mockJob1, mockJob2] });
+      vi.mocked(profileApi.resetDiscoveryRequest).mockResolvedValueOnce(
+        undefined
+      );
+
+      await act(async () => {
+        await useJobStore.getState().resetDiscovery();
+      });
+
+      expect(useJobStore.getState().jobs).toEqual([]);
+      expect(useJobStore.getState().isLoading).toBe(false);
+      expect(useJobStore.getState().error).toBeNull();
+    });
+
+    it("calls resetDiscoveryRequest once", async () => {
+      vi.mocked(profileApi.resetDiscoveryRequest).mockResolvedValueOnce(
+        undefined
+      );
+
+      await act(async () => {
+        await useJobStore.getState().resetDiscovery();
+      });
+
+      expect(profileApi.resetDiscoveryRequest).toHaveBeenCalledOnce();
+    });
+
+    it("sets error state and does not clear jobs on failure", async () => {
+      const consoleSpy = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+      useJobStore.setState({ jobs: [mockJob1] });
+      vi.mocked(profileApi.resetDiscoveryRequest).mockRejectedValueOnce(
+        new Error("Network error")
+      );
+
+      await act(async () => {
+        await useJobStore.getState().resetDiscovery();
+      });
+
+      expect(useJobStore.getState().jobs).toEqual([mockJob1]);
+      expect(useJobStore.getState().error).toBeTruthy();
 
       consoleSpy.mockRestore();
     });

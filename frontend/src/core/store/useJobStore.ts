@@ -1,6 +1,10 @@
 import { create } from "zustand";
 import { Job } from "../types/api";
-import { fetchDeckRequest, submitFeedbackRequest } from "../api/profile";
+import {
+  fetchDeckRequest,
+  resetDiscoveryRequest,
+  submitFeedbackRequest,
+} from "../api/profile";
 import { useProfileStore } from "./useProfileStore";
 
 export interface JobState {
@@ -13,6 +17,7 @@ export interface JobState {
     action: "pass" | "pursue",
     reason: string | null
   ) => Promise<void>;
+  resetDiscovery: () => Promise<void>;
 }
 
 export const useJobStore = create<JobState>((set) => ({
@@ -28,6 +33,19 @@ export const useJobStore = create<JobState>((set) => ({
     } catch (error) {
       console.error("Failed to fetch deck:", error);
       set({ error: "Failed to load jobs. Please try again." });
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  resetDiscovery: async () => {
+    set({ isLoading: true, error: null });
+    try {
+      await resetDiscoveryRequest();
+      set({ jobs: [] });
+    } catch (error) {
+      console.error("Failed to reset discovery:", error);
+      set({ error: "Failed to reset job search history. Please try again." });
     } finally {
       set({ isLoading: false });
     }

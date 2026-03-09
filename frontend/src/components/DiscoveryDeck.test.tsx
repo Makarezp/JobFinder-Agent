@@ -72,6 +72,7 @@ function mockStoreWith(
         error,
         fetchDeck: vi.fn(),
         submitFeedback: mockSubmitFeedback,
+        resetDiscovery: vi.fn(),
       };
       return selector(state);
     }
@@ -83,6 +84,7 @@ function mockStoreWith(
     error,
     fetchDeck: vi.fn(),
     submitFeedback: mockSubmitFeedback,
+    resetDiscovery: vi.fn(),
   }));
 }
 

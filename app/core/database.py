@@ -62,6 +62,38 @@ async def init_db() -> None:
     logger.info("Database initialization complete.")
 
 
+async def reset_workspace_state(workspace: str, pool: AsyncConnectionPool | None = None) -> None:
+    """
+    Deletes checkpoint data for a single workspace (e.g. 'discovery' or 'profile').
+    Targets rows where thread_id ends with '_{workspace}', leaving all other workspaces intact.
+    """
+    logger.warning("Resetting workspace state.", workspace=workspace)
+
+    async def _delete(p: AsyncConnectionPool) -> None:
+        async with p.connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "DELETE FROM checkpoints WHERE thread_id LIKE %s;",
+                    (f"%_{workspace}",),
+                )
+                await cur.execute(
+                    "DELETE FROM checkpoint_blobs WHERE thread_id LIKE %s;",
+                    (f"%_{workspace}",),
+                )
+                await cur.execute(
+                    "DELETE FROM checkpoint_writes WHERE thread_id LIKE %s;",
+                    (f"%_{workspace}",),
+                )
+
+    if pool is not None:
+        await _delete(pool)
+    else:
+        async with get_connection_pool() as p:
+            await _delete(p)
+
+    logger.info("Workspace state reset complete.", workspace=workspace)
+
+
 async def reset_db_state(pool: AsyncConnectionPool | None = None) -> None:
     """
     CRITICAL: Completely wipes the database state.

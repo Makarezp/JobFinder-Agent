@@ -35,5 +35,7 @@ def get_profile_service(
     return ProfileService(store)
 
 
-def get_admin_service() -> AdminService:
-    return AdminService()
+def get_admin_service(
+    store: Annotated[BaseStore, Depends(get_store)],
+) -> AdminService:
+    return AdminService(ProfileService(store))

@@ -56,6 +56,13 @@ async def reset_profile(admin_service: AdminServiceDep) -> JSONResponse:
     return JSONResponse(content={"status": "ok"})
 
 
+@router.delete("/profile/reset-discovery")
+async def reset_discovery(admin_service: AdminServiceDep) -> JSONResponse:
+    """Reset only the discovery graph state, preserving the user's profile."""
+    await admin_service.reset_discovery(DEFAULT_USER_ID)
+    return JSONResponse(content={"status": "ok"})
+
+
 @router.post("/chat")
 async def chat_endpoint(body: ChatRequest, service: ChatServiceDep) -> JSONResponse:
     if not body.message:

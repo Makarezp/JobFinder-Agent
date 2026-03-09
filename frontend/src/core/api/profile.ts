@@ -31,3 +31,12 @@ export async function submitFeedbackRequest(
     throw new Error(`HTTP error! status: ${response.status}`);
   }
 }
+
+export async function resetDiscoveryRequest(): Promise<void> {
+  const response = await fetch("/api/profile/reset-discovery", {
+    method: "DELETE",
+  });
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+}

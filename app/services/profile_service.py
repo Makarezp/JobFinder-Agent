@@ -97,6 +97,16 @@ class ProfileService:
         items = await self._store.asearch((user_id, "seen_jobs"))
         return {item.key for item in items if item.value}
 
+    async def reset_discovery_state(self, user_id: str = DEFAULT_USER_ID) -> None:
+        """Delete all job-related store entries for a user: pending_jobs, seen_jobs, decisions."""
+        logger.warning("Resetting discovery state.", user_id=user_id)
+        for namespace_key in ("pending_jobs", "seen_jobs", "decisions"):
+            namespace = (user_id, namespace_key)
+            items = await self._store.asearch(namespace)
+            for item in items:
+                await self._store.adelete(namespace, item.key)
+        logger.info("Discovery state reset complete.", user_id=user_id)
+
     async def mark_jobs_seen(
         self,
         jobs: list[JobListing],
