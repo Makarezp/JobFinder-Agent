@@ -1,11 +1,13 @@
 import logging
 import time
+from unittest.mock import MagicMock, patch
+from uuid import UUID
 
 import pytest
 import structlog
 from _pytest.logging import LogCaptureFixture
 
-from app.core.logging import log_timing, setup_logging
+from app.core.logging import add_langsmith_trace_id, log_timing, setup_logging
 from app.core.snapshot_logging_utils import sanitize_payload
 
 
@@ -102,6 +104,43 @@ def test_logging_interception(caplog: LogCaptureFixture) -> None:
     assert len(caplog.records) == 1
     assert "Stdlib info message" in caplog.records[0].message
     assert getattr(caplog.records[0], "foo", None) == "bar"
+
+
+# ---------------------------------------------------------------------------
+# add_langsmith_trace_id processor (Ticket 10.4)
+# ---------------------------------------------------------------------------
+
+
+def test_add_langsmith_trace_id_with_active_run_tree() -> None:
+    """Processor injects trace_id when a LangSmith run tree is active."""
+    trace_uuid = UUID("12345678-1234-5678-1234-567812345678")
+    mock_run_tree = MagicMock()
+    mock_run_tree.id = trace_uuid
+
+    with patch("app.core.logging.get_current_run_tree", return_value=mock_run_tree):
+        event_dict: dict[str, object] = {"event": "test event"}
+        result = add_langsmith_trace_id(MagicMock(), "info", event_dict)
+
+    assert result["trace_id"] == str(trace_uuid)
+
+
+def test_add_langsmith_trace_id_without_run_tree() -> None:
+    """Processor leaves event_dict unchanged when no LangSmith run tree is active."""
+    with patch("app.core.logging.get_current_run_tree", return_value=None):
+        event_dict: dict[str, object] = {"event": "test event"}
+        result = add_langsmith_trace_id(MagicMock(), "info", event_dict)
+
+    assert "trace_id" not in result
+    assert result["event"] == "test event"
+
+
+def test_telemetry_file_handler_attached() -> None:
+    """setup_logging attaches a FileHandler targeting agent_telemetry.jsonl to the root logger."""
+    setup_logging(level=logging.INFO)
+
+    root_handlers = logging.getLogger().handlers
+    jsonl_handlers = [h for h in root_handlers if isinstance(h, logging.FileHandler) and str(h.baseFilename).endswith("agent_telemetry.jsonl")]
+    assert len(jsonl_handlers) >= 1
 
 
 def test_debug_log_level(caplog: LogCaptureFixture, monkeypatch: pytest.MonkeyPatch) -> None:

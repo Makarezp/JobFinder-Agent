@@ -45,6 +45,10 @@ class Settings(BaseSettings):
     def STATE_LOG_PATH(self) -> Path:
         return Path(tempfile.gettempdir()) / "cvviewer_state_debug.log"
 
+    @property
+    def TELEMETRY_LOG_PATH(self) -> Path:
+        return self.DATA_DIR / "agent_telemetry.jsonl"
+
     model_config = SettingsConfigDict(env_file=".env", env_ignore_empty=True)
 
 

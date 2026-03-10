@@ -120,6 +120,44 @@ def test_search_jobs_passes_correct_args_to_tool() -> None:
         )
 
 
+def test_search_jobs_logs_job_summaries() -> None:
+    """search_jobs logs job_summaries (title @ company) in the Node Completed event."""
+    state = _make_state(query="python developer")
+
+    raw_jobs = [
+        {
+            "id": "job_1",
+            "title": "Senior Python Developer",
+            "company": "Acme Corp",
+            "location": "London, GB",
+            "description": "A great role.",
+            "apply_link": "https://acme.com/apply",
+        },
+        {
+            "id": "job_2",
+            "title": "Backend Engineer",
+            "company": "Beta Ltd",
+            "location": "Remote",
+            "description": "Another role.",
+            "apply_link": "https://beta.com/apply",
+        },
+    ]
+
+    with (
+        patch("app.agent.job_search.nodes.jsearch_api_search") as mock_tool,
+        patch("app.agent.job_search.nodes.logger") as mock_logger,
+    ):
+        mock_tool.invoke.return_value = raw_jobs
+
+        search_jobs(state)
+
+        mock_logger.info.assert_any_call(
+            "Node Completed: search_jobs",
+            result_count=2,
+            job_summaries=["Senior Python Developer @ Acme Corp", "Backend Engineer @ Beta Ltd"],
+        )
+
+
 # ---------------------------------------------------------------------------
 # call_job_specialist — parallel execution
 # ---------------------------------------------------------------------------

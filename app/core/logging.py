@@ -11,7 +11,8 @@ from contextvars import ContextVar
 from typing import Any
 
 import structlog
-from structlog.types import Processor
+from langsmith.run_helpers import get_current_run_tree
+from structlog.types import EventDict, Processor, WrappedLogger
 
 from app.core.config import settings
 
@@ -35,6 +36,15 @@ def log_timing(operation: str, logger: Any | None = None) -> Generator[None, Non
             _logger.info(f"{operation} completed", duration_ms=duration_ms)
 
 
+# ── LangSmith trace ID processor ────────────────────────────────────
+def add_langsmith_trace_id(logger: WrappedLogger, method_name: str, event_dict: EventDict) -> EventDict:
+    """Structlog processor that injects the active LangSmith trace_id if present."""
+    run_tree = get_current_run_tree()
+    if run_tree is not None:
+        event_dict["trace_id"] = str(run_tree.id)
+    return event_dict
+
+
 # ── Bootstrap ───────────────────────────────────────────────────────
 def setup_logging(*, level: int | str | None = None) -> None:
     """Configure structlog to intercept standard library logging."""
@@ -50,6 +60,7 @@ def setup_logging(*, level: int | str | None = None) -> None:
         structlog.processors.TimeStamper(fmt="iso"),
         structlog.processors.StackInfoRenderer(),
         structlog.processors.UnicodeDecoder(),
+        add_langsmith_trace_id,
     ]
 
     structlog.configure(
@@ -106,6 +117,20 @@ def setup_logging(*, level: int | str | None = None) -> None:
     state_logger = logging.getLogger("app.core.snapshot_logging_utils")
     state_logger.handlers.clear()
     state_logger.addHandler(file_handler)
+
+    # ── Telemetry JSONL file handler ─────────────────────────────────
+    settings.TELEMETRY_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+    telemetry_formatter = structlog.stdlib.ProcessorFormatter(
+        foreign_pre_chain=shared_processors,
+        processors=[
+            structlog.stdlib.ProcessorFormatter.remove_processors_meta,
+            structlog.processors.JSONRenderer(),
+        ],
+    )
+    telemetry_handler = logging.FileHandler(settings.TELEMETRY_LOG_PATH, mode="a", encoding="utf-8")
+    telemetry_handler.setFormatter(telemetry_formatter)
+    logging.getLogger().addHandler(telemetry_handler)
 
     # Silence noisy libraries
     logging.getLogger("uvicorn.access").handlers = []

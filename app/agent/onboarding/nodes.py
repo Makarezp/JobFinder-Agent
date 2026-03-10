@@ -63,6 +63,10 @@ def onboarding_chatbot(state: ProfileAgentState) -> dict[str, list[BaseMessage]]
     try:
         response = onboarding_llm.invoke(all_messages)
         logger.debug("LLM Response", content=response.content)
+        for tc in response.tool_calls:
+            logger.info("LLM Intent: Tool Selected", tool_name=tc["name"], tool_args=tc["args"])
+        for itc in response.invalid_tool_calls:
+            logger.warning("LLM Intent: Invalid Tool Selected", tool_name=itc.get("name"), tool_args=itc.get("args"), error=itc.get("error"))
         log_node_completed("onboarding_chatbot", response)
         return {"messages": [response]}
     except Exception as e:

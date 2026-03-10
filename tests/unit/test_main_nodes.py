@@ -3,7 +3,7 @@ Unit tests for main agent nodes (Ticket 002, Ticket 8.1).
 """
 
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from langchain_core.messages import AIMessage as AIMsg
@@ -13,6 +13,7 @@ from app.agent.constants import DISCOVERY_JOB_SPECIALIST_NODE, MESSAGES_KEY
 from app.agent.main.nodes import (
     _format_decisions_summary,
     fetch_profile,
+    main_chatbot,
     route_main,
 )
 from app.agent.memory_schema import DecisionLog
@@ -137,3 +138,61 @@ async def test_fetch_profile_reads_store_concurrently() -> None:
     asearch_calls = {call.args[0] for call in store.asearch.call_args_list}
     assert (user_id, "preferences") in asearch_calls
     assert (user_id, "decisions") in asearch_calls
+
+
+# ---------------------------------------------------------------------------
+# main_chatbot — intent logging
+# ---------------------------------------------------------------------------
+
+
+def _make_main_state() -> dict[str, Any]:
+    return {
+        MESSAGES_KEY: [HumanMessage(content="Find me a job")],
+        "user_profile": None,
+        "preferences": None,
+        "recent_decisions": [],
+        "search_attempts": 0,
+        "onboarding_complete": True,
+        "cv_raw_text": None,
+    }
+
+
+def test_main_chatbot_logs_valid_tool_intent() -> None:
+    """main_chatbot logs LLM Intent: Tool Selected for each tool_call."""
+    response = AIMsg(content="")
+    response.tool_calls = [{"name": "job_specialist_tool", "args": {"query": "python dev"}, "id": "tc-1"}]  # type: ignore[attr-defined, assignment]
+    response.invalid_tool_calls = []  # type: ignore[attr-defined, assignment]
+
+    with (
+        patch("app.agent.main.nodes.main_llm") as mock_llm,
+        patch("app.agent.main.nodes.logger") as mock_logger,
+    ):
+        mock_llm.invoke.return_value = response
+        main_chatbot(_make_main_state())  # type: ignore[arg-type]
+
+        mock_logger.info.assert_any_call(
+            "LLM Intent: Tool Selected",
+            tool_name="job_specialist_tool",
+            tool_args={"query": "python dev"},
+        )
+
+
+def test_main_chatbot_logs_invalid_tool_intent() -> None:
+    """main_chatbot logs LLM Intent: Invalid Tool Selected for hallucinated tool calls."""
+    response = AIMsg(content="")
+    response.tool_calls = []  # type: ignore[attr-defined, assignment]
+    response.invalid_tool_calls = [{"name": "fake_tool", "args": None, "error": "unknown tool", "type": "invalid_tool_call", "id": None}]  # type: ignore[attr-defined, assignment]
+
+    with (
+        patch("app.agent.main.nodes.main_llm") as mock_llm,
+        patch("app.agent.main.nodes.logger") as mock_logger,
+    ):
+        mock_llm.invoke.return_value = response
+        main_chatbot(_make_main_state())  # type: ignore[arg-type]
+
+        mock_logger.warning.assert_any_call(
+            "LLM Intent: Invalid Tool Selected",
+            tool_name="fake_tool",
+            tool_args=None,
+            error="unknown tool",
+        )

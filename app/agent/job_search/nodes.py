@@ -47,5 +47,6 @@ def search_jobs(state: JobSpecialistState) -> dict[str, Any]:
         except (ValueError, TypeError) as e:
             logger.warning("Failed to parse JobListing", error=str(e), data=r)
 
-    logger.info("Node Completed: search_jobs", result_count=len(listings))
+    job_summaries = [f"{job.title} @ {job.company}" for job in listings]
+    logger.info("Node Completed: search_jobs", result_count=len(listings), job_summaries=job_summaries)
     return {"search_results": listings}

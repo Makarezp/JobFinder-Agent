@@ -3,6 +3,7 @@ from typing import Any
 import httpx
 import structlog
 from langchain_core.tools import tool
+from langsmith import traceable
 
 from app.agent.schemas import JobSpecialistInput
 from app.core.config import settings
@@ -50,6 +51,7 @@ def _format_apply_link(job: dict[str, Any]) -> str:
 
 
 @tool("jsearch_api_search", args_schema=JobSpecialistInput)
+@traceable
 def jsearch_api_search(
     query: str,
     country: str,
