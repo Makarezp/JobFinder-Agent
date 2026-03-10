@@ -66,7 +66,7 @@ class ChatService:
         last_state = inputs
         with log_timing("graph.astream", logger):
             async for state in graph.astream(inputs, config=config, stream_mode="values"):
-                log_state_snapshot(state, truncate_keys=[CV_RAW_TEXT_KEY])
+                log_state_snapshot(state, truncate_keys=[CV_RAW_TEXT_KEY], previous_state=last_state)
                 last_state = state
 
         result = self._parse_agent_result(last_state, message)
@@ -97,7 +97,7 @@ class ChatService:
         last_state = inputs
         with log_timing("graph.astream", logger):
             async for state in self._profile_graph.astream(inputs, config=config, stream_mode="values"):
-                log_state_snapshot(state, truncate_keys=[CV_RAW_TEXT_KEY])
+                log_state_snapshot(state, truncate_keys=[CV_RAW_TEXT_KEY], previous_state=last_state)
                 last_state = state
 
         result = self._parse_agent_result(last_state, f"Uploaded CV: {filename}")

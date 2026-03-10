@@ -34,18 +34,55 @@ def sanitize_payload(data: Any, max_string_length: int | None = None) -> Any:
         return data
 
 
-def log_state_snapshot(state: dict[str, Any], truncate_keys: list[str] | None = None, max_string_length: int = 500) -> None:
+def _compute_state_diff(old_state: dict[str, Any], new_state: dict[str, Any]) -> dict[str, Any]:
+    """
+    Computes a shallow/semi-deep delta between two state dicts.
+    - New keys: included in full.
+    - Changed scalar values: included.
+    - Lists: only newly appended items (new[len(old):]) are included.
+    - Unchanged keys: omitted.
+    """
+    diff: dict[str, Any] = {}
+    for key, new_val in new_state.items():
+        old_val = old_state.get(key)
+        if key not in old_state:
+            diff[key] = new_val
+        elif isinstance(new_val, list) and isinstance(old_val, list):
+            appended = new_val[len(old_val) :]
+            if appended:
+                diff[key] = appended
+        elif new_val != old_val:
+            diff[key] = new_val
+    return diff
+
+
+def log_state_snapshot(
+    state: dict[str, Any],
+    truncate_keys: list[str] | None = None,
+    max_string_length: int = 500,
+    previous_state: dict[str, Any] | None = None,
+) -> None:
     """
     Logs a snapshot of the current state to the dedicated state log file.
-    Truncates specified keys to avoid noise.
+    If previous_state is provided, only the diff is logged. Empty diffs are skipped.
     """
-    snapshot = state.copy()
     truncate_keys = truncate_keys or []
 
-    for key in truncate_keys:
-        if key in snapshot and snapshot[key]:
-            val_len = len(str(snapshot[key]))
-            snapshot[key] = f"<truncated string of length {val_len}>"
-
-    sanitized_snapshot = sanitize_payload(snapshot, max_string_length=max_string_length)
-    logger.info("Graph State Update", extra={"state_snapshot": sanitized_snapshot})
+    if previous_state is not None:
+        diff = _compute_state_diff(previous_state, state)
+        if not diff:
+            return
+        for key in truncate_keys:
+            if key in diff and diff[key]:
+                val_len = len(str(diff[key]))
+                diff[key] = f"<truncated string of length {val_len}>"
+        sanitized = sanitize_payload(diff, max_string_length=max_string_length)
+        logger.info("Graph State Mutated", extra={"state_diff": sanitized})
+    else:
+        snapshot = state.copy()
+        for key in truncate_keys:
+            if key in snapshot and snapshot[key]:
+                val_len = len(str(snapshot[key]))
+                snapshot[key] = f"<truncated string of length {val_len}>"
+        sanitized_snapshot = sanitize_payload(snapshot, max_string_length=max_string_length)
+        logger.info("Graph State Update", extra={"state_snapshot": sanitized_snapshot})

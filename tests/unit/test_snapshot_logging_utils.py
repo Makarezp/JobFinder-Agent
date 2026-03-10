@@ -13,6 +13,7 @@ from langchain_core.messages import AIMessage
 
 from app.core.logging import setup_logging
 from app.core.node_logging_utils import log_node_completed
+from app.core.snapshot_logging_utils import _compute_state_diff, log_state_snapshot
 
 
 @pytest.fixture(autouse=True)
@@ -67,6 +68,64 @@ def test_log_node_completed_none_usage_metadata_does_not_raise(caplog: LogCaptur
     assert msg.get("input_tokens") is None
     assert msg.get("output_tokens") is None
     assert msg.get("total_tokens") is None
+
+
+# ---------------------------------------------------------------------------
+# _compute_state_diff (Ticket 10.6)
+# ---------------------------------------------------------------------------
+
+
+def test_compute_state_diff_detects_new_key() -> None:
+    """New keys in new_state appear in the diff."""
+    old: dict[str, Any] = {"messages": []}
+    new: dict[str, Any] = {"messages": [], "search_attempts": 1}
+    diff = _compute_state_diff(old, new)
+    assert diff == {"search_attempts": 1}
+
+
+def test_compute_state_diff_detects_modified_value() -> None:
+    """Changed scalar values appear in the diff."""
+    old: dict[str, Any] = {"search_attempts": 0}
+    new: dict[str, Any] = {"search_attempts": 2}
+    diff = _compute_state_diff(old, new)
+    assert diff == {"search_attempts": 2}
+
+
+def test_compute_state_diff_lists_only_appended_items() -> None:
+    """Only newly appended list items are included, not the full list."""
+    old_msg: dict[str, Any] = {"role": "human", "content": "Hi"}
+    new_msg: dict[str, Any] = {"role": "ai", "content": "Hello"}
+    old: dict[str, Any] = {"messages": [old_msg]}
+    new: dict[str, Any] = {"messages": [old_msg, new_msg]}
+    diff = _compute_state_diff(old, new)
+    assert diff == {"messages": [new_msg]}
+
+
+def test_compute_state_diff_unchanged_state_returns_empty() -> None:
+    """Identical states produce an empty diff."""
+    state: dict[str, Any] = {"messages": [], "search_attempts": 0}
+    diff = _compute_state_diff(state, state)
+    assert diff == {}
+
+
+def test_log_state_snapshot_skips_empty_diff(caplog: LogCaptureFixture) -> None:
+    """log_state_snapshot emits no log when diff is empty."""
+    state: dict[str, Any] = {"messages": [], "search_attempts": 0}
+    with caplog.at_level(logging.INFO, logger="app.core.snapshot_logging_utils"):
+        log_state_snapshot(state, previous_state=state)
+    assert len(caplog.records) == 0
+
+
+def test_log_state_snapshot_emits_diff_event(caplog: LogCaptureFixture) -> None:
+    """log_state_snapshot emits Graph State Mutated when diff is non-empty."""
+    old: dict[str, Any] = {"search_attempts": 0}
+    new: dict[str, Any] = {"search_attempts": 1}
+    with caplog.at_level(logging.INFO, logger="app.core.snapshot_logging_utils"):
+        log_state_snapshot(new, previous_state=old)
+    assert len(caplog.records) == 1
+    msg = caplog.records[0].msg
+    event = msg.get("event") if isinstance(msg, dict) else caplog.records[0].message
+    assert "Graph State Mutated" in str(event)
 
 
 def test_log_node_completed_node_name_in_event(caplog: LogCaptureFixture) -> None:
