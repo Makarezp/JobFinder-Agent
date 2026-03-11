@@ -101,8 +101,6 @@ class ChatService:
                 last_state = state
 
         result = self._parse_agent_result(last_state, f"Uploaded CV: {filename}")
-        if result["jobs"]:
-            await self._profile_service.add_pending_jobs(result["jobs"], DEFAULT_USER_ID)
         return result
 
     @staticmethod
