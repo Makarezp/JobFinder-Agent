@@ -92,7 +92,7 @@ async def test_call_job_specialist_blocks_at_limit() -> None:
             }
         ],
     )
-    state = {"search_attempts": 3, "messages": [msg]}
+    state = {"search_attempts": 5, "messages": [msg]}
 
     with patch("app.agent.discovery.graph.job_search_graph") as mock_graph:
         mock_graph.ainvoke = AsyncMock(return_value={"search_results": []})
@@ -101,6 +101,6 @@ async def test_call_job_specialist_blocks_at_limit() -> None:
 
         # Ensure subgraph graph was never called
         mock_graph.ainvoke.assert_not_called()
-        assert result["search_attempts"] == 4
+        assert result["search_attempts"] == 6
         assert len(result["messages"]) == 1
         assert "Max search attempts reached" in result["messages"][0].content

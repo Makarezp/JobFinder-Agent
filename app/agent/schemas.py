@@ -8,11 +8,13 @@ class JobSpecialistInput(BaseModel):
         ...,
         description=(
             "A job title or role keyword, optionally including location and employment type. "
-            "Use the format '[Role] jobs in [Location]'. "
-            "Include semantic keywords like 'contract', 'part-time', or 'permanent' directly in the query string instead of using separate filters. "
+            "Use the format '[Role] in [Location]'. "
+            "NEVER include salary numbers (like '100k' or 'high salary') in the query string, as this "
+            "causes JSearch to return 0 results or miss jobs with hidden salaries. "
+            "Instead, if a user wants a high salary, search for higher seniority titles like 'Lead', 'Principal', or 'Staff'. "
+            "Include semantic keywords like 'contract', 'part-time', or 'permanent' directly in the query string. "
             "DO NOT use Boolean operators ('or', 'and', '|'). "
-            "GOOD: 'admin assistant London', 'Android Developer contract London', 'social media coordinator UK part-time'. "
-            "BAD: 'admin or social media or customer service', 'receptionist'."
+            "GOOD: 'Android Developer in London', 'Staff Android Developer UK'."
         ),
     )
     country: str = Field(
@@ -29,7 +31,8 @@ class JobSpecialistInput(BaseModel):
         ),
     )
     remote_only: bool = Field(default=False, description="Restrict results to remote-only positions.")
-    page: int = Field(default=1, description="Page number for pagination.")
+    page: int = Field(default=1, description="Page number for pagination. Increment this if you need to fetch more results for the same query.")
+    num_pages: int = Field(default=2, description="Number of pages to return per search call (max 20). Defaults to 2 to get up to 20 jobs at once.")
 
 
 class JobListing(BaseModel):

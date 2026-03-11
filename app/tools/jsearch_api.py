@@ -58,6 +58,7 @@ def jsearch_api_search(
     date_posted: str = "month",
     remote_only: bool = False,
     page: int = 1,
+    num_pages: int = 2,
 ) -> list[dict[str, Any]] | str:
     """
     Searches for jobs using the JSearch API (RapidAPI).
@@ -78,7 +79,7 @@ def jsearch_api_search(
     params: dict[str, Any] = {
         "query": query,
         "page": str(page),
-        "num_pages": "1",  # Pagination safety: never bulk-fetch multiple pages
+        "num_pages": str(num_pages),
         "date_posted": date_posted,
         "country": country,
     }

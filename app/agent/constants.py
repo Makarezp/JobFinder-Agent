@@ -20,7 +20,7 @@ DEFAULT_THREAD_ID: Final[str] = "default_user_session"
 DEFAULT_USER_ID: Final[str] = "default_user"
 
 # Search Limits
-MAX_SEARCH_ATTEMPTS: Final[int] = 3
+MAX_SEARCH_ATTEMPTS: Final[int] = 5
 
 # Node Names
 ONBOARDING_CHATBOT_NODE: Final[str] = "onboarding_chatbot"

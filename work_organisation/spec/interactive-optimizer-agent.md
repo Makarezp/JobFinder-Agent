@@ -5,6 +5,9 @@
 *   **Context:** The current prompt/agent debugging process is heavily manual. To speed up agentic evolution, we need a truly autonomous optimizer. The human user configures the user profile/preferences; the Optimizer Agent takes over to analyze failures, experiment with code modifications, and independently validate fixes without human bottlenecks.
 *   **Primary Goal:** The ultimate objective is to optimize the **relevance and quality** of the job search results returned to the user. The Agent must focus on optimizing how the `JSearch` API is called, how the search queries and keywords are constructed by the LLM, and how parameters like `location`, `country`, and `job_requirements` are utilized to maximize the match between the user's CV/preferences and the returned jobs.
 
+
+You are allowed to analyze the code to understand app behaviours
+
 ## 2. Functional Requirements
 
 ### Requirement A: The Testing Framework (Native Network Execution)
@@ -47,7 +50,7 @@
 curl --request GET \
 	--url 'https://jsearch.p.rapidapi.com/search?query=Python%20developer%20in%20Texas%2C%20USA&page=1&num_pages=1' \
 	--header 'x-rapidapi-host: jsearch.p.rapidapi.com' \
-	--header 'x-rapidapi-key: YOUR_API_KEY_HERE'
+	--header 'x-rapidapi-key: 174d04dda4msh9fa0e837d5ef8f2p17e322jsn541050599063'
 ```
 
 **Query Parameters:**

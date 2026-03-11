@@ -215,7 +215,7 @@ class TestErrorHandling:
 
 
 class TestRequestParams:
-    def test_num_pages_is_always_forced_to_1(self) -> None:
+    def test_num_pages_defaults_to_2(self) -> None:
         raw = _make_raw_job()
         with patch("httpx.Client") as mock_client_cls:
             mock_get = mock_client_cls.return_value.__enter__.return_value.get
@@ -225,7 +225,7 @@ class TestRequestParams:
 
             call_kwargs = mock_get.call_args
             params = call_kwargs.kwargs.get("params") or call_kwargs.args[1] if call_kwargs.args else call_kwargs.kwargs["params"]
-            assert params["num_pages"] == "1"
+            assert params["num_pages"] == "2"
             assert params["page"] == "3"
 
     def test_remote_only_maps_to_work_from_home(self) -> None:

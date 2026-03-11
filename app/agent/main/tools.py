@@ -15,6 +15,7 @@ def job_specialist_tool(
     employment_types: str | None = None,
     remote_only: bool = False,
     page: int = 1,
+    num_pages: int = 2,
 ) -> str:
     """
     Delegates job search to the Job Specialist Agent.
