@@ -58,7 +58,7 @@ def jsearch_api_search(
     date_posted: str = "month",
     remote_only: bool = False,
     page: int = 1,
-    num_pages: int = 2,
+    num_pages: int = 1,
 ) -> list[dict[str, Any]] | str:
     """
     Searches for jobs using the JSearch API (RapidAPI).
