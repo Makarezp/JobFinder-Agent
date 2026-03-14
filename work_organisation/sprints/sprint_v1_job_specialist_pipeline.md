@@ -241,7 +241,7 @@ Write the LLM prompt template that powers the `summarize_jobs_parallel` node. Th
 
 ---
 
-## Ticket 4: `summarize_jobs_parallel` — Batched LLM Summarization with Timeout
+## Ticket 4: `summarize_jobs_parallel` — Batched LLM Summarization with Timeout - done
 
 ### Overview
 Implement the summarization node that chunks job listings into batches of `SUMMARY_BATCH_SIZE` (4), fires parallel LLM calls via `asyncio.gather`, and writes structured summaries into the subgraph state. Each batch call is wrapped with a configurable timeout.

@@ -6,7 +6,7 @@ from langchain_core.messages import AIMessage, ToolMessage
 
 from app.agent.discovery.graph import call_job_specialist
 from app.agent.discovery.state import DiscoveryAgentState
-from app.agent.job_search.nodes import fetch_jobs
+from app.agent.job_search.nodes import _chunk_listings, _summarize_batch, fetch_jobs, summarize_jobs_parallel
 from app.agent.job_search.state import JobSpecialistState
 from app.agent.schemas import JobListing, JobSpecialistInput
 
@@ -187,6 +187,132 @@ def test_fetch_jobs_returns_all_api_results() -> None:
         result = fetch_jobs(state)
 
         assert len(result["search_results"]) == 15
+
+
+# ---------------------------------------------------------------------------
+# _chunk_listings
+# ---------------------------------------------------------------------------
+
+
+def _make_listing(job_id: str) -> JobListing:
+    return JobListing(
+        id=job_id,
+        title=f"Job {job_id}",
+        company=f"Co {job_id}",
+        location="London, GB",
+        description=f"Desc {job_id}",
+        apply_link=f"https://{job_id}.com/apply",
+    )
+
+
+def test_chunk_listings_even_split() -> None:
+    listings = [_make_listing(str(i)) for i in range(8)]
+    chunks = _chunk_listings(listings, 4)
+    assert len(chunks) == 2
+    assert all(len(c) == 4 for c in chunks)
+
+
+def test_chunk_listings_remainder() -> None:
+    listings = [_make_listing(str(i)) for i in range(10)]
+    chunks = _chunk_listings(listings, 4)
+    assert len(chunks) == 3
+    assert [len(c) for c in chunks] == [4, 4, 2]
+
+
+def test_chunk_listings_empty() -> None:
+    assert _chunk_listings([], 4) == []
+
+
+# ---------------------------------------------------------------------------
+# summarize_jobs_parallel
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_summarize_jobs_parallel_empty_results() -> None:
+    state = _make_state()
+    state["search_results"] = []
+    result = await summarize_jobs_parallel(state)
+    assert result == {"summaries": []}
+
+
+@pytest.mark.asyncio
+async def test_summarize_jobs_parallel_calls_llm_per_chunk() -> None:
+    """10 jobs with batch size 4 should produce 3 LLM calls."""
+    from app.agent.schemas import JobSummary, JobSummaryBatch
+
+    listings = [_make_listing(str(i)) for i in range(10)]
+    state = _make_state()
+    state["search_results"] = listings
+
+    def make_batch_response(messages: Any) -> JobSummaryBatch:
+        # Return summaries matching the job_ids in the prompt
+        import json as _json
+
+        jobs_text = messages[-1].content
+        jobs = _json.loads(jobs_text)
+        return JobSummaryBatch(summaries=[JobSummary(job_id=j["id"], description=f"Summary for {j['id']}") for j in jobs])
+
+    mock_llm = AsyncMock(side_effect=make_batch_response)
+
+    with patch("app.agent.job_search.nodes._get_summary_llm") as mock_get:
+        mock_get.return_value.ainvoke = mock_llm
+        result = await summarize_jobs_parallel(state)
+
+    assert mock_llm.call_count == 3
+    assert len(result["summaries"]) == 10
+
+
+@pytest.mark.asyncio
+async def test_summarize_batch_handles_llm_exception() -> None:
+    batch = [_make_listing("1"), _make_listing("2")]
+    with patch("app.agent.job_search.nodes._get_summary_llm") as mock_get:
+        mock_get.return_value.ainvoke = AsyncMock(side_effect=Exception("LLM down"))
+        result = await _summarize_batch(batch, None, None)
+    assert result == []
+
+
+@pytest.mark.asyncio
+async def test_summarize_batch_handles_count_mismatch() -> None:
+    """LLM returns 3 summaries for a batch of 4 — only matching IDs kept."""
+    from app.agent.schemas import JobSummary, JobSummaryBatch
+
+    batch = [_make_listing(str(i)) for i in range(4)]
+
+    mock_response = JobSummaryBatch(
+        summaries=[
+            JobSummary(job_id="0", description="Summary 0"),
+            JobSummary(job_id="1", description="Summary 1"),
+            JobSummary(job_id="2", description="Summary 2"),
+        ]
+    )
+
+    with patch("app.agent.job_search.nodes._get_summary_llm") as mock_get:
+        mock_get.return_value.ainvoke = AsyncMock(return_value=mock_response)
+        result = await _summarize_batch(batch, None, None)
+
+    assert len(result) == 3
+    assert {s["job_id"] for s in result} == {"0", "1", "2"}
+
+
+@pytest.mark.asyncio
+async def test_summarize_batch_handles_timeout() -> None:
+    """Batch that exceeds timeout returns [] instead of hanging."""
+    import asyncio as _asyncio
+
+    batch = [_make_listing("1")]
+
+    async def slow_invoke(*args: Any, **kwargs: Any) -> None:
+        await _asyncio.sleep(60)
+
+    with patch("app.agent.job_search.nodes._get_summary_llm") as mock_get:
+        mock_get.return_value.ainvoke = slow_invoke
+        with patch("app.agent.job_search.nodes.SUMMARY_LLM_TIMEOUT", 0.1):
+            state = _make_state()
+            state["search_results"] = batch
+            result = await summarize_jobs_parallel(state)
+
+    assert result == {"summaries": []}
 
 
 # ---------------------------------------------------------------------------
