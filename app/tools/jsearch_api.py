@@ -13,7 +13,7 @@ logger = structlog.get_logger(__name__)
 
 _JSEARCH_BASE_URL = "https://jsearch.p.rapidapi.com/search"
 _JSEARCH_HOST = "jsearch.p.rapidapi.com"
-_FULL_DESCRIPTION_MAX_CHARS = 1_000
+_FULL_DESCRIPTION_MAX_CHARS = 5_000
 _DESCRIPTION_SNIPPET_CHARS = 300
 
 

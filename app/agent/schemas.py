@@ -53,3 +53,23 @@ class AgentResponse(BaseModel):
 
     text_response: str = Field(..., description="The conversational response to the user.")
     jobs: list[JobListing] = Field(default=[], description="A list of job listings found, if any.")
+
+
+class JobSummary(BaseModel):
+    """Single job summary result from the LLM."""
+
+    model_config = {"extra": "forbid"}
+
+    job_id: str = Field(..., description="The id of the summarized JobListing.")
+    description: str = Field(
+        ...,
+        description=(
+            "A ~500-character profile-aware analytical summary covering Essence, Conditions, and Limitations. This replaces the raw JSearch snippet."
+        ),
+    )
+
+
+class JobSummaryBatch(BaseModel):
+    """Structured output schema enforced on the summary LLM via with_structured_output."""
+
+    summaries: list[JobSummary] = Field(..., description="One summary per job in the input batch.")

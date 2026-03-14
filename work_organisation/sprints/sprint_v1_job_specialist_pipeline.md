@@ -46,7 +46,7 @@ Ticket 1 (Schemas + full_desc cap) ──┬──► Ticket 2 (fetch_jobs)
 
 ---
 
-## Ticket 1: Schema Foundation — New Pydantic Models, State Updates & Description Cap
+## Ticket 1: Schema Foundation — New Pydantic Models, State Updates & Description Cap - done
 
 ### Overview
 Create the new Pydantic schemas, update existing state TypedDicts, increase the `full_description` cap, and add new constants. This is the foundation every other ticket depends on — no logic changes, just data shapes and configuration.
@@ -416,7 +416,7 @@ Wire everything together. This ticket builds the 2-node subgraph, restructures `
 
 1. **Wire the 2-node subgraph — `app/agent/job_search/graph.py`**:
    Replace the entire file with a 2-node pipeline:
-   ```python
+   ```python``
    import structlog
    from langgraph.graph import END, START, StateGraph
 

@@ -127,14 +127,14 @@ class TestSalaryFormatting:
 
 
 class TestDescriptionTruncation:
-    def test_full_description_truncated_at_1000_chars(self) -> None:
-        raw = _make_raw_job(job_description="X" * 5000)
+    def test_full_description_truncated_at_5000_chars(self) -> None:
+        raw = _make_raw_job(job_description="X" * 10000)
         with patch("httpx.Client") as mock_client_cls:
             mock_client_cls.return_value.__enter__.return_value.get.return_value = _mock_response([raw])
             result = jsearch_api_search.invoke({"query": "engineer", "country": "us"})
 
         assert isinstance(result, list)
-        assert len(result[0]["full_description"]) == 1000
+        assert len(result[0]["full_description"]) == 5000
 
     def test_full_description_not_padded_when_short(self) -> None:
         short_desc = "Short description."

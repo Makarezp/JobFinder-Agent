@@ -20,3 +20,4 @@ class DiscoveryAgentState(TypedDict):
     preferences: dict[str, Any] | None
     search_attempts: int
     recent_decisions: NotRequired[list[dict[str, Any]]]
+    job_payloads: NotRequired[list[dict[str, Any]]]
