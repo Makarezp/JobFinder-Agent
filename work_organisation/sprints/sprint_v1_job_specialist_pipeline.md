@@ -407,7 +407,7 @@ Implement the final node in the Job Specialist pipeline. It merges AI-generated 
 
 ---
 
-## Ticket 6: Integration — Graph Wiring, `call_job_specialist`, ChatService, Prompt Update
+## Ticket 6: Integration — Graph Wiring, `call_job_specialist`, ChatService, Prompt Update - done
 
 ### Overview
 Wire everything together. This ticket builds the 2-node subgraph, restructures `_run_single_job_search` to handle fetch + dedup externally before subgraph invocation, updates `call_job_specialist` to propagate `job_payloads`, updates `ChatService` to read staged jobs from state, and updates the main agent's system prompt.

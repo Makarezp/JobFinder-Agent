@@ -253,3 +253,50 @@ async def test_process_cv_always_uses_profile_graph() -> None:
 
     assert profile_called[0]
     assert not discovery_called[0]
+
+
+# ---------------------------------------------------------------------------
+# _parse_agent_result — job_payloads preference
+# ---------------------------------------------------------------------------
+
+JOB_PAYLOAD: dict[str, Any] = {
+    "id": "staged_1",
+    "title": "Staged Job",
+    "company": "Staged Co",
+    "location": "London",
+    "salary": "£70k",
+    "description": "AI-summarized description.",
+    "full_description": "Full text here.",
+    "apply_link": "https://staged.com/apply",
+}
+
+
+def test_parse_agent_result_prefers_job_payloads() -> None:
+    """When job_payloads is present in state, it takes priority over final_answer jobs."""
+    store = InMemoryStore()
+    service = _make_service(store)
+
+    result_state: dict[str, Any] = {
+        "messages": [_make_final_answer_message([JOB_A])],
+        "job_payloads": [JOB_PAYLOAD],
+    }
+
+    parsed = service._parse_agent_result(result_state, "find jobs")
+
+    assert len(parsed["jobs"]) == 1
+    assert parsed["jobs"][0]["id"] == "staged_1"
+
+
+def test_parse_agent_result_falls_back_without_job_payloads() -> None:
+    """When job_payloads is absent, falls back to final_answer extraction."""
+    store = InMemoryStore()
+    service = _make_service(store)
+
+    result_state: dict[str, Any] = {
+        "messages": [_make_final_answer_message([JOB_A, JOB_B])],
+    }
+
+    parsed = service._parse_agent_result(result_state, "find jobs")
+
+    assert len(parsed["jobs"]) == 2
+    assert parsed["jobs"][0]["id"] == "abc123def456"

@@ -21,6 +21,7 @@ from app.agent.constants import (
 )
 from app.agent.discovery.state import DiscoveryAgentState
 from app.agent.job_search.graph import job_search_graph
+from app.agent.job_search.nodes import fetch_jobs
 from app.agent.job_search.state import JobSpecialistState
 from app.agent.main.nodes import fetch_profile, main_chatbot, route_main
 from app.agent.main.tools import main_tools
@@ -40,35 +41,58 @@ def _split_fresh_seen(results: list[JobListing], seen_ids: set[str]) -> tuple[li
 async def _run_single_job_search(
     tool_call: Any,
     profile_service: ProfileService,
-) -> ToolMessage:
+    user_profile: dict[str, Any] | None,
+    preferences: dict[str, Any] | None,
+) -> tuple[ToolMessage, list[dict[str, Any]]]:
     """
-    Execute one job_specialist_tool call through the job search subgraph.
-    Always returns a ToolMessage — errors are caught and encoded as content strings.
+    Execute one job_specialist_tool call: fetch → dedup → summarize → finalize.
+    Returns (ToolMessage for LLM context, job_payloads for UI).
     """
     tool_call_id = tool_call["id"]
     try:
         args = tool_call["args"]
         input_data = JobSpecialistInput(**args)
     except Exception as e:
-        return ToolMessage(content=f"Error parsing input: {e}", tool_call_id=tool_call_id)
+        return ToolMessage(content=f"Error parsing input: {e}", tool_call_id=tool_call_id), []
 
-    subgraph_state: JobSpecialistState = {
+    # 1. Fetch jobs directly (not a graph node)
+    fetch_state: JobSpecialistState = {
         "input": input_data,
         "search_results": None,
         "user_profile": None,
         "preferences": None,
     }
-    result = await job_search_graph.ainvoke(cast(Any, subgraph_state))
-    results: list[JobListing] = result.get("search_results", [])
+    fetch_result = fetch_jobs(fetch_state)
+    all_listings: list[JobListing] = fetch_result.get("search_results", [])
 
+    # 2. Dedup — only fresh jobs enter the summarization pipeline
     seen_ids = await profile_service.get_seen_job_ids(DEFAULT_USER_ID)
-    fresh, seen = _split_fresh_seen(results, seen_ids)
+    fresh, seen = _split_fresh_seen(all_listings, seen_ids)
     await profile_service.mark_jobs_seen(fresh, DEFAULT_USER_ID)
 
-    fresh_payload = [r.model_dump() for r in fresh]
-    seen_payload = [{"id": r.id, "title": r.title, "company": r.company, "location": r.location} for r in seen]
-    content = json.dumps({"fresh": fresh_payload, "seen": seen_payload}, indent=2)
-    return ToolMessage(content=content, tool_call_id=tool_call_id)
+    # 3. Invoke 2-node subgraph (summarize → finalize) with fresh-only jobs
+    subgraph_state: JobSpecialistState = {
+        "input": input_data,
+        "search_results": fresh,
+        "user_profile": user_profile,
+        "preferences": preferences,
+    }
+    result = await job_search_graph.ainvoke(cast(Any, subgraph_state))
+
+    job_payloads: list[dict[str, Any]] = result.get("job_payloads", [])
+    tool_message_content: str = result.get("tool_message_content", "")
+
+    # 4. Append seen jobs as minimal identity entries to tool_message_content
+    if seen:
+        seen_payload = [{"id": r.id, "title": r.title, "company": r.company, "location": r.location} for r in seen]
+        try:
+            parsed = json.loads(tool_message_content)
+            parsed["seen"] = seen_payload
+            tool_message_content = json.dumps(parsed)
+        except (json.JSONDecodeError, TypeError):
+            tool_message_content = json.dumps({"jobs": [], "seen": seen_payload, "note": "Parse error."})
+
+    return ToolMessage(content=tool_message_content, tool_call_id=tool_call_id), job_payloads
 
 
 async def call_job_specialist(
@@ -104,13 +128,22 @@ async def call_job_specialist(
                 ToolMessage(content=f"Error: {tc['name']} cannot be combined with job_specialist_tool. Ignored.", tool_call_id=tc["id"])
             )
 
+    all_job_payloads: list[dict[str, Any]] = []
+
     if job_tool_calls_to_run:
-        job_results = await asyncio.gather(*[_run_single_job_search(tc, profile_service) for tc in job_tool_calls_to_run])
-        tool_messages.extend(job_results)
+        user_profile = state.get("user_profile")
+        preferences = state.get("preferences")
+
+        results = await asyncio.gather(*[_run_single_job_search(tc, profile_service, user_profile, preferences) for tc in job_tool_calls_to_run])
+
+        for tool_msg, job_payloads in results:
+            tool_messages.append(tool_msg)
+            all_job_payloads.extend(job_payloads)
 
     return {
         "messages": tool_messages,
         "search_attempts": current_attempts + 1,
+        "job_payloads": all_job_payloads,
     }
 
 

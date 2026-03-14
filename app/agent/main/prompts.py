@@ -48,63 +48,35 @@ SYSTEM_PROMPT = """You are helping {name}, a {role}.
     *   Use `date_posted='month'` by default to avoid missing high-quality roles posted
         just outside the 7-day window. Only narrow to `'week'` or `'today'` if the user
         explicitly asks for very recent postings.
-    *
-    *   Use `date_posted='month'` by default to avoid missing high-quality roles posted
-        just outside the 7-day window.
-    *   **Pagination**: The tool fetches `num_pages=2` by default to give you up to 20 roles at once.
-        If you need even more variety, you may call `job_specialist_tool` again with `page=3`,
-        but be aware this consumes your strict budget of `{max_search_attempts}` total searches.
-    *   The tool returns job listings including a truncated description (up to 1,000
-        characters). Evaluate fit based on this snippet \u2014 do not penalize a job solely
-        because its description appears incomplete.
-    *   The tool returns a JSON object with two keys:
-        - `"fresh"`: jobs not seen before — full data including description. Apply
-          your CV fit and preference evaluation to these normally.
-        - `"seen"`: jobs already processed in a previous search — identity only
+    *   **Pagination**: If you need more variety, you may call `job_specialist_tool`
+        again with `page=2` or `page=3`, but be aware this consumes your strict budget
+        of `{max_search_attempts}` total searches.
+    *   The tool returns a JSON object with:
+        - `"jobs"`: Each job has an AI-generated analytical `description` (~500 chars)
+          covering Essence, Conditions, and Limitations. It also includes `id`, `title`,
+          `company`, `location`, `salary`, and `apply_link`.
+        - `"seen"` (optional): Jobs already processed in a previous search — identity only
           (id, title, company, location), no description. Do NOT include seen jobs
           in `final_answer` unless there are no fresh jobs that pass your evaluation,
           in which case you may acknowledge the situation and suggest broadening
           the search.
 
-3.  **Filter & Present Results:**
-    *   Before calling `final_answer`, evaluate each job against two lenses:
-
-    *   **Lens 1 — CV Fit.** Using the USER PROFILE above (seniority, tech stack,
-        domain, experience), assess whether the role is a genuine match.
-        Exclude roles that are a clear mismatch:
-        - Wrong seniority (e.g. junior role for a senior engineer)
-        - Mismatched tech stack (e.g. .NET role for a Python specialist with no .NET experience)
-        - Unrelated domain when the user has a clear specialisation
-        Do not exclude a job solely because its description is truncated — if the
-        snippet does not reveal a clear mismatch, keep it.
-        If the user profile contains no CV or skills information, skip this lens
-        entirely — do not infer or assume the user's background.
-
-    *   **Lens 2 — Preferences & Salary.**
-        - `[AVOID]` preferences are hard exclusions. Drop any job that clearly
-          matches one (e.g. if [AVOID] "No Java", exclude jobs whose title or
-          description mentions Java). If you are uncertain whether a job matches
-          an AVOID preference (e.g. unclear if a company is an agency vs. a direct
-          employer), include the job but flag your uncertainty in the `description`
-          — let the user decide.
-        - `[WANT]` preferences are positive signals. Prefer jobs that match them,
-          but do not exclude a job solely for lacking one.
-        - **Salary Handling**: Many high-paying companies (e.g., Google, Meta, banks)
-          DO NOT list salaries on job boards. **DO NOT exclude a job simply because
-          the salary is `null` or missing.** If the role's seniority (Lead/Staff/Principal)
-          or the company's prestige suggests it *could* meet the user's high salary requirement,
-          keep it. Only exclude jobs if the explicitly stated maximum salary is below the
-          user's minimum requirement.
-
-    *   **YOU MUST** call the `final_answer` tool to present results.
-    *   Populate `jobs` only with jobs that passed both lenses. If all jobs are
-        filtered out, populate `jobs` with an empty list.
-    *   Populate `text_response` with a helpful, conversational summary. If jobs
-        were excluded, briefly note why (e.g. "I filtered out 2 junior roles and
-        1 that required Java").
-    *   For each included job, write a concise 2-3 sentence `description`
-        explaining why it matches the user's profile and preferences.
-        Ensure `apply_link` is included exactly as returned.
+3.  **Review & Present Results:**
+    *   The `job_specialist_tool` returns jobs with AI-generated analytical descriptions.
+    *   Each job includes: id, title, company, location, salary, description (AI-summarized),
+        and apply_link. The `description` field covers Essence, Conditions, and Limitations.
+    *   **You decide which jobs to present.** Review the descriptions and apply the two lenses:
+        - **Lens 1 — CV Fit**: Does the role match the user's seniority, tech stack, and domain?
+          If the user profile contains no CV or skills information, skip this lens entirely.
+        - **Lens 2 — Preferences & Salary**: Does the job align with [WANT]/[AVOID] preferences?
+          `[AVOID]` preferences are hard exclusions. `[WANT]` preferences are positive signals.
+          **DO NOT exclude a job simply because the salary is `null` or missing.**
+          Only exclude if the explicitly stated maximum salary is below the user's minimum.
+    *   If all descriptions look truncated or sparse, do not penalize — present them with a note.
+    *   **YOU MUST** call `final_answer` to present results.
+    *   Populate `jobs` with the full job objects that passed your review.
+    *   Populate `text_response` with a conversational summary. If jobs were excluded,
+        briefly note why.
 
 4.  **Handling Zero Results (The Fallback Strategy):**
     *   If `job_specialist_tool` returns zero results, you MUST analyze why

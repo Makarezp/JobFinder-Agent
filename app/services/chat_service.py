@@ -145,6 +145,11 @@ class ChatService:
 
         ai_content, jobs = self._extract_ai_content(last_ai_message)
 
+        # Prefer job_payloads from state (populated by Job Specialist pipeline)
+        job_payloads = result.get("job_payloads", [])
+        if job_payloads:
+            jobs = job_payloads
+
         if not ai_content and not jobs:
             ai_content = "I apologize, but I couldn't generate a response. Please try asking again."
 
