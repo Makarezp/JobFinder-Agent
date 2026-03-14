@@ -335,7 +335,7 @@ Implement the summarization node that chunks job listings into batches of `SUMMA
 
 ---
 
-## Ticket 5: `finalize_state` — Merge Summaries & Separate UI/Context Data
+## Ticket 5: `finalize_state` — Merge Summaries & Separate UI/Context Data - done
 
 ### Overview
 Implement the final node in the Job Specialist pipeline. It merges AI-generated descriptions back into `JobListing` objects (overwriting the raw JSearch snippet), then separates the heavy UI payload (`full_description` included) from the lightweight LLM context (`full_description` stripped). ALL jobs flow to both outputs — no filtering.
