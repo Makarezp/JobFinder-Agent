@@ -559,7 +559,7 @@ Wire everything together. This ticket builds the 2-node subgraph, restructures `
 
 ---
 
-## Ticket 7: End-to-End Tests & Manual Verification
+## Ticket 7: End-to-End Tests & Manual Verification - done
 
 ### Overview
 Write integration-level tests that verify the complete pipeline from `_run_single_job_search` through the 2-node subgraph and back. Verify that the frontend receives correct data, that `full_description` is stripped from LLM context, and that dedup works correctly.
