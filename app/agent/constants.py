@@ -38,5 +38,6 @@ DISCOVERY_TOOLS_NODE: Final[str] = "discovery_tools"
 DISCOVERY_JOB_SPECIALIST_NODE: Final[str] = "job_specialist_node"
 
 # Job Specialist Pipeline
+FETCH_NUM_PAGES: Final[int] = 1
 SUMMARY_BATCH_SIZE: Final[int] = 4
 SUMMARY_LLM_TIMEOUT: Final[float] = 60.0

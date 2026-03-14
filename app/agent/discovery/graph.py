@@ -52,7 +52,12 @@ async def _run_single_job_search(
     except Exception as e:
         return ToolMessage(content=f"Error parsing input: {e}", tool_call_id=tool_call_id)
 
-    subgraph_state: JobSpecialistState = {"input": input_data, "search_results": None}
+    subgraph_state: JobSpecialistState = {
+        "input": input_data,
+        "search_results": None,
+        "user_profile": None,
+        "preferences": None,
+    }
     result = await job_search_graph.ainvoke(cast(Any, subgraph_state))
     results: list[JobListing] = result.get("search_results", [])
 

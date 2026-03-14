@@ -2,6 +2,7 @@ from typing import Any
 
 import structlog
 
+from app.agent.constants import FETCH_NUM_PAGES
 from app.agent.job_search.state import JobSpecialistState
 from app.agent.schemas import JobListing
 from app.tools.jsearch_api import jsearch_api_search
@@ -9,9 +10,9 @@ from app.tools.jsearch_api import jsearch_api_search
 logger = structlog.get_logger(__name__)
 
 
-def search_jobs(state: JobSpecialistState) -> dict[str, Any]:
+def fetch_jobs(state: JobSpecialistState) -> dict[str, Any]:
     """Execute the job search using the JSearch API."""
-    logger.info("Node Started: search_jobs")
+    logger.info("Node Started: fetch_jobs")
     input_data = state["input"]
 
     logger.info("Job Specialist: Searching", query=input_data.query, page=input_data.page)
@@ -22,6 +23,7 @@ def search_jobs(state: JobSpecialistState) -> dict[str, Any]:
             "date_posted": input_data.date_posted,
             "remote_only": input_data.remote_only,
             "page": input_data.page,
+            "num_pages": FETCH_NUM_PAGES,
             "country": input_data.country,
         }
     )
@@ -48,5 +50,5 @@ def search_jobs(state: JobSpecialistState) -> dict[str, Any]:
             logger.warning("Failed to parse JobListing", error=str(e), data=r)
 
     job_summaries = [f"{job.title} @ {job.company}" for job in listings]
-    logger.info("Node Completed: search_jobs", result_count=len(listings), job_summaries=job_summaries)
+    logger.info("Node Completed: fetch_jobs", result_count=len(listings), job_summaries=job_summaries)
     return {"search_results": listings}

@@ -1,16 +1,16 @@
 import structlog
 from langgraph.graph import END, START, StateGraph
 
-from app.agent.job_search.nodes import search_jobs
+from app.agent.job_search.nodes import fetch_jobs
 from app.agent.job_search.state import JobSpecialistState
 
 logger = structlog.get_logger(__name__)
 
-SEARCH_NODE = "search_jobs"
+SEARCH_NODE = "fetch_jobs"
 
 workflow = StateGraph(JobSpecialistState)
 
-workflow.add_node(SEARCH_NODE, search_jobs)
+workflow.add_node(SEARCH_NODE, fetch_jobs)
 workflow.add_edge(START, SEARCH_NODE)
 workflow.add_edge(SEARCH_NODE, END)
 

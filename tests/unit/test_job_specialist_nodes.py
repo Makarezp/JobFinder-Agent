@@ -6,7 +6,7 @@ from langchain_core.messages import AIMessage, ToolMessage
 
 from app.agent.discovery.graph import call_job_specialist
 from app.agent.discovery.state import DiscoveryAgentState
-from app.agent.job_search.nodes import search_jobs
+from app.agent.job_search.nodes import fetch_jobs
 from app.agent.job_search.state import JobSpecialistState
 from app.agent.schemas import JobListing, JobSpecialistInput
 
@@ -14,25 +14,30 @@ from app.agent.schemas import JobListing, JobSpecialistInput
 def _make_state(query: str = "python developer", page: int = 1) -> JobSpecialistState:
     return cast(
         JobSpecialistState,
-        {"input": JobSpecialistInput(query=query, country="us", page=page), "search_results": None},
+        {
+            "input": JobSpecialistInput(query=query, country="us", page=page),
+            "search_results": None,
+            "user_profile": None,
+            "preferences": None,
+        },
     )
 
 
-def test_search_jobs_returns_empty_on_tool_error() -> None:
-    """search_jobs returns empty list when jsearch_api_search returns an error string."""
+def test_fetch_jobs_returns_empty_on_tool_error() -> None:
+    """fetch_jobs returns empty list when jsearch_api_search returns an error string."""
     state = _make_state(query="fail")
 
     with patch("app.agent.job_search.nodes.jsearch_api_search") as mock_tool:
         mock_tool.invoke.return_value = "Error: JSearch API returned status 429."
 
-        result = search_jobs(state)
+        result = fetch_jobs(state)
 
         assert "search_results" in result
         assert result["search_results"] == []
 
 
-def test_search_jobs_maps_jsearch_fields_correctly() -> None:
-    """search_jobs correctly maps JSearch-shaped dicts to JobListing objects."""
+def test_fetch_jobs_maps_jsearch_fields_correctly() -> None:
+    """fetch_jobs correctly maps JSearch-shaped dicts to JobListing objects."""
     state = _make_state(query="python developer")
 
     with patch("app.agent.job_search.nodes.jsearch_api_search") as mock_tool:
@@ -49,7 +54,7 @@ def test_search_jobs_maps_jsearch_fields_correctly() -> None:
             }
         ]
 
-        result = search_jobs(state)
+        result = fetch_jobs(state)
 
         assert len(result["search_results"]) == 1
         listing: JobListing = result["search_results"][0]
@@ -63,8 +68,8 @@ def test_search_jobs_maps_jsearch_fields_correctly() -> None:
         assert listing.apply_link == "https://example.com/apply"
 
 
-def test_search_jobs_applies_defaults_for_missing_fields() -> None:
-    """search_jobs applies defaults (e.g. title='N/A') for partially-filled entries."""
+def test_fetch_jobs_applies_defaults_for_missing_fields() -> None:
+    """fetch_jobs applies defaults (e.g. title='N/A') for partially-filled entries."""
     state = _make_state(query="python developer")
 
     with patch("app.agent.job_search.nodes.jsearch_api_search") as mock_tool:
@@ -81,15 +86,15 @@ def test_search_jobs_applies_defaults_for_missing_fields() -> None:
             {"id": "sparse"},
         ]
 
-        result = search_jobs(state)
+        result = fetch_jobs(state)
 
         assert len(result["search_results"]) == 2
         assert result["search_results"][0].title == "Good Job"
         assert result["search_results"][1].title == "N/A"
 
 
-def test_search_jobs_passes_correct_args_to_tool() -> None:
-    """search_jobs forwards all JobSpecialistInput fields to jsearch_api_search without employment_types."""
+def test_fetch_jobs_passes_correct_args_to_tool() -> None:
+    """fetch_jobs forwards all JobSpecialistInput fields to jsearch_api_search without employment_types."""
     state = cast(
         JobSpecialistState,
         {
@@ -101,13 +106,15 @@ def test_search_jobs_passes_correct_args_to_tool() -> None:
                 page=2,
             ),
             "search_results": None,
+            "user_profile": None,
+            "preferences": None,
         },
     )
 
     with patch("app.agent.job_search.nodes.jsearch_api_search") as mock_tool:
         mock_tool.invoke.return_value = []
 
-        search_jobs(state)
+        fetch_jobs(state)
 
         mock_tool.invoke.assert_called_once_with(
             {
@@ -115,13 +122,14 @@ def test_search_jobs_passes_correct_args_to_tool() -> None:
                 "date_posted": "week",
                 "remote_only": True,
                 "page": 2,
+                "num_pages": 1,
                 "country": "us",
             }
         )
 
 
-def test_search_jobs_logs_job_summaries() -> None:
-    """search_jobs logs job_summaries (title @ company) in the Node Completed event."""
+def test_fetch_jobs_logs_job_summaries() -> None:
+    """fetch_jobs logs job_summaries (title @ company) in the Node Completed event."""
     state = _make_state(query="python developer")
 
     raw_jobs = [
@@ -149,13 +157,36 @@ def test_search_jobs_logs_job_summaries() -> None:
     ):
         mock_tool.invoke.return_value = raw_jobs
 
-        search_jobs(state)
+        fetch_jobs(state)
 
         mock_logger.info.assert_any_call(
-            "Node Completed: search_jobs",
+            "Node Completed: fetch_jobs",
             result_count=2,
             job_summaries=["Senior Python Developer @ Acme Corp", "Backend Engineer @ Beta Ltd"],
         )
+
+
+def test_fetch_jobs_returns_all_api_results() -> None:
+    """fetch_jobs returns all results from the API without capping."""
+    state = _make_state(query="python developer")
+    raw_jobs = [
+        {
+            "id": f"job_{i}",
+            "title": f"Job {i}",
+            "company": f"Co {i}",
+            "location": "London, GB",
+            "description": f"Description {i}.",
+            "apply_link": f"https://co{i}.com/apply",
+        }
+        for i in range(15)
+    ]
+
+    with patch("app.agent.job_search.nodes.jsearch_api_search") as mock_tool:
+        mock_tool.invoke.return_value = raw_jobs
+
+        result = fetch_jobs(state)
+
+        assert len(result["search_results"]) == 15
 
 
 # ---------------------------------------------------------------------------

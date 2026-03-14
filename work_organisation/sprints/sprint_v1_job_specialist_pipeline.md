@@ -125,7 +125,7 @@ Create the new Pydantic schemas, update existing state TypedDicts, increase the 
 
 ---
 
-## Ticket 2: `fetch_jobs` — Refactor `search_jobs` + Cap + `num_pages` Override
+## Ticket 2: `fetch_jobs` — Refactor `search_jobs` + Cap + `num_pages` Override - done
 
 ### Overview
 Refactor the existing `search_jobs` node into `fetch_jobs`. After this ticket, `fetch_jobs` is a standalone function called directly by `_run_single_job_search` — it is NOT a graph node (the subgraph will be a 2-node pipeline: `summarize_jobs_parallel` → `finalize_state`).
