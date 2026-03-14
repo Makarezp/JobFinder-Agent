@@ -161,7 +161,7 @@ Refactor the existing `search_jobs` node into `fetch_jobs`. After this ticket, `
 
 ---
 
-## Ticket 3: Summary Prompt & Formatting Helpers
+## Ticket 3: Summary Prompt & Formatting Helpers - done
 
 ### Overview
 Write the LLM prompt template that powers the `summarize_jobs_parallel` node. This prompt takes a batch of job listings plus the user's profile and preferences, and produces structured `JobSummaryBatch` output. The LLM **summarizes** — it does NOT evaluate or filter. This ticket is prompt engineering only — no nodes, no LLM instantiation.
