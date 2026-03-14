@@ -6,7 +6,13 @@ from langchain_core.messages import AIMessage, ToolMessage
 
 from app.agent.discovery.graph import call_job_specialist
 from app.agent.discovery.state import DiscoveryAgentState
-from app.agent.job_search.nodes import _chunk_listings, _summarize_batch, fetch_jobs, summarize_jobs_parallel
+from app.agent.job_search.nodes import (
+    _chunk_listings,
+    _summarize_batch,
+    fetch_jobs,
+    finalize_state,
+    summarize_jobs_parallel,
+)
 from app.agent.job_search.state import JobSpecialistState
 from app.agent.schemas import JobListing, JobSpecialistInput
 
@@ -313,6 +319,111 @@ async def test_summarize_batch_handles_timeout() -> None:
             result = await summarize_jobs_parallel(state)
 
     assert result == {"summaries": []}
+
+
+# ---------------------------------------------------------------------------
+# finalize_state
+# ---------------------------------------------------------------------------
+
+
+def _make_listing_with_full_desc(job_id: str, description: str = "raw snippet") -> JobListing:
+    return JobListing(
+        id=job_id,
+        title=f"Job {job_id}",
+        company=f"Co {job_id}",
+        location="London, GB",
+        salary="$80k",
+        description=description,
+        full_description=f"Full description for {job_id} " * 50,
+        apply_link=f"https://{job_id}.com/apply",
+    )
+
+
+def test_finalize_state_merges_ai_descriptions() -> None:
+    listings = [_make_listing_with_full_desc(str(i)) for i in range(3)]
+    summaries = [{"job_id": str(i), "description": f"AI summary {i}"} for i in range(3)]
+    state = _make_state()
+    state["search_results"] = listings
+    state["summaries"] = summaries
+
+    result = finalize_state(state)
+
+    assert len(result["job_payloads"]) == 3
+    for i, payload in enumerate(result["job_payloads"]):
+        assert payload["description"] == f"AI summary {i}"
+        assert "full_description" in payload
+        assert "apply_link" in payload
+
+
+def test_finalize_state_tool_message_strips_full_description() -> None:
+    listings = [_make_listing_with_full_desc(str(i)) for i in range(3)]
+    summaries = [{"job_id": str(i), "description": f"AI summary {i}"} for i in range(3)]
+    state = _make_state()
+    state["search_results"] = listings
+    state["summaries"] = summaries
+
+    result = finalize_state(state)
+
+    import json
+
+    content = result["tool_message_content"]
+    assert "full_description" not in content
+    parsed = json.loads(content)
+    assert len(parsed["jobs"]) == 3
+    for entry in parsed["jobs"]:
+        assert "id" in entry
+        assert "title" in entry
+        assert "company" in entry
+        assert "location" in entry
+        assert "salary" in entry
+        assert "description" in entry
+        assert "apply_link" in entry
+
+
+def test_finalize_state_keeps_raw_snippet_on_summary_miss() -> None:
+    listings = [_make_listing_with_full_desc(str(i), description=f"raw {i}") for i in range(3)]
+    summaries = [
+        {"job_id": "0", "description": "AI summary 0"},
+        {"job_id": "1", "description": "AI summary 1"},
+    ]
+    state = _make_state()
+    state["search_results"] = listings
+    state["summaries"] = summaries
+
+    result = finalize_state(state)
+
+    assert result["job_payloads"][0]["description"] == "AI summary 0"
+    assert result["job_payloads"][1]["description"] == "AI summary 1"
+    assert result["job_payloads"][2]["description"] == "raw 2"
+
+
+def test_finalize_state_empty_search_results() -> None:
+    state = _make_state()
+    state["search_results"] = []
+    state["summaries"] = []
+
+    result = finalize_state(state)
+
+    import json
+
+    assert result["job_payloads"] == []
+    parsed = json.loads(result["tool_message_content"])
+    assert parsed["jobs"] == []
+    assert "No jobs found" in parsed["note"]
+
+
+def test_finalize_state_empty_summaries() -> None:
+    listings = [_make_listing_with_full_desc(str(i), description=f"raw {i}") for i in range(3)]
+    state = _make_state()
+    state["search_results"] = listings
+    state["summaries"] = []
+
+    result = finalize_state(state)
+
+    assert len(result["job_payloads"]) == 3
+    for i, payload in enumerate(result["job_payloads"]):
+        assert payload["description"] == f"raw {i}"
+        assert "full_description" in payload
 
 
 # ---------------------------------------------------------------------------

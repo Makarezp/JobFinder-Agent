@@ -156,3 +156,41 @@ async def summarize_jobs_parallel(state: JobSpecialistState) -> dict[str, Any]:
         input_count=len(search_results),
     )
     return {"summaries": all_summaries}
+
+
+# --- Graph node: finalize_state ---
+
+
+def finalize_state(state: JobSpecialistState) -> dict[str, Any]:
+    """Merge AI summaries into JobListings and separate UI payload from LLM context."""
+    logger.info("Node Started: finalize_state")
+
+    search_results = state.get("search_results") or []
+    summaries: list[dict[str, Any]] = state.get("summaries") or []
+
+    if not search_results:
+        content = json.dumps({"jobs": [], "note": "No jobs found."})
+        logger.info("Node Completed: finalize_state", staged_count=0, summarized_count=0)
+        return {"job_payloads": [], "tool_message_content": content}
+
+    summary_by_id: dict[str, str] = {s["job_id"]: s["description"] for s in summaries}
+
+    job_payloads: list[dict[str, Any]] = []
+    for job in search_results:
+        if job.id in summary_by_id:
+            job.description = summary_by_id[job.id]
+        job_payloads.append(job.model_dump())
+
+    # tool_message_content: strip full_description (only field removed)
+    tool_jobs = []
+    for payload in job_payloads:
+        entry = {k: v for k, v in payload.items() if k != "full_description"}
+        tool_jobs.append(entry)
+
+    tool_message_content = json.dumps(
+        {"jobs": tool_jobs, "note": f"Summarized {len(job_payloads)} jobs."},
+    )
+
+    summarized_count = sum(1 for j in job_payloads if j["id"] in summary_by_id)
+    logger.info("Node Completed: finalize_state", staged_count=len(job_payloads), summarized_count=summarized_count)
+    return {"job_payloads": job_payloads, "tool_message_content": tool_message_content}
