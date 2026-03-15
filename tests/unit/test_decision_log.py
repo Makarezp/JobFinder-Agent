@@ -78,16 +78,17 @@ def _make_service() -> ChatService:
 
 
 def _make_state_with_payloads(job_payloads: list[dict]) -> dict:  # type: ignore[type-arg]
-    """Build a minimal agent state dict with job_payloads (the pipeline output path)."""
-    from app.agent.constants import FINAL_ANSWER_TOOL_NAME, TEXT_RESPONSE_KEY
+    """Build a minimal agent state dict with job_payloads and matching indexes."""
+    from app.agent.constants import FINAL_ANSWER_TOOL_NAME, SELECTED_JOB_INDEXES_KEY, TEXT_RESPONSE_KEY
 
+    indexes = list(range(1, len(job_payloads) + 1))
     ai_msg = AIMessage(
         content="",
         tool_calls=[
             {
                 "id": "call_abc",
                 "name": FINAL_ANSWER_TOOL_NAME,
-                "args": {TEXT_RESPONSE_KEY: "Here are some jobs."},
+                "args": {TEXT_RESPONSE_KEY: "Here are some jobs.", SELECTED_JOB_INDEXES_KEY: indexes},
             }
         ],
     )

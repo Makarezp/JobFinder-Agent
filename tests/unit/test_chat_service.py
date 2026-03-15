@@ -57,9 +57,12 @@ def _make_final_answer_message(
     return msg
 
 
-def _make_graph_mock(job_payloads: list[dict[str, Any]] | None = None) -> MagicMock:
+def _make_graph_mock(
+    job_payloads: list[dict[str, Any]] | None = None,
+    selected_job_indexes: list[int] | None = None,
+) -> MagicMock:
     """Return a graph mock that yields a single final state containing a final_answer tool call."""
-    final_state: dict[str, Any] = {"messages": [_make_final_answer_message()]}
+    final_state: dict[str, Any] = {"messages": [_make_final_answer_message(selected_job_indexes=selected_job_indexes)]}
     if job_payloads:
         final_state["job_payloads"] = job_payloads
 
@@ -72,7 +75,7 @@ def _make_graph_mock(job_payloads: list[dict[str, Any]] | None = None) -> MagicM
 
 
 def _make_service(store: InMemoryStore) -> ChatService:
-    discovery_graph = _make_graph_mock(job_payloads=[JOB_A, JOB_B])
+    discovery_graph = _make_graph_mock(job_payloads=[JOB_A, JOB_B], selected_job_indexes=[1, 2])
     profile_graph = _make_graph_mock()
     profile_service = ProfileService(store=store)
     return ChatService(
@@ -324,11 +327,12 @@ def test_parse_agent_result_ignores_out_of_range_indexes() -> None:
     assert parsed["jobs"][0]["id"] == JOB_A["id"]
 
 
-# --- No indexes: all payloads returned ---
+# --- No indexes: no jobs added (even if payloads exist in checkpoint) ---
 
 
-def test_parse_agent_result_uses_all_payloads_when_no_indexes() -> None:
-    """When no selected_job_indexes, all job_payloads are used."""
+def test_parse_agent_result_no_indexes_returns_no_jobs() -> None:
+    """When no selected_job_indexes, no jobs are returned — even if stale
+    job_payloads exist in the checkpoint from a previous search turn."""
     store = InMemoryStore()
     service = _make_service(store)
 
@@ -337,23 +341,6 @@ def test_parse_agent_result_uses_all_payloads_when_no_indexes() -> None:
         "job_payloads": [JOB_A_ENRICHED, JOB_UNSELECTED],
     }
 
-    parsed = service._parse_agent_result(result_state, "find jobs")
-
-    assert len(parsed["jobs"]) == 2
-
-
-# --- No pipeline (plain AI message, e.g. profile workspace) ---
-
-
-def test_parse_agent_result_no_payloads_returns_empty_jobs() -> None:
-    """When no job_payloads in state, jobs list is empty."""
-    store = InMemoryStore()
-    service = _make_service(store)
-
-    result_state: dict[str, Any] = {
-        "messages": [_make_final_answer_message()],
-    }
-
-    parsed = service._parse_agent_result(result_state, "find jobs")
+    parsed = service._parse_agent_result(result_state, "tell me about job 1")
 
     assert parsed["jobs"] == []

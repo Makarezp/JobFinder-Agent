@@ -149,6 +149,9 @@ class ChatService:
         ai_content, selected_indexes = self._extract_ai_content(last_ai_message)
 
         # Map the agent's selected indexes back to full pipeline data.
+        # Only adds jobs when the LLM explicitly selects via indexes — no fallback.
+        # job_payloads persists in the checkpoint, so without this guard a non-search
+        # turn would re-add stale jobs to the Deck.
         job_payloads: list[dict[str, Any]] = result.get("job_payloads", [])
         jobs: list[dict[str, Any]] = []
         if job_payloads and selected_indexes:
@@ -157,8 +160,6 @@ class ChatService:
                     jobs.append(job_payloads[idx - 1])
                 else:
                     logger.warning("Out-of-range job index ignored", index=idx, total=len(job_payloads))
-        elif job_payloads:
-            jobs = job_payloads
 
         if not ai_content and not jobs:
             ai_content = "I apologize, but I couldn't generate a response. Please try asking again."

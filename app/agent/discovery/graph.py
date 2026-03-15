@@ -136,7 +136,21 @@ async def call_job_specialist(
 
         results = await asyncio.gather(*[_run_single_job_search(tc, profile_service, user_profile, preferences) for tc in job_tool_calls_to_run])
 
+        # Re-number indexes globally so they map 1:1 to the flat all_job_payloads list.
+        # Each search returns local indexes (1, 2, 3...) — we offset them so the LLM
+        # sees a single consistent namespace across all ToolMessages.
+        global_offset = 0
         for tool_msg, job_payloads in results:
+            if job_payloads and isinstance(tool_msg.content, str):
+                try:
+                    parsed = json.loads(tool_msg.content)
+                    for job_entry in parsed.get("jobs", []):
+                        if "index" in job_entry:
+                            job_entry["index"] += global_offset
+                    tool_msg = ToolMessage(content=json.dumps(parsed), tool_call_id=tool_msg.tool_call_id)
+                except (json.JSONDecodeError, TypeError):
+                    pass
+                global_offset += len(job_payloads)
             tool_messages.append(tool_msg)
             all_job_payloads.extend(job_payloads)
 
