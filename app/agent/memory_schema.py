@@ -68,3 +68,20 @@ class SeenJob(BaseModel):
     title: str
     company: str
     location: str
+
+
+class SearchLedgerEntry(BaseModel):
+    """Record of a single job search execution.
+    Stored under (user_id, 'search_ledger') namespace in the LangGraph Store.
+    The LLM reads these entries to avoid repeating searches and to discover
+    unexplored pages.
+    """
+
+    query: str = Field(..., description="Raw query string passed to JSearch (e.g., 'Python Developer in London')")
+    country: str = Field(..., description="2-letter ISO country code used in the search")
+    remote_only: bool = Field(default=False, description="Whether remote_only filter was applied")
+    page: int = Field(..., description="Page number that was fetched")
+    results_count: int = Field(..., description="Total number of jobs returned by the API for this page")
+    fresh_count: int = Field(..., description="Number of jobs that were new (not previously seen)")
+    has_more: bool = Field(..., description="True if results_count >= expected page size, indicating more pages exist")
+    searched_at: str = Field(..., description="ISO 8601 timestamp of when this search was executed")
