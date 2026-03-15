@@ -40,20 +40,24 @@ def _split_fresh_seen(results: list[JobListing], seen_ids: set[str]) -> tuple[li
 
 async def _run_single_job_search(
     tool_call: Any,
-    profile_service: ProfileService,
+    seen_ids: set[str],
     user_profile: dict[str, Any] | None,
     preferences: dict[str, Any] | None,
-) -> tuple[ToolMessage, list[dict[str, Any]]]:
+) -> tuple[ToolMessage, list[dict[str, Any]], list[JobListing]]:
     """
     Execute one job_specialist_tool call: fetch → dedup → summarize → finalize.
-    Returns (ToolMessage for LLM context, job_payloads for UI).
+    Returns (ToolMessage for LLM context, job_payloads for UI, fresh listings to mark seen).
+
+    ``seen_ids`` is passed in from the caller so that all parallel searches
+    share the same snapshot — avoids a race where Search A marks a job seen
+    before Search B checks, causing Search B to demote it to identity-only.
     """
     tool_call_id = tool_call["id"]
     try:
         args = tool_call["args"]
         input_data = JobSpecialistInput(**args)
     except Exception as e:
-        return ToolMessage(content=f"Error parsing input: {e}", tool_call_id=tool_call_id), []
+        return ToolMessage(content=f"Error parsing input: {e}", tool_call_id=tool_call_id), [], []
 
     # 1. Fetch jobs directly (not a graph node)
     fetch_state: JobSpecialistState = {
@@ -65,10 +69,8 @@ async def _run_single_job_search(
     fetch_result = fetch_jobs(fetch_state)
     all_listings: list[JobListing] = fetch_result.get("search_results", [])
 
-    # 2. Dedup — only fresh jobs enter the summarization pipeline
-    seen_ids = await profile_service.get_seen_job_ids(DEFAULT_USER_ID)
+    # 2. Dedup using the shared seen_ids snapshot (no store writes here)
     fresh, seen = _split_fresh_seen(all_listings, seen_ids)
-    await profile_service.mark_jobs_seen(fresh, DEFAULT_USER_ID)
 
     # 3. Invoke 2-node subgraph (summarize → finalize) with fresh-only jobs
     subgraph_state: JobSpecialistState = {
@@ -92,7 +94,7 @@ async def _run_single_job_search(
         except (json.JSONDecodeError, TypeError):
             tool_message_content = json.dumps({"jobs": [], "seen": seen_payload, "note": "Parse error."})
 
-    return ToolMessage(content=tool_message_content, tool_call_id=tool_call_id), job_payloads
+    return ToolMessage(content=tool_message_content, tool_call_id=tool_call_id), job_payloads, fresh
 
 
 async def call_job_specialist(
@@ -134,13 +136,26 @@ async def call_job_specialist(
         user_profile = state.get("user_profile")
         preferences = state.get("preferences")
 
-        results = await asyncio.gather(*[_run_single_job_search(tc, profile_service, user_profile, preferences) for tc in job_tool_calls_to_run])
+        # Snapshot seen IDs once so all parallel searches share the same view.
+        # This prevents a race where Search A marks a job seen before Search B
+        # checks, causing Search B to demote a perfectly valid job to "seen".
+        seen_ids = await profile_service.get_seen_job_ids(DEFAULT_USER_ID)
+
+        results = await asyncio.gather(*[_run_single_job_search(tc, seen_ids, user_profile, preferences) for tc in job_tool_calls_to_run])
+
+        # Mark all freshly processed jobs as seen in a single batch after all
+        # searches complete — no store writes happen inside the parallel fan-out.
+        all_fresh: list[JobListing] = []
+        for _, _, fresh in results:
+            all_fresh.extend(fresh)
+        if all_fresh:
+            await profile_service.mark_jobs_seen(all_fresh, DEFAULT_USER_ID)
 
         # Re-number indexes globally so they map 1:1 to the flat all_job_payloads list.
         # Each search returns local indexes (1, 2, 3...) — we offset them so the LLM
         # sees a single consistent namespace across all ToolMessages.
         global_offset = 0
-        for tool_msg, job_payloads in results:
+        for tool_msg, job_payloads, _ in results:
             if job_payloads and isinstance(tool_msg.content, str):
                 try:
                     parsed = json.loads(tool_msg.content)

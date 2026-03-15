@@ -31,6 +31,12 @@ from app.agent.discovery.graph import _run_single_job_search
 from app.agent.schemas import JobListing, JobSummary, JobSummaryBatch
 from app.services.profile_service import ProfileService
 
+
+async def _seen_ids_from_store(store: "InMemoryStore") -> set[str]:
+    """Helper: snapshot seen IDs from a fresh ProfileService (mirrors call_job_specialist)."""
+    return await ProfileService(store).get_seen_job_ids(DEFAULT_USER_ID)
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -78,7 +84,7 @@ async def test_pipeline_produces_job_payloads_with_full_data() -> None:
     """job_payloads has all jobs with full_description, apply_link, and AI-generated descriptions."""
     raw_jobs = [_make_raw_jsearch_result(str(i)) for i in range(5)]
     store = InMemoryStore()
-    service = ProfileService(store)
+    seen_ids = await _seen_ids_from_store(store)
 
     with (
         patch("app.agent.job_search.nodes.jsearch_api_search") as mock_jsearch,
@@ -87,7 +93,7 @@ async def test_pipeline_produces_job_payloads_with_full_data() -> None:
         mock_jsearch.invoke.return_value = raw_jobs
         mock_get_llm.return_value.ainvoke = _mock_summary_llm_ok()
 
-        tool_msg, payloads = await _run_single_job_search(_make_tool_call(), service, None, None)
+        tool_msg, payloads, _ = await _run_single_job_search(_make_tool_call(), seen_ids, None, None)
 
     assert len(payloads) == 5
     for p in payloads:
@@ -101,7 +107,7 @@ async def test_pipeline_tool_message_strips_only_full_description() -> None:
     """tool_message_content has all fields EXCEPT full_description."""
     raw_jobs = [_make_raw_jsearch_result(str(i)) for i in range(5)]
     store = InMemoryStore()
-    service = ProfileService(store)
+    seen_ids = await _seen_ids_from_store(store)
 
     with (
         patch("app.agent.job_search.nodes.jsearch_api_search") as mock_jsearch,
@@ -110,7 +116,7 @@ async def test_pipeline_tool_message_strips_only_full_description() -> None:
         mock_jsearch.invoke.return_value = raw_jobs
         mock_get_llm.return_value.ainvoke = _mock_summary_llm_ok()
 
-        tool_msg, _ = await _run_single_job_search(_make_tool_call(), service, None, None)
+        tool_msg, _, _ = await _run_single_job_search(_make_tool_call(), seen_ids, None, None)
 
     content = str(tool_msg.content)
     assert "full_description" not in content
@@ -131,7 +137,7 @@ async def test_pipeline_handles_llm_summary_failure_gracefully() -> None:
     """When the LLM fails, all jobs still appear with original raw descriptions."""
     raw_jobs = [_make_raw_jsearch_result(str(i)) for i in range(5)]
     store = InMemoryStore()
-    service = ProfileService(store)
+    seen_ids = await _seen_ids_from_store(store)
 
     with (
         patch("app.agent.job_search.nodes.jsearch_api_search") as mock_jsearch,
@@ -140,7 +146,7 @@ async def test_pipeline_handles_llm_summary_failure_gracefully() -> None:
         mock_jsearch.invoke.return_value = raw_jobs
         mock_get_llm.return_value.ainvoke = AsyncMock(side_effect=Exception("LLM down"))
 
-        tool_msg, payloads = await _run_single_job_search(_make_tool_call(), service, None, None)
+        tool_msg, payloads, _ = await _run_single_job_search(_make_tool_call(), seen_ids, None, None)
 
     # Pipeline does NOT crash — all jobs present with original descriptions
     assert len(payloads) == 5
@@ -155,7 +161,7 @@ async def test_pipeline_handles_llm_timeout() -> None:
 
     raw_jobs = [_make_raw_jsearch_result(str(i)) for i in range(5)]
     store = InMemoryStore()
-    service = ProfileService(store)
+    seen_ids = await _seen_ids_from_store(store)
 
     async def slow_invoke(*args: Any, **kwargs: Any) -> None:
         await asyncio.sleep(60)
@@ -168,7 +174,7 @@ async def test_pipeline_handles_llm_timeout() -> None:
         mock_jsearch.invoke.return_value = raw_jobs
         mock_get_llm.return_value.ainvoke = slow_invoke
 
-        tool_msg, payloads = await _run_single_job_search(_make_tool_call(), service, None, None)
+        tool_msg, payloads, _ = await _run_single_job_search(_make_tool_call(), seen_ids, None, None)
 
     # Does NOT hang — all jobs present with original descriptions
     assert len(payloads) == 5
@@ -181,7 +187,7 @@ async def test_pipeline_passes_all_api_results() -> None:
     """15 raw jobs → 15 entries in job_payloads. No cap applied."""
     raw_jobs = [_make_raw_jsearch_result(str(i)) for i in range(15)]
     store = InMemoryStore()
-    service = ProfileService(store)
+    seen_ids = await _seen_ids_from_store(store)
 
     with (
         patch("app.agent.job_search.nodes.jsearch_api_search") as mock_jsearch,
@@ -190,7 +196,7 @@ async def test_pipeline_passes_all_api_results() -> None:
         mock_jsearch.invoke.return_value = raw_jobs
         mock_get_llm.return_value.ainvoke = _mock_summary_llm_ok()
 
-        tool_msg, payloads = await _run_single_job_search(_make_tool_call(), service, None, None)
+        tool_msg, payloads, _ = await _run_single_job_search(_make_tool_call(), seen_ids, None, None)
 
     assert len(payloads) == 15
 
@@ -217,6 +223,9 @@ async def test_pipeline_dedup_excludes_seen_jobs() -> None:
     ]
     await service.mark_jobs_seen(seen_listings, DEFAULT_USER_ID)
 
+    # Snapshot seen IDs after seeding (mirrors call_job_specialist behavior)
+    seen_ids = await service.get_seen_job_ids(DEFAULT_USER_ID)
+
     with (
         patch("app.agent.job_search.nodes.jsearch_api_search") as mock_jsearch,
         patch("app.agent.job_search.nodes._get_summary_llm") as mock_get_llm,
@@ -224,7 +233,7 @@ async def test_pipeline_dedup_excludes_seen_jobs() -> None:
         mock_jsearch.invoke.return_value = raw_jobs
         mock_get_llm.return_value.ainvoke = _mock_summary_llm_ok()
 
-        tool_msg, payloads = await _run_single_job_search(_make_tool_call(), service, None, None)
+        tool_msg, payloads, _ = await _run_single_job_search(_make_tool_call(), seen_ids, None, None)
 
     # job_payloads has only fresh jobs (7)
     assert len(payloads) == 7
