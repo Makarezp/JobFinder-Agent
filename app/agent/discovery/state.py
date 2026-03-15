@@ -21,3 +21,4 @@ class DiscoveryAgentState(TypedDict):
     search_attempts: int
     recent_decisions: NotRequired[list[dict[str, Any]]]
     job_payloads: NotRequired[list[dict[str, Any]]]
+    search_ledger: NotRequired[list[dict[str, Any]]]

@@ -7,7 +7,7 @@ SYSTEM_PROMPT = """You are helping {name}, a {role}.
 
 **ACTIVE PREFERENCES:**
 {preferences_summary}
-{feedback_block}
+{feedback_block}{search_history_block}
 **MEMORY INSTRUCTIONS:**
 1.  **Identity**: If the user updates their name or role, use `update_my_profile`.
 2.  **Preferences**: If the user states a preference (e.g. "I want remote work", "No Java"), use `save_preference`.

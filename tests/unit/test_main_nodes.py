@@ -12,6 +12,7 @@ from langchain_core.messages import HumanMessage
 from app.agent.constants import DISCOVERY_JOB_SPECIALIST_NODE, MESSAGES_KEY
 from app.agent.main.nodes import (
     _format_decisions_summary,
+    _format_search_ledger,
     fetch_profile,
     main_chatbot,
     route_main,
@@ -138,6 +139,7 @@ async def test_fetch_profile_reads_store_concurrently() -> None:
     asearch_calls = {call.args[0] for call in store.asearch.call_args_list}
     assert (user_id, "preferences") in asearch_calls
     assert (user_id, "decisions") in asearch_calls
+    assert (user_id, "search_ledger") in asearch_calls
 
 
 # ---------------------------------------------------------------------------
@@ -196,3 +198,208 @@ def test_main_chatbot_logs_invalid_tool_intent() -> None:
             tool_args=None,
             error="unknown tool",
         )
+
+
+# ---------------------------------------------------------------------------
+# _format_search_ledger
+# ---------------------------------------------------------------------------
+
+
+def test_format_search_ledger_none_returns_none() -> None:
+    """Returns None when ledger is empty — caller omits the section entirely."""
+    assert _format_search_ledger([]) is None
+
+
+def test_format_search_ledger_formats_entries() -> None:
+    """Entry with has_more=True shows tag; entry with has_more=False does not."""
+    ledger = [
+        {
+            "query": "Python Developer in London",
+            "country": "gb",
+            "page": 1,
+            "results_count": 10,
+            "fresh_count": 7,
+            "has_more": True,
+            "searched_at": "2026-03-15T14:30:00+00:00",
+        },
+        {
+            "query": "React Developer in London",
+            "country": "gb",
+            "page": 1,
+            "results_count": 5,
+            "fresh_count": 5,
+            "has_more": False,
+            "searched_at": "2026-03-15T14:25:00+00:00",
+        },
+    ]
+    result = _format_search_ledger(ledger)
+    assert result is not None
+    assert "[MORE PAGES AVAILABLE]" in result
+    # The second entry must NOT have the tag
+    lines = result.splitlines()
+    assert "[MORE PAGES AVAILABLE]" in lines[0]
+    assert "[MORE PAGES AVAILABLE]" not in lines[1]
+
+
+def test_format_search_ledger_includes_all_fields() -> None:
+    """Output contains query, country, page, results_count, fresh_count, and searched_at."""
+    entry: dict[str, Any] = {
+        "query": "Staff Engineer",
+        "country": "us",
+        "page": 2,
+        "results_count": 8,
+        "fresh_count": 3,
+        "has_more": False,
+        "searched_at": "2026-03-15T10:00:00+00:00",
+    }
+    result = _format_search_ledger([entry])
+    assert result is not None
+    assert "Staff Engineer" in result
+    assert "us" in result
+    assert "page=2" in result
+    assert "8" in result  # results_count
+    assert "3" in result  # fresh_count
+    assert "2026-03-15T10:00:00+00:00" in result
+
+
+# ---------------------------------------------------------------------------
+# fetch_profile — ledger loading
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_fetch_profile_loads_search_ledger() -> None:
+    """fetch_profile fetches ledger entries and returns them sorted by searched_at descending."""
+    user_id = "test_user"
+    store = _make_store_mock()
+
+    older = MagicMock()
+    older.value = {
+        "query": "Python Dev",
+        "country": "gb",
+        "page": 1,
+        "results_count": 5,
+        "fresh_count": 5,
+        "has_more": False,
+        "searched_at": "2026-03-15T10:00:00+00:00",
+    }
+    newer = MagicMock()
+    newer.value = {
+        "query": "React Dev",
+        "country": "gb",
+        "page": 1,
+        "results_count": 10,
+        "fresh_count": 8,
+        "has_more": True,
+        "searched_at": "2026-03-15T12:00:00+00:00",
+    }
+
+    async def asearch_side_effect(namespace: Any, **kwargs: Any) -> list[Any]:
+        if namespace[1] == "search_ledger":
+            return [older, newer]
+        return []
+
+    store.asearch = AsyncMock(side_effect=asearch_side_effect)
+
+    state: dict[str, Any] = {
+        "messages": [HumanMessage(content="Find me jobs")],
+        "user_profile": None,
+        "preferences": None,
+        "onboarding_complete": True,
+        "cv_raw_text": None,
+        "search_attempts": 0,
+    }
+
+    patch_result = await fetch_profile(state, _make_config(user_id), store)  # type: ignore[arg-type]
+
+    assert "search_ledger" in patch_result
+    ledger = patch_result["search_ledger"]
+    assert len(ledger) == 2
+    # Most recent first
+    assert ledger[0]["searched_at"] == "2026-03-15T12:00:00+00:00"
+    assert ledger[1]["searched_at"] == "2026-03-15T10:00:00+00:00"
+
+
+# ---------------------------------------------------------------------------
+# main_chatbot — search history prompt injection
+# ---------------------------------------------------------------------------
+
+
+def _make_main_state_with_ledger(ledger: list[dict[str, Any]]) -> dict[str, Any]:
+    return {
+        MESSAGES_KEY: [HumanMessage(content="Find me a job")],
+        "user_profile": None,
+        "preferences": None,
+        "recent_decisions": [],
+        "search_ledger": ledger,
+        "search_attempts": 0,
+        "onboarding_complete": True,
+        "cv_raw_text": None,
+    }
+
+
+def test_main_chatbot_includes_search_history_in_prompt() -> None:
+    """System message contains SEARCH HISTORY when ledger is non-empty."""
+    ledger_entry = {
+        "query": "Python Developer in London",
+        "country": "gb",
+        "page": 1,
+        "results_count": 10,
+        "fresh_count": 7,
+        "has_more": True,
+        "searched_at": "2026-03-15T14:30:00+00:00",
+    }
+    response = AIMsg(content="done")
+    response.tool_calls = []  # type: ignore[attr-defined, assignment]
+    response.invalid_tool_calls = []  # type: ignore[attr-defined, assignment]
+
+    captured_messages: list[Any] = []
+
+    def fake_invoke(messages: Any) -> AIMsg:
+        captured_messages.extend(messages)
+        return response
+
+    with patch("app.agent.main.nodes.main_llm") as mock_llm:
+        mock_llm.invoke.side_effect = fake_invoke
+        main_chatbot(_make_main_state_with_ledger([ledger_entry]))  # type: ignore[arg-type]
+
+    system_content = captured_messages[0].content
+    assert "SEARCH HISTORY" in system_content
+    assert "Python Developer in London" in system_content
+
+
+def test_main_chatbot_omits_search_history_when_empty() -> None:
+    """System message does NOT contain SEARCH HISTORY when ledger is empty."""
+    response = AIMsg(content="done")
+    response.tool_calls = []  # type: ignore[attr-defined, assignment]
+    response.invalid_tool_calls = []  # type: ignore[attr-defined, assignment]
+
+    captured_messages: list[Any] = []
+
+    def fake_invoke(messages: Any) -> AIMsg:
+        captured_messages.extend(messages)
+        return response
+
+    with patch("app.agent.main.nodes.main_llm") as mock_llm:
+        mock_llm.invoke.side_effect = fake_invoke
+        main_chatbot(_make_main_state_with_ledger([]))  # type: ignore[arg-type]
+
+    system_content = captured_messages[0].content
+    assert "SEARCH HISTORY" not in system_content
+
+
+def test_system_prompt_template_accepts_search_history_block() -> None:
+    """Smoke test: SYSTEM_PROMPT.format() with search_history_block does not raise KeyError."""
+    from app.agent.main.prompts import SYSTEM_PROMPT
+
+    # Should not raise
+    result = SYSTEM_PROMPT.format(
+        name="Alice",
+        role="Engineer",
+        profile_summary="10 years Python",
+        preferences_summary="Remote only",
+        feedback_block="",
+        search_history_block="",
+        max_search_attempts=5,
+    )
+    assert "Alice" in result

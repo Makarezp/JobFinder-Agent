@@ -1,5 +1,5 @@
 import asyncio
-from typing import Annotated, Any
+from typing import Annotated, Any, cast
 
 import structlog
 from langchain_core.language_models import BaseChatModel
@@ -84,6 +84,28 @@ def _format_preferences_summary(preferences: dict[str, Any] | None) -> str:
     return "\n".join(lines) if lines else "No preferences set yet."
 
 
+def _format_search_ledger(ledger: list[dict[str, Any]]) -> str | None:
+    """Format search ledger into a compact block for the system prompt.
+    Returns None when empty so the caller can omit the section entirely.
+    """
+    if not ledger:
+        return None
+
+    lines: list[str] = []
+    for entry in ledger:
+        query = entry.get("query", "?")
+        country = entry.get("country", "?")
+        page = entry.get("page", "?")
+        results = entry.get("results_count", 0)
+        fresh = entry.get("fresh_count", 0)
+        has_more = entry.get("has_more", False)
+        searched_at = entry.get("searched_at", "?")
+
+        more_tag = " [MORE PAGES AVAILABLE]" if has_more else ""
+        lines.append(f'- "{query}" (country={country}, page={page}) → ' f"{results} results, {fresh} fresh{more_tag} — {searched_at}")
+    return "\n".join(lines)
+
+
 # --- Node: fetch_profile (main agent entry) ---
 async def fetch_profile(state: DiscoveryAgentState, config: RunnableConfig, store: Annotated[BaseStore, InjectedStore]) -> dict[str, Any]:
     """
@@ -97,11 +119,18 @@ async def fetch_profile(state: DiscoveryAgentState, config: RunnableConfig, stor
     namespace_prefs = (user_id, "preferences")
     namespace_decisions = (user_id, "decisions")
 
-    profile_item, prefs_items, decisions_items = await asyncio.gather(
+    results = await asyncio.gather(
         store.aget(namespace_profile, "data"),
         store.asearch(namespace_prefs),
         store.asearch(namespace_decisions),
+        store.asearch((user_id, "search_ledger"), limit=100),
+        return_exceptions=True,
     )
+
+    profile_item = cast(Any, results[0])
+    prefs_items = cast(list[Any], results[1])
+    decisions_items = cast(list[Any], results[2])
+    ledger_result = results[3]
 
     profile = UserProfile(**profile_item.value) if profile_item else UserProfile()
     profile_dict = profile.model_dump()
@@ -120,17 +149,29 @@ async def fetch_profile(state: DiscoveryAgentState, config: RunnableConfig, stor
         reverse=True,
     )[:10]
 
+    if isinstance(ledger_result, Exception):
+        logger.warning("Failed to fetch search ledger — defaulting to empty", error=str(ledger_result))
+        search_ledger: list[dict[str, Any]] = []
+    else:
+        search_ledger = sorted(
+            [item.value for item in cast(list[Any], ledger_result) if item.value],
+            key=lambda e: e.get("searched_at", ""),
+            reverse=True,
+        )
+
     logger.info(
         "Node Completed: fetch_profile",
         profile=profile_dict,
         pref_count=len(preferences),
         decisions_count=len(recent_decisions),
+        ledger_count=len(search_ledger),
     )
 
     patch: dict[str, Any] = {
         "user_profile": profile_dict,
         "preferences": preferences,
         "recent_decisions": recent_decisions,
+        "search_ledger": search_ledger,
     }
 
     return patch
@@ -157,12 +198,24 @@ def main_chatbot(state: DiscoveryAgentState) -> dict[str, list[BaseMessage]]:
         else ""
     )
 
+    ledger = state.get("search_ledger", [])
+    ledger_summary = _format_search_ledger(ledger)
+    search_history_block = (
+        f"\n**SEARCH HISTORY (your previous searches this session):**\n{ledger_summary}\n"
+        "Use this history to avoid repeating the same searches. "
+        "If a search shows [MORE PAGES AVAILABLE], you can fetch the next page instead of re-running the same query. "
+        "If a search has low fresh_count relative to results, that query is mostly exhausted.\n"
+        if ledger_summary
+        else ""
+    )
+
     formatted_prompt = SYSTEM_PROMPT.format(
         name=profile.get("name", "User") if profile else "User",
         role=profile.get("role", "Job Seeker") if profile else "Job Seeker",
         profile_summary=_format_profile_summary(profile),
         preferences_summary=_format_preferences_summary(preferences),
         feedback_block=feedback_block,
+        search_history_block=search_history_block,
         max_search_attempts=MAX_SEARCH_ATTEMPTS,
     )
 
