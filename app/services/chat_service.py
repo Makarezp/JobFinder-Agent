@@ -14,7 +14,7 @@ from app.agent.constants import (
     DEFAULT_THREAD_ID,
     DEFAULT_USER_ID,
     FINAL_ANSWER_TOOL_NAME,
-    JOBS_KEY,
+    SELECTED_JOB_INDEXES_KEY,
     TEXT_RESPONSE_KEY,
 )
 from app.core.logging import log_timing, request_id_var
@@ -104,17 +104,20 @@ class ChatService:
         return result
 
     @staticmethod
-    def _extract_ai_content(msg: AIMessage) -> tuple[str, list[Any]]:
-        """Extract text and jobs from an AIMessage.
+    def _extract_ai_content(msg: AIMessage) -> tuple[str, list[int]]:
+        """Extract text and selected job indexes from an AIMessage.
 
         Handles two formats:
-        - final_answer tool call: structured text_response + jobs
+        - final_answer tool call: structured text_response + selected_job_indexes
         - Plain AI message: may be a string or a multipart list
           (Gemini may return multipart content as a list of text/dict segments)
         """
         if isinstance(msg, AIMessage) and msg.tool_calls and msg.tool_calls[0]["name"] == FINAL_ANSWER_TOOL_NAME:
             final_args = msg.tool_calls[0]["args"]
-            return final_args.get(TEXT_RESPONSE_KEY, ""), final_args.get(JOBS_KEY, [])
+            return (
+                final_args.get(TEXT_RESPONSE_KEY, ""),
+                final_args.get(SELECTED_JOB_INDEXES_KEY, []),
+            )
 
         content = msg.content
         if isinstance(content, list):
@@ -143,11 +146,18 @@ class ChatService:
                 "jobs": [],
             }
 
-        ai_content, jobs = self._extract_ai_content(last_ai_message)
+        ai_content, selected_indexes = self._extract_ai_content(last_ai_message)
 
-        # Prefer job_payloads from state (populated by Job Specialist pipeline)
-        job_payloads = result.get("job_payloads", [])
-        if job_payloads:
+        # Map the agent's selected indexes back to full pipeline data.
+        job_payloads: list[dict[str, Any]] = result.get("job_payloads", [])
+        jobs: list[dict[str, Any]] = []
+        if job_payloads and selected_indexes:
+            for idx in selected_indexes:
+                if 1 <= idx <= len(job_payloads):
+                    jobs.append(job_payloads[idx - 1])
+                else:
+                    logger.warning("Out-of-range job index ignored", index=idx, total=len(job_payloads))
+        elif job_payloads:
             jobs = job_payloads
 
         if not ai_content and not jobs:
@@ -210,7 +220,7 @@ class ChatService:
                 if current_turn is None:
                     continue
 
-                ai_content, jobs = self._extract_ai_content(msg)
+                ai_content, _ = self._extract_ai_content(msg)
 
                 # Append content (if multiple AI messages in one turn)
                 if ai_content:
@@ -218,9 +228,6 @@ class ChatService:
                         current_turn["ai_message"] += "\n" + ai_content
                     else:
                         current_turn["ai_message"] = ai_content
-
-                if jobs:
-                    current_turn["jobs"].extend(jobs)
 
         # If there's a dangling turn, add it
         if current_turn:

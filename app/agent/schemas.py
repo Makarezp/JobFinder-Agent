@@ -44,7 +44,7 @@ class JobListing(BaseModel):
     location: str = Field(..., description="The job location.")
     salary: str | None = Field(None, description="The salary range or amount. May contain '(Predicted)' for AI estimates.")
     description: str = Field(..., description="A brief summary of the job.")
-    full_description: str | None = Field(None, description="The full job description text. Truncated to 1,000 characters.")
+    full_description: str | None = Field(None, description="The full job description text. Truncated to 5,000 characters.")
     apply_link: str = Field(..., description="The URL to apply for the job.")
 
 
@@ -52,7 +52,10 @@ class AgentResponse(BaseModel):
     """The structured response from the agent."""
 
     text_response: str = Field(..., description="The conversational response to the user.")
-    jobs: list[JobListing] = Field(default=[], description="A list of job listings found, if any.")
+    selected_job_indexes: list[int] = Field(
+        default=[],
+        description=("1-based indexes of jobs from job_specialist_tool results to present to the user."),
+    )
 
 
 class JobSummary(BaseModel):

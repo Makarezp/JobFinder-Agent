@@ -1,6 +1,6 @@
 from langchain_core.tools import tool
 
-from app.agent.schemas import AgentResponse, JobListing, JobSpecialistInput
+from app.agent.schemas import AgentResponse, JobSpecialistInput
 from app.tools.memory import (
     delete_preference,
     save_preference,
@@ -28,10 +28,11 @@ def job_specialist_tool(
 
 # --- Tool: final_answer ---
 @tool(args_schema=AgentResponse)
-def final_answer(text_response: str, jobs: list[JobListing] | None = None) -> str:
+def final_answer(
+    text_response: str,
+    selected_job_indexes: list[int] | None = None,
+) -> str:
     """Present the final response to the user with optional job listings."""
-    if jobs is None:
-        jobs = []
     # Routing sentinel — _parse_agent_result reads tool call args, not this return
     return "Final Answer Processed"
 

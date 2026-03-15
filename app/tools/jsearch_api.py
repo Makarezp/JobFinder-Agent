@@ -102,7 +102,7 @@ def jsearch_api_search(
 
         listings: list[dict[str, Any]] = []
         for job in raw_jobs:
-            full_desc: str = job.get("job_description") or ""
+            full_desc: str = (job.get("job_description") or "").replace("\x00", "")
             snippet = full_desc[:_DESCRIPTION_SNIPPET_CHARS]
             truncated_full = full_desc[:_FULL_DESCRIPTION_MAX_CHARS]
 

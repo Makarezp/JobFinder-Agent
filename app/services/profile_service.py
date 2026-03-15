@@ -12,6 +12,15 @@ from app.agent.schemas import JobListing
 logger = structlog.get_logger(__name__)
 
 
+def _strip_null_bytes(data: dict[str, Any]) -> dict[str, Any]:
+    """Remove \\x00 from all string values in a flat dict.
+
+    PostgreSQL text columns cannot store null bytes. JSearch API responses
+    occasionally contain them, and LLMs may echo them back in summaries.
+    """
+    return {k: v.replace("\x00", "") if isinstance(v, str) else v for k, v in data.items()}
+
+
 class ProfileService:
     def __init__(self, store: BaseStore) -> None:
         self._store = store
@@ -83,7 +92,7 @@ class ProfileService:
                 added_at=datetime.now(UTC).isoformat(),
                 **job,
             )
-            await self._store.aput((user_id, "pending_jobs"), pending.id, pending.model_dump())
+            await self._store.aput((user_id, "pending_jobs"), pending.id, _strip_null_bytes(pending.model_dump()))
         logger.info("Pending jobs added", user_id=user_id, count=len(jobs))
 
     async def remove_pending_job(self, job_id: str, user_id: str = DEFAULT_USER_ID) -> None:

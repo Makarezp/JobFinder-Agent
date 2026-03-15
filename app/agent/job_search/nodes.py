@@ -181,10 +181,11 @@ def finalize_state(state: JobSpecialistState) -> dict[str, Any]:
             job.description = summary_by_id[job.id]
         job_payloads.append(job.model_dump())
 
-    # tool_message_content: strip full_description (only field removed)
+    # tool_message_content: strip full_description (only field removed), add 1-based index
     tool_jobs = []
-    for payload in job_payloads:
+    for i, payload in enumerate(job_payloads, start=1):
         entry = {k: v for k, v in payload.items() if k != "full_description"}
+        entry["index"] = i
         tool_jobs.append(entry)
 
     tool_message_content = json.dumps(

@@ -9,7 +9,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.store.memory import InMemoryStore
 from pypdf import PdfWriter
 
-from app.agent.constants import FINAL_ANSWER_TOOL_NAME, JOBS_KEY, TEXT_RESPONSE_KEY
+from app.agent.constants import FINAL_ANSWER_TOOL_NAME, SELECTED_JOB_INDEXES_KEY, TEXT_RESPONSE_KEY
 from app.services.chat_service import ChatService
 from app.services.profile_service import ProfileService
 
@@ -38,22 +38,30 @@ JOB_B: dict[str, Any] = {
 }
 
 
-def _make_final_answer_message(jobs: list[dict[str, Any]], text: str = "Here are your jobs.") -> AIMessage:
+def _make_final_answer_message(
+    text: str = "Here are your jobs.",
+    selected_job_indexes: list[int] | None = None,
+) -> AIMessage:
     """Build a fake AIMessage that mimics the agent's final_answer tool call."""
+    args: dict[str, Any] = {TEXT_RESPONSE_KEY: text}
+    if selected_job_indexes is not None:
+        args[SELECTED_JOB_INDEXES_KEY] = selected_job_indexes
     msg = AIMessage(content="")
     msg.tool_calls = [  # type: ignore[attr-defined]
         {
             "name": FINAL_ANSWER_TOOL_NAME,
-            "args": {TEXT_RESPONSE_KEY: text, JOBS_KEY: jobs},
+            "args": args,
             "id": "tc-001",
         }
     ]
     return msg
 
 
-def _make_graph_mock(jobs: list[dict[str, Any]]) -> MagicMock:
+def _make_graph_mock(job_payloads: list[dict[str, Any]] | None = None) -> MagicMock:
     """Return a graph mock that yields a single final state containing a final_answer tool call."""
-    final_state: dict[str, Any] = {"messages": [_make_final_answer_message(jobs)]}
+    final_state: dict[str, Any] = {"messages": [_make_final_answer_message()]}
+    if job_payloads:
+        final_state["job_payloads"] = job_payloads
 
     async def _astream(*_args: Any, **_kwargs: Any) -> Any:  # type: ignore[override]
         yield final_state
@@ -64,8 +72,8 @@ def _make_graph_mock(jobs: list[dict[str, Any]]) -> MagicMock:
 
 
 def _make_service(store: InMemoryStore) -> ChatService:
-    discovery_graph = _make_graph_mock([JOB_A, JOB_B])
-    profile_graph = _make_graph_mock([])
+    discovery_graph = _make_graph_mock(job_payloads=[JOB_A, JOB_B])
+    profile_graph = _make_graph_mock()
     profile_service = ProfileService(store=store)
     return ChatService(
         discovery_graph=discovery_graph,
@@ -117,8 +125,8 @@ async def test_process_message_no_jobs_does_not_call_add_pending() -> None:
     """When the agent returns no jobs, add_pending_jobs is never called."""
     store = InMemoryStore()
 
-    # Graph returns an empty jobs list
-    final_state: dict[str, Any] = {"messages": [_make_final_answer_message(jobs=[])]}
+    # Graph returns no job_payloads
+    final_state: dict[str, Any] = {"messages": [_make_final_answer_message()]}
 
     async def _astream(*_args: Any, **_kwargs: Any) -> Any:  # type: ignore[override]
         yield final_state
@@ -130,7 +138,7 @@ async def test_process_message_no_jobs_does_not_call_add_pending() -> None:
     with patch.object(profile_service, "add_pending_jobs", new_callable=AsyncMock) as mock_add:
         service = ChatService(
             discovery_graph=graph,
-            profile_graph=_make_graph_mock([]),
+            profile_graph=_make_graph_mock(),
             store=store,
             profile_service=profile_service,
         )
@@ -173,13 +181,13 @@ async def test_get_history_filters_system_trigger() -> None:
     assert any(turn["user_message"] == "Hi" for turn in history)
 
 
-def _make_spy_graph(jobs: list[dict[str, Any]]) -> tuple[MagicMock, list[bool]]:
+def _make_spy_graph() -> tuple[MagicMock, list[bool]]:
     """Return a graph mock and a single-element mutable flag.
 
     flag[0] is set True when astream is called, allowing routing assertions
     without nonlocal boilerplate.
     """
-    graph = _make_graph_mock(jobs)
+    graph = _make_graph_mock()
     called: list[bool] = [False]
     original = graph.astream
 
@@ -202,8 +210,8 @@ def _make_blank_pdf() -> bytes:
 async def test_process_message_routes_to_discovery_by_default() -> None:
     """Default workspace routes to the discovery graph."""
     store = InMemoryStore()
-    discovery_graph, discovery_called = _make_spy_graph([])
-    profile_graph, profile_called = _make_spy_graph([])
+    discovery_graph, discovery_called = _make_spy_graph()
+    profile_graph, profile_called = _make_spy_graph()
 
     service = ChatService(
         discovery_graph=discovery_graph,
@@ -221,8 +229,8 @@ async def test_process_message_routes_to_discovery_by_default() -> None:
 async def test_process_message_routes_to_profile() -> None:
     """Explicit workspace='profile' routes to the profile graph."""
     store = InMemoryStore()
-    discovery_graph, discovery_called = _make_spy_graph([])
-    profile_graph, profile_called = _make_spy_graph([])
+    discovery_graph, discovery_called = _make_spy_graph()
+    profile_graph, profile_called = _make_spy_graph()
 
     service = ChatService(
         discovery_graph=discovery_graph,
@@ -240,8 +248,8 @@ async def test_process_message_routes_to_profile() -> None:
 async def test_process_cv_always_uses_profile_graph() -> None:
     """process_cv always uses the profile graph regardless of workspace."""
     store = InMemoryStore()
-    discovery_graph, discovery_called = _make_spy_graph([])
-    profile_graph, profile_called = _make_spy_graph([])
+    discovery_graph, discovery_called = _make_spy_graph()
+    profile_graph, profile_called = _make_spy_graph()
 
     service = ChatService(
         discovery_graph=discovery_graph,
@@ -255,48 +263,97 @@ async def test_process_cv_always_uses_profile_graph() -> None:
     assert not discovery_called[0]
 
 
-# ---------------------------------------------------------------------------
-# _parse_agent_result — job_payloads preference
-# ---------------------------------------------------------------------------
+JOB_A_ENRICHED: dict[str, Any] = {
+    **JOB_A,
+    "description": "AI-summarized description of Python Developer role.",
+    "full_description": "Full 5000-char text here.",
+}
 
-JOB_PAYLOAD: dict[str, Any] = {
-    "id": "staged_1",
-    "title": "Staged Job",
-    "company": "Staged Co",
+JOB_B_ENRICHED: dict[str, Any] = {
+    **JOB_B,
+    "description": "AI-summarized ML Engineer role.",
+    "full_description": "Full ML text here.",
+}
+
+JOB_UNSELECTED: dict[str, Any] = {
+    "id": "unselected_1",
+    "title": "Excluded Job",
+    "company": "Excluded Co",
     "location": "London",
-    "salary": "£70k",
+    "salary": "£40k",
     "description": "AI-summarized description.",
     "full_description": "Full text here.",
-    "apply_link": "https://staged.com/apply",
+    "apply_link": "https://excluded.com/apply",
 }
 
 
-def test_parse_agent_result_prefers_job_payloads() -> None:
-    """When job_payloads is present in state, it takes priority over final_answer jobs."""
+# --- Index-based selection (primary path) ---
+
+
+def test_parse_agent_result_indexes_map_to_correct_payloads() -> None:
+    """selected_job_indexes maps 1-based indexes to job_payloads positions."""
     store = InMemoryStore()
     service = _make_service(store)
 
     result_state: dict[str, Any] = {
-        "messages": [_make_final_answer_message([JOB_A])],
-        "job_payloads": [JOB_PAYLOAD],
-    }
-
-    parsed = service._parse_agent_result(result_state, "find jobs")
-
-    assert len(parsed["jobs"]) == 1
-    assert parsed["jobs"][0]["id"] == "staged_1"
-
-
-def test_parse_agent_result_falls_back_without_job_payloads() -> None:
-    """When job_payloads is absent, falls back to final_answer extraction."""
-    store = InMemoryStore()
-    service = _make_service(store)
-
-    result_state: dict[str, Any] = {
-        "messages": [_make_final_answer_message([JOB_A, JOB_B])],
+        "messages": [_make_final_answer_message(selected_job_indexes=[1, 3])],
+        "job_payloads": [JOB_A_ENRICHED, JOB_UNSELECTED, JOB_B_ENRICHED],
     }
 
     parsed = service._parse_agent_result(result_state, "find jobs")
 
     assert len(parsed["jobs"]) == 2
-    assert parsed["jobs"][0]["id"] == "abc123def456"
+    assert parsed["jobs"][0]["id"] == JOB_A["id"]
+    assert parsed["jobs"][0]["full_description"] == "Full 5000-char text here."
+    assert parsed["jobs"][1]["id"] == JOB_B["id"]
+
+
+def test_parse_agent_result_ignores_out_of_range_indexes() -> None:
+    """Out-of-range indexes are silently skipped."""
+    store = InMemoryStore()
+    service = _make_service(store)
+
+    result_state: dict[str, Any] = {
+        "messages": [_make_final_answer_message(selected_job_indexes=[1, 99])],
+        "job_payloads": [JOB_A_ENRICHED, JOB_UNSELECTED],
+    }
+
+    parsed = service._parse_agent_result(result_state, "find jobs")
+
+    assert len(parsed["jobs"]) == 1
+    assert parsed["jobs"][0]["id"] == JOB_A["id"]
+
+
+# --- No indexes: all payloads returned ---
+
+
+def test_parse_agent_result_uses_all_payloads_when_no_indexes() -> None:
+    """When no selected_job_indexes, all job_payloads are used."""
+    store = InMemoryStore()
+    service = _make_service(store)
+
+    result_state: dict[str, Any] = {
+        "messages": [_make_final_answer_message()],
+        "job_payloads": [JOB_A_ENRICHED, JOB_UNSELECTED],
+    }
+
+    parsed = service._parse_agent_result(result_state, "find jobs")
+
+    assert len(parsed["jobs"]) == 2
+
+
+# --- No pipeline (plain AI message, e.g. profile workspace) ---
+
+
+def test_parse_agent_result_no_payloads_returns_empty_jobs() -> None:
+    """When no job_payloads in state, jobs list is empty."""
+    store = InMemoryStore()
+    service = _make_service(store)
+
+    result_state: dict[str, Any] = {
+        "messages": [_make_final_answer_message()],
+    }
+
+    parsed = service._parse_agent_result(result_state, "find jobs")
+
+    assert parsed["jobs"] == []
