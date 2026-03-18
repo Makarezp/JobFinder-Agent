@@ -21,7 +21,7 @@ These tests run through the real 2-node subgraph. Only external I/O
 
 import json
 from typing import Any
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from langgraph.store.memory import InMemoryStore
@@ -64,6 +64,13 @@ def _make_tool_call(query: str = "python developer", tc_id: str = "tc-1") -> dic
     }
 
 
+def _make_mock_profile_service() -> MagicMock:
+    """ProfileService-like mock with log_search as AsyncMock."""
+    mock = MagicMock()
+    mock.log_search = AsyncMock()
+    return mock
+
+
 def _mock_summary_llm_ok() -> AsyncMock:
     """Mock LLM that returns valid summaries for any batch."""
 
@@ -93,7 +100,7 @@ async def test_pipeline_produces_job_payloads_with_full_data() -> None:
         mock_jsearch.invoke.return_value = raw_jobs
         mock_get_llm.return_value.ainvoke = _mock_summary_llm_ok()
 
-        tool_msg, payloads, _ = await _run_single_job_search(_make_tool_call(), seen_ids, None, None)
+        tool_msg, payloads, _ = await _run_single_job_search(_make_tool_call(), seen_ids, None, None, _make_mock_profile_service())
 
     assert len(payloads) == 5
     for p in payloads:
@@ -116,7 +123,7 @@ async def test_pipeline_tool_message_strips_only_full_description() -> None:
         mock_jsearch.invoke.return_value = raw_jobs
         mock_get_llm.return_value.ainvoke = _mock_summary_llm_ok()
 
-        tool_msg, _, _ = await _run_single_job_search(_make_tool_call(), seen_ids, None, None)
+        tool_msg, _, _ = await _run_single_job_search(_make_tool_call(), seen_ids, None, None, _make_mock_profile_service())
 
     content = str(tool_msg.content)
     assert "full_description" not in content
@@ -146,7 +153,7 @@ async def test_pipeline_handles_llm_summary_failure_gracefully() -> None:
         mock_jsearch.invoke.return_value = raw_jobs
         mock_get_llm.return_value.ainvoke = AsyncMock(side_effect=Exception("LLM down"))
 
-        tool_msg, payloads, _ = await _run_single_job_search(_make_tool_call(), seen_ids, None, None)
+        tool_msg, payloads, _ = await _run_single_job_search(_make_tool_call(), seen_ids, None, None, _make_mock_profile_service())
 
     # Pipeline does NOT crash — all jobs present with original descriptions
     assert len(payloads) == 5
@@ -174,7 +181,7 @@ async def test_pipeline_handles_llm_timeout() -> None:
         mock_jsearch.invoke.return_value = raw_jobs
         mock_get_llm.return_value.ainvoke = slow_invoke
 
-        tool_msg, payloads, _ = await _run_single_job_search(_make_tool_call(), seen_ids, None, None)
+        tool_msg, payloads, _ = await _run_single_job_search(_make_tool_call(), seen_ids, None, None, _make_mock_profile_service())
 
     # Does NOT hang — all jobs present with original descriptions
     assert len(payloads) == 5
@@ -196,7 +203,7 @@ async def test_pipeline_passes_all_api_results() -> None:
         mock_jsearch.invoke.return_value = raw_jobs
         mock_get_llm.return_value.ainvoke = _mock_summary_llm_ok()
 
-        tool_msg, payloads, _ = await _run_single_job_search(_make_tool_call(), seen_ids, None, None)
+        tool_msg, payloads, _ = await _run_single_job_search(_make_tool_call(), seen_ids, None, None, _make_mock_profile_service())
 
     assert len(payloads) == 15
 
@@ -233,7 +240,7 @@ async def test_pipeline_dedup_excludes_seen_jobs() -> None:
         mock_jsearch.invoke.return_value = raw_jobs
         mock_get_llm.return_value.ainvoke = _mock_summary_llm_ok()
 
-        tool_msg, payloads, _ = await _run_single_job_search(_make_tool_call(), seen_ids, None, None)
+        tool_msg, payloads, _ = await _run_single_job_search(_make_tool_call(), seen_ids, None, None, _make_mock_profile_service())
 
     # job_payloads has only fresh jobs (7)
     assert len(payloads) == 7

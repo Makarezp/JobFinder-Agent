@@ -43,6 +43,7 @@ async def _run_single_job_search(
     seen_ids: set[str],
     user_profile: dict[str, Any] | None,
     preferences: dict[str, Any] | None,
+    profile_service: ProfileService,
 ) -> tuple[ToolMessage, list[dict[str, Any]], list[JobListing]]:
     """
     Execute one job_specialist_tool call: fetch → dedup → summarize → finalize.
@@ -71,6 +72,13 @@ async def _run_single_job_search(
 
     # 2. Dedup using the shared seen_ids snapshot (no store writes here)
     fresh, seen = _split_fresh_seen(all_listings, seen_ids)
+
+    # 2.5 Log this search to the ledger (before subgraph — survives summarisation failures)
+    await profile_service.log_search(
+        input_data=input_data,
+        results_count=len(all_listings),
+        fresh_count=len(fresh),
+    )
 
     # 3. Invoke 2-node subgraph (summarize → finalize) with fresh-only jobs
     subgraph_state: JobSpecialistState = {
@@ -141,7 +149,9 @@ async def call_job_specialist(
         # checks, causing Search B to demote a perfectly valid job to "seen".
         seen_ids = await profile_service.get_seen_job_ids(DEFAULT_USER_ID)
 
-        results = await asyncio.gather(*[_run_single_job_search(tc, seen_ids, user_profile, preferences) for tc in job_tool_calls_to_run])
+        results = await asyncio.gather(
+            *[_run_single_job_search(tc, seen_ids, user_profile, preferences, profile_service) for tc in job_tool_calls_to_run]
+        )
 
         # Mark all freshly processed jobs as seen in a single batch after all
         # searches complete — no store writes happen inside the parallel fan-out.
