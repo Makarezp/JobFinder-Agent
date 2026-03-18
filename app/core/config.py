@@ -13,7 +13,8 @@ class Settings(BaseSettings):
     DEBUG: bool = True
 
     # LLM
-    ACTIVE_LLM_MODEL: str = "gemini-flash-latest"
+    ACTIVE_LLM_MODEL: str = "gemini-3.1-pro-preview"
+    SUMMARISATION_LLM_MODEL: str = "gemini-flash-latest"
     GEMINI_API_KEY: str | None = None
     DEEPSEEK_API_KEY: str | None = None
 
@@ -25,6 +26,7 @@ class Settings(BaseSettings):
 
     # JSearch (RapidAPI)
     JSEARCH_API_KEY: str | None = None
+    JSEARCH_TIMEOUT: float = 30.0
 
     # Database
     DATABASE_URL: str | None = None

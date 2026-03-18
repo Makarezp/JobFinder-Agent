@@ -13,7 +13,7 @@ from app.agent.job_search.prompts import (
 )
 from app.agent.job_search.state import JobSpecialistState
 from app.agent.schemas import JobListing, JobSummaryBatch
-from app.core.llm import get_active_model
+from app.core.llm import get_summarisation_model
 from app.tools.jsearch_api import jsearch_api_search
 
 logger = structlog.get_logger(__name__)
@@ -26,7 +26,7 @@ _summary_llm: Runnable[Any, Any] | None = None
 def _get_summary_llm() -> Runnable[Any, Any]:
     global _summary_llm  # noqa: PLW0603
     if _summary_llm is None:
-        _summary_llm = get_active_model(temperature=0).with_structured_output(JobSummaryBatch)
+        _summary_llm = get_summarisation_model(temperature=0).with_structured_output(JobSummaryBatch)
     return _summary_llm
 
 

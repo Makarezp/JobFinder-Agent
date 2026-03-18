@@ -90,7 +90,7 @@ def jsearch_api_search(
     try:
         with log_timing("jsearch_api_search", logger):
             with httpx.Client() as client:
-                response = client.get(_JSEARCH_BASE_URL, headers=headers, params=params, timeout=15.0)
+                response = client.get(_JSEARCH_BASE_URL, headers=headers, params=params, timeout=settings.JSEARCH_TIMEOUT)
             response.raise_for_status()
 
         data = response.json()
