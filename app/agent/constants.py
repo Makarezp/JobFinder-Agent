@@ -9,7 +9,7 @@ FINAL_ANSWER_TOOL_NAME: Final[str] = "final_answer"
 
 # Protocol Keys (Agent Response)
 TEXT_RESPONSE_KEY: Final[str] = "text_response"
-SELECTED_JOB_INDEXES_KEY: Final[str] = "selected_job_indexes"
+SELECTED_JOB_IDS_KEY: Final[str] = "selected_job_ids"
 
 # State Keys
 MESSAGES_KEY: Final[str] = "messages"

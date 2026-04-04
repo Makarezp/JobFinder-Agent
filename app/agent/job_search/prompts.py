@@ -26,7 +26,10 @@ For each job, produce:
 - Produce EXACTLY one summary per input job. Do not skip any.
 - If a job's description is truncated or sparse, summarize what is available — do NOT penalize the job.
 - If no user profile or CV is available, focus on Essence and Conditions only.
-- You are a summarizer, NOT a filter. Do NOT make keep/drop decisions. Describe limitations factually — the user's agent will decide what to present.
+- Set `recommend` to `true` if the job is a reasonable match for the user's profile and preferences.
+  Set `false` for obvious mismatches: wrong field entirely, hard-excluded preferences
+  (e.g. user said AVOID Java and the role is a Java role), or clearly wrong seniority level.
+  When in doubt, recommend `true` — the chatbot makes final decisions.
 - Keep each description close to 500 characters. Do not exceed 700.""",
         ),
         ("human", "{jobs_json}"),

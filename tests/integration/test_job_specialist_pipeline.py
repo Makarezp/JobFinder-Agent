@@ -76,7 +76,7 @@ def _mock_summary_llm_ok() -> AsyncMock:
 
     async def _ainvoke(messages: Any) -> JobSummaryBatch:
         jobs = json.loads(messages[-1].content)
-        return JobSummaryBatch(summaries=[JobSummary(job_id=j["id"], description=f"AI summary for {j['id']}") for j in jobs])
+        return JobSummaryBatch(summaries=[JobSummary(job_id=j["id"], recommend=True, description=f"AI summary for {j['id']}") for j in jobs])
 
     return AsyncMock(side_effect=_ainvoke)
 

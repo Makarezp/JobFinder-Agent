@@ -78,17 +78,17 @@ def _make_service() -> ChatService:
 
 
 def _make_state_with_payloads(job_payloads: list[dict]) -> dict:  # type: ignore[type-arg]
-    """Build a minimal agent state dict with job_payloads and matching indexes."""
-    from app.agent.constants import FINAL_ANSWER_TOOL_NAME, SELECTED_JOB_INDEXES_KEY, TEXT_RESPONSE_KEY
+    """Build a minimal agent state dict with job_payloads and matching IDs."""
+    from app.agent.constants import FINAL_ANSWER_TOOL_NAME, SELECTED_JOB_IDS_KEY, TEXT_RESPONSE_KEY
 
-    indexes = list(range(1, len(job_payloads) + 1))
+    ids = [p["id"] for p in job_payloads if p.get("id")]
     ai_msg = AIMessage(
         content="",
         tool_calls=[
             {
                 "id": "call_abc",
                 "name": FINAL_ANSWER_TOOL_NAME,
-                "args": {TEXT_RESPONSE_KEY: "Here are some jobs.", SELECTED_JOB_INDEXES_KEY: indexes},
+                "args": {TEXT_RESPONSE_KEY: "Here are some jobs.", SELECTED_JOB_IDS_KEY: ids},
             }
         ],
     )
@@ -98,21 +98,42 @@ def _make_state_with_payloads(job_payloads: list[dict]) -> dict:  # type: ignore
     }
 
 
-def test_parse_agent_result_injects_id_when_missing() -> None:
-    """Jobs without an 'id' field receive a 12-character hex id."""
+def test_parse_agent_result_injects_id_when_empty() -> None:
+    """Jobs with an empty 'id' field receive a 12-character hex id after selection."""
     service = _make_service()
+    # Give jobs proper IDs for selection, but empty id to test injection
     jobs = [
-        {"title": "Python Dev", "company": "Acme", "apply_link": "https://example.com/1"},
-        {"title": "ML Eng", "company": "Acme", "apply_link": "https://example.com/2"},
+        {"id": "sel_1", "title": "Python Dev", "company": "Acme", "apply_link": "https://example.com/1"},
+        {"id": "sel_2", "title": "ML Eng", "company": "Acme", "apply_link": "https://example.com/2"},
     ]
     state = _make_state_with_payloads(jobs)
 
+    # Clear the IDs after state creation (simulates jobs with empty ids that were selected)
+    for j in state["job_payloads"]:
+        j["id"] = ""
+
+    # Rebuild the state with empty-id payloads but valid selected_job_ids
+    from app.agent.constants import FINAL_ANSWER_TOOL_NAME, SELECTED_JOB_IDS_KEY, TEXT_RESPONSE_KEY
+
+    ai_msg = AIMessage(
+        content="",
+        tool_calls=[
+            {
+                "id": "call_abc",
+                "name": FINAL_ANSWER_TOOL_NAME,
+                "args": {TEXT_RESPONSE_KEY: "Here are some jobs.", SELECTED_JOB_IDS_KEY: [""]},
+            }
+        ],
+    )
+    state["messages"] = [HumanMessage(content="Find me jobs"), ai_msg]
+
     result = service._parse_agent_result(state, "Find me jobs")
 
+    # At least the first matched job should have a generated id
     for job in result["jobs"]:
         assert "id" in job
         assert len(job["id"]) == 12
-        assert job["id"].isalnum()  # hex chars are alphanumeric
+        assert job["id"].isalnum()
 
 
 def test_parse_agent_result_does_not_overwrite_existing_id() -> None:
@@ -129,7 +150,7 @@ def test_parse_agent_result_does_not_overwrite_existing_id() -> None:
 def test_parse_agent_result_id_is_deterministic() -> None:
     """The same job data always produces the same id (hash is deterministic)."""
     service = _make_service()
-    job = {"title": "Dev", "company": "Acme", "apply_link": "https://example.com/job"}
+    job = {"title": "Dev", "company": "Acme", "apply_link": "https://example.com/job", "id": "job_1"}
     state1 = _make_state_with_payloads([dict(job)])
     state2 = _make_state_with_payloads([dict(job)])
 
@@ -143,11 +164,12 @@ def test_parse_agent_result_different_apply_links_produce_different_ids() -> Non
     """Two jobs with same company+title but different apply_link get distinct ids."""
     service = _make_service()
     jobs = [
-        {"title": "Dev", "company": "Acme", "apply_link": "https://example.com/job-1"},
-        {"title": "Dev", "company": "Acme", "apply_link": "https://example.com/job-2"},
+        {"title": "Dev", "company": "Acme", "apply_link": "https://example.com/job-1", "id": "job_a"},
+        {"title": "Dev", "company": "Acme", "apply_link": "https://example.com/job-2", "id": "job_b"},
     ]
     state = _make_state_with_payloads(jobs)
 
     result = service._parse_agent_result(state, "q")
 
+    # Both jobs have existing IDs so they keep them — they are distinct
     assert result["jobs"][0]["id"] != result["jobs"][1]["id"]

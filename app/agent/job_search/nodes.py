@@ -173,25 +173,37 @@ def finalize_state(state: JobSpecialistState) -> dict[str, Any]:
         logger.info("Node Completed: finalize_state", staged_count=0, summarized_count=0)
         return {"job_payloads": [], "tool_message_content": content}
 
-    summary_by_id: dict[str, str] = {s["job_id"]: s["description"] for s in summaries}
+    summary_by_id: dict[str, dict[str, Any]] = {
+        s["job_id"]: {"description": s["description"], "recommend": s.get("recommend", True)} for s in summaries
+    }
 
     job_payloads: list[dict[str, Any]] = []
-    for job in search_results:
-        if job.id in summary_by_id:
-            job.description = summary_by_id[job.id]
-        job_payloads.append(job.model_dump())
+    tool_jobs: list[dict[str, Any]] = []
 
-    # tool_message_content: strip full_description (only field removed), add 1-based index
-    tool_jobs = []
-    for i, payload in enumerate(job_payloads, start=1):
+    for job in search_results:
+        summary = summary_by_id.get(job.id)
+        if summary:
+            job.description = summary["description"]
+        payload = job.model_dump()
+
+        # tool_message_content: strip full_description, include all jobs (chatbot sees everything)
         entry = {k: v for k, v in payload.items() if k != "full_description"}
-        entry["index"] = i
         tool_jobs.append(entry)
 
+        # job_payloads (UI): only include recommended jobs or unsummarized jobs (safe default)
+        if summary is None or summary.get("recommend", True):
+            job_payloads.append(payload)
+
     tool_message_content = json.dumps(
-        {"jobs": tool_jobs, "note": f"Summarized {len(job_payloads)} jobs."},
+        {"jobs": tool_jobs, "note": f"Summarized {len(tool_jobs)} jobs."},
     )
 
-    summarized_count = sum(1 for j in job_payloads if j["id"] in summary_by_id)
-    logger.info("Node Completed: finalize_state", staged_count=len(job_payloads), summarized_count=summarized_count)
+    summarized_count = sum(1 for j_id in summary_by_id if any(j.id == j_id for j in search_results))
+    filtered_count = len(tool_jobs) - len(job_payloads)
+    logger.info(
+        "Node Completed: finalize_state",
+        staged_count=len(job_payloads),
+        summarized_count=summarized_count,
+        filtered_count=filtered_count,
+    )
     return {"job_payloads": job_payloads, "tool_message_content": tool_message_content}

@@ -52,9 +52,9 @@ class AgentResponse(BaseModel):
     """The structured response from the agent."""
 
     text_response: str = Field(..., description="The conversational response to the user.")
-    selected_job_indexes: list[int] = Field(
+    selected_job_ids: list[str] = Field(
         default=[],
-        description=("1-based indexes of jobs from job_specialist_tool results to present to the user."),
+        description="The `id` values of jobs from job_specialist_tool results to present to the user.",
     )
 
 
@@ -64,6 +64,14 @@ class JobSummary(BaseModel):
     model_config = {"extra": "forbid"}
 
     job_id: str = Field(..., description="The id of the summarized JobListing.")
+    recommend: bool = Field(
+        ...,
+        description=(
+            "True if the job is a reasonable match for the user's profile and preferences. "
+            "False for obvious mismatches (wrong field, hard-excluded preferences, clearly wrong seniority). "
+            "When in doubt, set true."
+        ),
+    )
     description: str = Field(
         ...,
         description=(

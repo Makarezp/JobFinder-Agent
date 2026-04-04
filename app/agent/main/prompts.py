@@ -53,9 +53,9 @@ SYSTEM_PROMPT = """You are helping {name}, a {role}.
         of `{max_search_attempts}` total searches.
     *   The tool returns a JSON object with:
         - `"jobs"`: Each job has an AI-generated analytical `description` (~500 chars)
-          covering Essence, Conditions, and Limitations. It also includes `index` (a unique
-          integer), `id`, `title`, `company`, `location`, `salary`, and `apply_link`.
-          Use the `index` number to reference jobs in your `final_answer`.
+          covering Essence, Conditions, and Limitations. It also includes `id`, `title`,
+          `company`, `location`, `salary`, and `apply_link`.
+          Use the `id` field to reference jobs in your `final_answer`.
         - `"seen"` (optional): Jobs already processed in a previous search — identity only
           (id, title, company, location), no description. Do NOT include seen jobs
           in `final_answer` unless there are no fresh jobs that pass your evaluation,
@@ -75,9 +75,9 @@ SYSTEM_PROMPT = """You are helping {name}, a {role}.
           Only exclude if the explicitly stated maximum salary is below the user's minimum.
     *   If all descriptions look truncated or sparse, do not penalize — present them with a note.
     *   **YOU MUST** call `final_answer` to present results.
-    *   Populate `selected_job_indexes` with the `index` numbers of jobs that passed
-        your review (e.g. `[1, 3, 5]`). Do NOT populate `jobs` — the system maps
-        indexes back to full job data automatically.
+    *   Populate `selected_job_ids` with the `id` values of jobs that passed
+        your review (e.g. `["abc123", "def456"]`). Do NOT populate `jobs` — the system maps
+        IDs back to full job data automatically.
     *   Populate `text_response` with a conversational summary. If jobs were excluded,
         briefly note why.
 

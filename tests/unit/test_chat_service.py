@@ -9,7 +9,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.store.memory import InMemoryStore
 from pypdf import PdfWriter
 
-from app.agent.constants import FINAL_ANSWER_TOOL_NAME, SELECTED_JOB_INDEXES_KEY, TEXT_RESPONSE_KEY
+from app.agent.constants import FINAL_ANSWER_TOOL_NAME, SELECTED_JOB_IDS_KEY, TEXT_RESPONSE_KEY
 from app.services.chat_service import ChatService
 from app.services.profile_service import ProfileService
 
@@ -40,12 +40,12 @@ JOB_B: dict[str, Any] = {
 
 def _make_final_answer_message(
     text: str = "Here are your jobs.",
-    selected_job_indexes: list[int] | None = None,
+    selected_job_ids: list[str] | None = None,
 ) -> AIMessage:
     """Build a fake AIMessage that mimics the agent's final_answer tool call."""
     args: dict[str, Any] = {TEXT_RESPONSE_KEY: text}
-    if selected_job_indexes is not None:
-        args[SELECTED_JOB_INDEXES_KEY] = selected_job_indexes
+    if selected_job_ids is not None:
+        args[SELECTED_JOB_IDS_KEY] = selected_job_ids
     msg = AIMessage(content="")
     msg.tool_calls = [  # type: ignore[attr-defined]
         {
@@ -59,10 +59,10 @@ def _make_final_answer_message(
 
 def _make_graph_mock(
     job_payloads: list[dict[str, Any]] | None = None,
-    selected_job_indexes: list[int] | None = None,
+    selected_job_ids: list[str] | None = None,
 ) -> MagicMock:
     """Return a graph mock that yields a single final state containing a final_answer tool call."""
-    final_state: dict[str, Any] = {"messages": [_make_final_answer_message(selected_job_indexes=selected_job_indexes)]}
+    final_state: dict[str, Any] = {"messages": [_make_final_answer_message(selected_job_ids=selected_job_ids)]}
     if job_payloads:
         final_state["job_payloads"] = job_payloads
 
@@ -75,7 +75,7 @@ def _make_graph_mock(
 
 
 def _make_service(store: InMemoryStore) -> ChatService:
-    discovery_graph = _make_graph_mock(job_payloads=[JOB_A, JOB_B], selected_job_indexes=[1, 2])
+    discovery_graph = _make_graph_mock(job_payloads=[JOB_A, JOB_B], selected_job_ids=["abc123def456", "def456abc789"])
     profile_graph = _make_graph_mock()
     profile_service = ProfileService(store=store)
     return ChatService(
@@ -290,16 +290,16 @@ JOB_UNSELECTED: dict[str, Any] = {
 }
 
 
-# --- Index-based selection (primary path) ---
+# --- ID-based selection (primary path) ---
 
 
-def test_parse_agent_result_indexes_map_to_correct_payloads() -> None:
-    """selected_job_indexes maps 1-based indexes to job_payloads positions."""
+def test_parse_agent_result_ids_map_to_correct_payloads() -> None:
+    """selected_job_ids maps IDs to matching job_payloads entries."""
     store = InMemoryStore()
     service = _make_service(store)
 
     result_state: dict[str, Any] = {
-        "messages": [_make_final_answer_message(selected_job_indexes=[1, 3])],
+        "messages": [_make_final_answer_message(selected_job_ids=["abc123def456", "def456abc789"])],
         "job_payloads": [JOB_A_ENRICHED, JOB_UNSELECTED, JOB_B_ENRICHED],
     }
 
@@ -311,13 +311,13 @@ def test_parse_agent_result_indexes_map_to_correct_payloads() -> None:
     assert parsed["jobs"][1]["id"] == JOB_B["id"]
 
 
-def test_parse_agent_result_ignores_out_of_range_indexes() -> None:
-    """Out-of-range indexes are silently skipped."""
+def test_parse_agent_result_ignores_unknown_ids() -> None:
+    """Unknown IDs are silently skipped."""
     store = InMemoryStore()
     service = _make_service(store)
 
     result_state: dict[str, Any] = {
-        "messages": [_make_final_answer_message(selected_job_indexes=[1, 99])],
+        "messages": [_make_final_answer_message(selected_job_ids=["abc123def456", "bogus_id_999"])],
         "job_payloads": [JOB_A_ENRICHED, JOB_UNSELECTED],
     }
 
@@ -327,11 +327,11 @@ def test_parse_agent_result_ignores_out_of_range_indexes() -> None:
     assert parsed["jobs"][0]["id"] == JOB_A["id"]
 
 
-# --- No indexes: no jobs added (even if payloads exist in checkpoint) ---
+# --- No IDs: no jobs added (even if payloads exist in checkpoint) ---
 
 
-def test_parse_agent_result_no_indexes_returns_no_jobs() -> None:
-    """When no selected_job_indexes, no jobs are returned — even if stale
+def test_parse_agent_result_no_ids_returns_no_jobs() -> None:
+    """When no selected_job_ids, no jobs are returned — even if stale
     job_payloads exist in the checkpoint from a previous search turn."""
     store = InMemoryStore()
     service = _make_service(store)

@@ -14,7 +14,7 @@ from app.agent.constants import (
     DEFAULT_THREAD_ID,
     DEFAULT_USER_ID,
     FINAL_ANSWER_TOOL_NAME,
-    SELECTED_JOB_INDEXES_KEY,
+    SELECTED_JOB_IDS_KEY,
     TEXT_RESPONSE_KEY,
 )
 from app.core.logging import log_timing, request_id_var
@@ -104,11 +104,11 @@ class ChatService:
         return result
 
     @staticmethod
-    def _extract_ai_content(msg: AIMessage) -> tuple[str, list[int]]:
-        """Extract text and selected job indexes from an AIMessage.
+    def _extract_ai_content(msg: AIMessage) -> tuple[str, list[str]]:
+        """Extract text and selected job IDs from an AIMessage.
 
         Handles two formats:
-        - final_answer tool call: structured text_response + selected_job_indexes
+        - final_answer tool call: structured text_response + selected_job_ids
         - Plain AI message: may be a string or a multipart list
           (Gemini may return multipart content as a list of text/dict segments)
         """
@@ -116,7 +116,7 @@ class ChatService:
             final_args = msg.tool_calls[0]["args"]
             return (
                 final_args.get(TEXT_RESPONSE_KEY, ""),
-                final_args.get(SELECTED_JOB_INDEXES_KEY, []),
+                final_args.get(SELECTED_JOB_IDS_KEY, []),
             )
 
         content = msg.content
@@ -146,20 +146,21 @@ class ChatService:
                 "jobs": [],
             }
 
-        ai_content, selected_indexes = self._extract_ai_content(last_ai_message)
+        ai_content, selected_ids = self._extract_ai_content(last_ai_message)
 
-        # Map the agent's selected indexes back to full pipeline data.
-        # Only adds jobs when the LLM explicitly selects via indexes — no fallback.
+        # Map the agent's selected IDs back to full pipeline data.
+        # Only adds jobs when the LLM explicitly selects via IDs — no fallback.
         # job_payloads persists in the checkpoint, so without this guard a non-search
         # turn would re-add stale jobs to the Deck.
         job_payloads: list[dict[str, Any]] = result.get("job_payloads", [])
         jobs: list[dict[str, Any]] = []
-        if job_payloads and selected_indexes:
-            for idx in selected_indexes:
-                if 1 <= idx <= len(job_payloads):
-                    jobs.append(job_payloads[idx - 1])
+        if job_payloads and selected_ids:
+            payload_by_id = {j["id"]: j for j in job_payloads}
+            for job_id in selected_ids:
+                if job_id in payload_by_id:
+                    jobs.append(payload_by_id[job_id])
                 else:
-                    logger.warning("Out-of-range job index ignored", index=idx, total=len(job_payloads))
+                    logger.warning("Unknown job ID ignored", job_id=job_id, available=len(payload_by_id))
 
         if not ai_content and not jobs:
             ai_content = "I apologize, but I couldn't generate a response. Please try asking again."

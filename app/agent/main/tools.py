@@ -30,7 +30,7 @@ def job_specialist_tool(
 @tool(args_schema=AgentResponse)
 def final_answer(
     text_response: str,
-    selected_job_indexes: list[int] | None = None,
+    selected_job_ids: list[str] | None = None,
 ) -> str:
     """Present the final response to the user with optional job listings."""
     # Routing sentinel — _parse_agent_result reads tool call args, not this return

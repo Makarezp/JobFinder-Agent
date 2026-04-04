@@ -102,7 +102,7 @@ def _format_search_ledger(ledger: list[dict[str, Any]]) -> str | None:
         searched_at = entry.get("searched_at", "?")
 
         more_tag = " [MORE PAGES AVAILABLE]" if has_more else ""
-        lines.append(f'- "{query}" (country={country}, page={page}) → ' f"{results} results, {fresh} fresh{more_tag} — {searched_at}")
+        lines.append(f'- "{query}" (country={country}, page={page}) → {results} results, {fresh} fresh{more_tag} — {searched_at}')
     return "\n".join(lines)
 
 

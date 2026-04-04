@@ -257,7 +257,7 @@ async def test_summarize_jobs_parallel_calls_llm_per_chunk() -> None:
 
         jobs_text = messages[-1].content
         jobs = _json.loads(jobs_text)
-        return JobSummaryBatch(summaries=[JobSummary(job_id=j["id"], description=f"Summary for {j['id']}") for j in jobs])
+        return JobSummaryBatch(summaries=[JobSummary(job_id=j["id"], recommend=True, description=f"Summary for {j['id']}") for j in jobs])
 
     mock_llm = AsyncMock(side_effect=make_batch_response)
 
@@ -287,9 +287,9 @@ async def test_summarize_batch_handles_count_mismatch() -> None:
 
     mock_response = JobSummaryBatch(
         summaries=[
-            JobSummary(job_id="0", description="Summary 0"),
-            JobSummary(job_id="1", description="Summary 1"),
-            JobSummary(job_id="2", description="Summary 2"),
+            JobSummary(job_id="0", recommend=True, description="Summary 0"),
+            JobSummary(job_id="1", recommend=True, description="Summary 1"),
+            JobSummary(job_id="2", recommend=True, description="Summary 2"),
         ]
     )
 
@@ -341,7 +341,7 @@ def _make_listing_with_full_desc(job_id: str, description: str = "raw snippet") 
 
 def test_finalize_state_merges_ai_descriptions() -> None:
     listings = [_make_listing_with_full_desc(str(i)) for i in range(3)]
-    summaries = [{"job_id": str(i), "description": f"AI summary {i}"} for i in range(3)]
+    summaries = [{"job_id": str(i), "recommend": True, "description": f"AI summary {i}"} for i in range(3)]
     state = _make_state()
     state["search_results"] = listings
     state["summaries"] = summaries
@@ -355,9 +355,37 @@ def test_finalize_state_merges_ai_descriptions() -> None:
         assert "apply_link" in payload
 
 
+def test_finalize_state_filters_not_recommended() -> None:
+    """Jobs with recommend=False are excluded from job_payloads but present in tool_message_content."""
+    listings = [_make_listing_with_full_desc(str(i)) for i in range(3)]
+    summaries = [
+        {"job_id": "0", "recommend": True, "description": "AI summary 0"},
+        {"job_id": "1", "recommend": False, "description": "AI summary 1"},
+        {"job_id": "2", "recommend": True, "description": "AI summary 2"},
+    ]
+    state = _make_state()
+    state["search_results"] = listings
+    state["summaries"] = summaries
+
+    result = finalize_state(state)
+
+    # job_payloads excludes the not-recommended job
+    assert len(result["job_payloads"]) == 2
+    payload_ids = {p["id"] for p in result["job_payloads"]}
+    assert "1" not in payload_ids
+    assert "0" in payload_ids
+    assert "2" in payload_ids
+
+    # tool_message_content still has all 3 jobs (chatbot sees them)
+    import json
+
+    parsed = json.loads(result["tool_message_content"])
+    assert len(parsed["jobs"]) == 3
+
+
 def test_finalize_state_tool_message_strips_full_description() -> None:
     listings = [_make_listing_with_full_desc(str(i)) for i in range(3)]
-    summaries = [{"job_id": str(i), "description": f"AI summary {i}"} for i in range(3)]
+    summaries = [{"job_id": str(i), "recommend": True, "description": f"AI summary {i}"} for i in range(3)]
     state = _make_state()
     state["search_results"] = listings
     state["summaries"] = summaries
@@ -383,8 +411,8 @@ def test_finalize_state_tool_message_strips_full_description() -> None:
 def test_finalize_state_keeps_raw_snippet_on_summary_miss() -> None:
     listings = [_make_listing_with_full_desc(str(i), description=f"raw {i}") for i in range(3)]
     summaries = [
-        {"job_id": "0", "description": "AI summary 0"},
-        {"job_id": "1", "description": "AI summary 1"},
+        {"job_id": "0", "recommend": True, "description": "AI summary 0"},
+        {"job_id": "1", "recommend": True, "description": "AI summary 1"},
     ]
     state = _make_state()
     state["search_results"] = listings
