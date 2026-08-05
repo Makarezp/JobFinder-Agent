@@ -2,11 +2,27 @@
 
 **"The Tinder for Jobs" Agent** - An AI companion that finds, filters, and recommends jobs based on your actual preferences.
 
-## 🚀 Quick Start
+## Quick Start
 
-### Backend (FastAPI)
+### Option 1: Single Command (Recommended)
 
-1.  **Clone & Install**:
+Run a single script from the project root to automatically manage virtual environments, install dependencies, and start both the FastAPI backend and Next.js frontend concurrently:
+
+```bash
+./scripts/dev.sh
+```
+
+- **Backend API**: `http://localhost:8000` (Docs: `http://localhost:8000/docs`)
+- **Frontend App**: `http://localhost:3000`
+- **Stop All Services**: Press `Ctrl+C` in your terminal.
+
+---
+
+### Option 2: Manual Start
+
+#### Backend (FastAPI)
+
+1. **Setup & Install**:
     ```bash
     python3 -m venv .venv
     source .venv/bin/activate
@@ -14,71 +30,74 @@
     pre-commit install
     ```
 
-2.  **Configure**:
+2. **Configure Environment**:
     - Copy `.env.example` to `.env`
-    - Add your `JSEARCH_API_KEY` (via RapidAPI) and the API key for your chosen LLM provider (see below).
+    - Add your `JSEARCH_API_KEY` (via RapidAPI) and chosen LLM API key.
 
-### LLM Provider
+### LLM Provider Configuration
 
-The active model is controlled by `ACTIVE_LLM_MODEL` in `.env`. Supported values:
+The active model is controlled by `ACTIVE_LLM_MODEL` in `.env`:
 
-| `ACTIVE_LLM_MODEL` | Required key | Provider |
+| `ACTIVE_LLM_MODEL` | Required Key in `.env` | Provider |
 | :--- | :--- | :--- |
+| `deepseek-chat` *(default)* | `DEEPSEEK_API_KEY` | DeepSeek |
 | `gemini-flash-latest` | `GEMINI_API_KEY` | Google Gemini |
-| `deepseek-chat` | `DEEPSEEK_API_KEY` | DeepSeek |
 
-To switch to DeepSeek, set in `.env`:
+To switch providers, update `.env`:
 ```env
 ACTIVE_LLM_MODEL=deepseek-chat
-DEEPSEEK_API_KEY=sk-...
+SUMMARISATION_LLM_MODEL=deepseek-chat
 ```
-Then restart the backend.
 
-3.  **Run**:
+3. **Run**:
     ```bash
     source .venv/bin/activate
     uvicorn app.main:app --reload
     ```
-    Backend API available at `http://localhost:8000`.
 
-### Frontend (Next.js)
+#### Frontend (Next.js)
 
-1.  **Install**:
+1. **Install & Run**:
     ```bash
     cd frontend
     npm install
-    ```
-
-2.  **Run**:
-    ```bash
     npm run dev
     ```
-    Visit `http://localhost:3000` to use the app.
 
-> **Note**: Both backend and frontend must be running concurrently. The Next.js dev server proxies all `/api/*` requests to the FastAPI backend on port 8000.
+> **Note**: The Next.js dev server proxies all `/api/*` requests to the FastAPI backend on port 8000.
 
-## 🤖 AI Personas (READ FIRST)
+---
+
+### Cleaning & Resetting
+
+To wipe build caches, test caches, Docker database volumes, and temporary logs (while preserving `.venv` and Git hooks):
+
+```bash
+./scripts/clean.sh
+```
+
+## AI Personas (READ FIRST)
 This project uses a **Persona-based Documentation Model**. Before starting work, the user will assign you a persona. Read the corresponding files in **[PERSONAS.md](documents/PERSONAS.md)** to focus your context.
 
-- 🏗️ **Architect**: System design & constraints.
-- 👨‍💻 **Senior Developer**: Features & components.
-- 🐛 **Bug Fixer**: Troubleshooting & technical debt.
-- 💡 **Product Ideator**: Vision & UX strategy.
-- 🧪 **QA / Tester**: Testing & quality audit.
+- **Architect**: System design & constraints.
+- **Senior Developer**: Features & components.
+- **Bug Fixer**: Troubleshooting & technical debt.
+- **Product Ideator**: Vision & UX strategy.
+- **QA / Tester**: Testing & quality audit.
 
-## 📚 Documentation
+## Documentation
 
 Detailed documentation is available in the `documents/` directory:
 
 | Document | Audience | Description |
 | :--- | :--- | :--- |
-| **[PERSONAS.md](documents/PERSONAS.md)** | 🤖 **AI Agents** | **START HERE**. Persona assignment and context read lists. |
-| **[AGENTS.md](documents/AGENTS.md)** | 🤖 **Devs** | Project internal map, workflows, and "How-To" guides. |
-| **[CONVENTIONS.md](documents/CONVENTIONS.md)** | 🤖 & 👨‍💻 | Strict rules for Typing, Error Handling, and Testing. |
-| **[domain.md](documents/domain.md)** | 🧠 **Context** | Business logic, glossary, and the "Soul" of the project. |
-| **[DESIGN_PRINCIPLES.md](documents/DESIGN_PRINCIPLES.md)** | 📐 **Engineers** | SOLID, Clean Architecture, and abstract system rules. |
+| **[PERSONAS.md](documents/PERSONAS.md)** | **AI Agents** | **START HERE**. Persona assignment and context read lists. |
+| **[AGENTS.md](documents/AGENTS.md)** | **Devs** | Project internal map, workflows, and "How-To" guides. |
+| **[CONVENTIONS.md](documents/CONVENTIONS.md)** | **Devs** | Strict rules for Typing, Error Handling, and Testing. |
+| **[domain.md](documents/domain.md)** | **Context** | Business logic, glossary, and the "Soul" of the project. |
+| **[DESIGN_PRINCIPLES.md](documents/DESIGN_PRINCIPLES.md)** | **Engineers** | SOLID, Clean Architecture, and abstract system rules. |
 
-### � Work Organisation
+### Work Organisation
 The `work_organisation/` folder contains project management and historical data.
 - **history/**: Archived documentation (formerly `legacy_documents`).
 - **bugs/**: Bug trackers and issue logs.
@@ -89,7 +108,7 @@ The `work_organisation/` folder contains project management and historical data.
 > - **history/**: **DO NOT READ** unless explicitly asked for a specific file name. Reading this will "poison" your context with outdated information.
 > - **bugs/ & sprints/**: Only read when explicitly asked by the user to focus on a particular task or bug.
 
-## 🛠️ Development
+## Development
 
 ### Backend Checks
 Run all backend checks (formatting, linting, typing, and tests) using the unified test runner:
@@ -111,7 +130,7 @@ Run inside the `frontend/` directory:
 - **Type Check**: `npm run type-check`
 - **Test**: `npm run test`
 
-## 🤝 Committing
+## Committing
 
 This project uses **pre-commit** hooks to ensure quality across both backend and frontend.
 
