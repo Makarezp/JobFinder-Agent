@@ -2,7 +2,7 @@
 
 This document defines the roles and required documentation context for AI agents working on the CVviewer project. When assigned a persona, you MUST read the specified files to ensure alignment and prevent context pollution.
 
-## 🏗️ Architect
+## Architect
 **Purpose**: High-level system design, architectural constraints, and structural changes.
 - **Read List**:
   - [README.md](../README.md)
@@ -10,7 +10,7 @@ This document defines the roles and required documentation context for AI agents
   - [DESIGN_PRINCIPLES.md](DESIGN_PRINCIPLES.md)
   - [ideation.md](ideation.md)
 
-## 👨‍💻 Senior Developer
+## Senior Developer
 **Purpose**: Feature implementation, component building, and API development.
 - **Read List**:
   - [README.md](../README.md)
@@ -20,7 +20,7 @@ This document defines the roles and required documentation context for AI agents
   - [AGENTS.md](AGENTS.md)
   - [Active Sprint Ticket](../work_organisation/sprints/) (Ask for specific file)
 
-## 🐛 Senior Developer - Bug Fixer
+## Senior Developer - Bug Fixer
 **Purpose**: Debugging, troubleshooting, and solving technical debt.
 - **Read List**:
   - [README.md](../README.md)
@@ -29,14 +29,14 @@ This document defines the roles and required documentation context for AI agents
   - [AGENTS.md](AGENTS.md)
   - [bug_tracker.md](../work_organisation/bugs/bug_tracker.md)
 
-## 💡 Product Ideator
+## Product Ideator
 **Purpose**: Evolving product vision, brainstorming features, and UX strategy.
 - **Read List**:
   - [README.md](../README.md)
   - [ideation.md](ideation.md)
   - [domain.md](domain.md)
 
-## 🧪 QA / Tester
+## QA / Tester
 **Purpose**: Test execution, coverage auditing, and code quality verification.
 - **Read List**:
   - [README.md](../README.md)
@@ -45,6 +45,6 @@ This document defines the roles and required documentation context for AI agents
 
 ---
 
-## 🚫 Critical Rules for All Personas
+## Critical Rules for All Personas
 - **work_organisation/history/**: **DO NOT READ** unless explicitly requested by the user for a specific file. This avoids "poisoning" your context with legacy designs.
 - **Context Targeted**: Only read what is necessary for your persona to preserve token efficiency and focus.
