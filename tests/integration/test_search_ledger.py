@@ -43,7 +43,7 @@ def _tool_call(query: str = "python developer", tc_id: str = "tc-1") -> dict[str
 
 async def _llm_ok(messages: Any) -> JobSummaryBatch:
     jobs = json.loads(messages[-1].content)
-    return JobSummaryBatch(summaries=[JobSummary(job_id=j["id"], description=f"AI summary for {j['id']}") for j in jobs])
+    return JobSummaryBatch(summaries=[JobSummary(job_id=j["id"], recommend=True, description=f"AI summary for {j['id']}") for j in jobs])
 
 
 # ---------------------------------------------------------------------------
