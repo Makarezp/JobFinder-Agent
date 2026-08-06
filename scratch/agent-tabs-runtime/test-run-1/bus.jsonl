@@ -1,0 +1,1 @@
+{"ts":"2026-08-06T15:19:28.830Z","run":"test-run-1","agent":"critic","type":"error","seq":1,"data":{"stage":"spawn","error":"tmux new-session -d -s test-run-1 -n __root__ failed: error connecting to /private/tmp/tmux-501/default (Operation not permitted)"}}
