@@ -193,3 +193,128 @@ Ticket 6 step 3 does `backend.send(handle, "/exit", enter=True)`. With `-l` (man
 | tmux behaviours (H4, M4) | — | **Not tested — tmux is not installed** |
 
 All probe files were removed; the repo is unchanged.
+
+---
+---
+
+# Ticket 8 Review — `Viewer` Plugin
+
+Reviewed against the **now-existing implementation** (`agentctl.py`, 2044 lines), not against the ticket's description of it. I opened every line range Ticket 8 cites.
+
+**First, credit where due.** Every line reference in Ticket 8 is accurate — `ENV_BACKEND` at 52-55, `Config` at 74-97, `Backend` at 566-588, `_exe`/`_run` at 618-627, `get_backend` at 757-768, `AGENT_NAME` at 780, `backend.open` at 1168, `spawn_parser` at 1621-1633, `_cmd_spawn` at 1770, `test_spawn.py:137`, and `esc()` at `launch-agents.sh:44`. That is unusual and it made this review much faster. The core design — `Viewer` orthogonal to `Backend`, default-off, failure-tolerant — is right, and the decision not to touch `Backend` is correct.
+
+The blockers from the first review were all adopted, and visibly so: `hook_command` now quotes every argv element and carries a docstring explaining exactly why; `resolve_runtime_root` is pinned once and documented as "nothing running inside a worker may re-derive it"; handles are `#{window_id}`; `_bootstrap` retries and confirms on `turn_start`; `DEFAULT_PERMISSION_MODE = "acceptEdits"` exists; and `test.sh` is self-contained with its own `mypy --strict`. Good.
+
+Four problems, two of which will bite.
+
+---
+
+### T8-1 — The headline acceptance criterion asserts the wrong argv. It fails against a *correct* implementation. [VERIFIED]
+
+**Where:** Step 7, first bullet, and the first `[Automated]` AC.
+
+The expected value is:
+
+```python
+["tmux", "attach", "-t", 'My "Run"\\Two', "\\;", "select-window", "-t", "@3"]
+```
+
+`shlex.split` does not preserve `\;` — it resolves the shell escape and yields a bare `;`. Built and run:
+
+```
+built:  tmux attach -t 'My "Run"\Two' \; select-window -t @3
+split:  ['tmux', 'attach', '-t', 'My "Run"\\Two', ';', 'select-window', '-t', '@3']
+ticket: ['tmux', 'attach', '-t', 'My "Run"\\Two', '\\;', 'select-window', '-t', '@3']
+match:  False
+```
+
+The run-id escaping — the part the AC actually exists to protect — round-trips perfectly. Only the separator token is wrong. That is what makes this dangerous: the test fails on a *correct* implementation, and the obvious way to make it pass is to emit `\\;` into the command string, which sends tmux a literal backslash-semicolon and breaks the `select-window` chain. You would ship a viewer that attaches to the session but never jumps to the right window, with a green test asserting the escaping is sound.
+
+**Correction.** Expected argv ends `..., ";", "select-window", "-t", "@3"`. Also state explicitly that the `;` separator is *not* run through `shlex.quote` — either `\;` or `';'` is fine in the command string (both split to `;`), but it must be a deliberate literal, not an accident of quoting the whole argv.
+
+### T8-2 — `except ViewerError` cannot honour the ticket's own "must never fail a spawn" rule. [VERIFIED]
+
+**Where:** Step 5, and the constraint *"A viewer must never be able to fail a spawn."*
+
+Step 5 places `viewer.reveal(...)` immediately after `backend.open(...)` at line 1168. That point is inside `spawn_agent`'s `try:` (opens 1143), and the handler at 1192 is:
+
+```python
+except Exception as exc:
+    # Never leave a half-live agent: no window, no worktree ...
+    if handle is not None: backend.kill(handle)
+    if worktree_path is not None: remove_worktree(...)
+    append_event(paths, name, EventType.ERROR, {"stage": "spawn", ...})
+    raise
+```
+
+So anything the viewer raises that is *not* `ViewerError` does not merely skip the reveal — it **kills a healthy agent, tears down its worktree, and records a spawn failure**. The ticket's defence is *"`ViewerError` is the only type it is allowed to raise, so that catch stays exhaustive"*. But that is a convention the viewer is asked to honour, and the whole reason the constraint exists is to survive a viewer that does *not* honour it. An `AttributeError` in the AppleScript builder, a `TypeError` from a bad runner, an `OSError` `ItermTabViewer` forgot to wrap — each destroys the agent. The narrow catch protects against the failure mode that cannot happen and not the one that can.
+
+**Correction.** Catch `Exception` at the reveal call site, with a comment stating the breadth is deliberate:
+
+```python
+try:
+    viewer.reveal(paths.run, handle)
+except Exception as exc:  # noqa: BLE001 - a cosmetic step must never fail a spawn
+    log.warning("viewer %r could not reveal %s: %s", viewer, handle, exc)
+```
+
+This is not a new precedent — it is the same reasoning the codebase already applies twice, at `spawn_agent`'s own cleanup handler (1192) and the hook subcommand's exit-0-always rule. Keep `ViewerError` as the type viewers *should* raise for diagnosis; just don't make correctness depend on it.
+
+### T8-3 — The viewer attaches with a fuzzy target while the backend deliberately uses an exact one. [VERIFIED]
+
+**Where:** Step 3, `tmux attach -t <run> \; select-window -t <handle>`.
+
+`TmuxBackend` never targets a session by bare name. It routes everything through:
+
+```python
+@staticmethod
+def _target(run: str) -> str:
+    # '=' forces an exact match, so a run named 'cvv' never resolves to 'cvv-hotfix'.
+    return f"={run}"
+```
+
+Ticket 8's viewer uses `-t <run>` directly. With runs `cvv` and `cvv-hotfix` both live, `tmux attach -t cvv` can drop the human into `cvv-hotfix` — while `select-window -t @3` still targets the right window id (ids are server-global), so they land attached to the wrong session showing the right window. A confusing state to debug, and precisely the failure that comment was written to prevent.
+
+Note this also punctures the ticket's claim that `Viewer` "has no knowledge of tmux internals beyond a run id and an opaque handle". `-t` *is* a tmux target and `=` *is* tmux target syntax; the abstraction already leaks. That is fine — but then it must leak correctly.
+
+**Correction.** Use `=<run>` in the attach command (quote the whole `={run}` token), or better, expose `_target` as a module-level helper and call it from both places so the rule lives once. Add an AC: *a viewer test asserts the attach target is `=<run>`, not `<run>`.*
+
+### T8-4 — `SKILL.md` tells the human to do the exact thing this ticket calls a footgun. [VERIFIED]
+
+`SKILL.md:69-70` currently reads:
+
+> In iTerm2, `tmux -CC attach -t <run>` renders each window as a **native iTerm tab** … **That is the intended way to watch a run.**
+
+Ticket 8 ships a viewer that does a plain attach and warns that *"mixing a plain attach and a control-mode attach to the same session in the same iTerm window is a real tmux/iTerm footgun"* — but does not update `SKILL.md`. A human who follows the documented workflow (`-CC attach`) and then spawns with `--viewer iterm-tab` walks straight into it, having done nothing wrong.
+
+**Correction.** Add a step 8 to the ticket: update `SKILL.md`'s watch section to present `-CC attach` and `--viewer iterm-tab` as two mutually exclusive ways to watch a run, and say plainly not to mix them within one run. Ticket 7's genericity test still applies to the edit.
+
+---
+
+### Minor
+
+- **T8-5 — `get_viewer` does not mirror `get_backend`, despite saying "mirror exactly".** The real signature is `get_backend(name: str | None = None, config: Config | None = None)` with `cfg = config if config is not None else Config.from_env()`. The ticket's `get_viewer(name: str | None, config: Config)` has no defaults and no `None` handling. Match it properly or drop the word "exactly" — as written, an implementer following the letter produces an inconsistent API.
+
+- **T8-6 — Wrong path for the reference script.** `~/My Drive/cv-builder/scripts/launch-agents.sh` does not exist; `~/My Drive` is not a directory on this machine. The file is real, and `esc()` is exactly at line 44 as cited, at `~/Library/CloudStorage/GoogleDrive-makarezp1@gmail.com/My Drive/cv-builder/scripts/launch-agents.sh`. Fix the path so the implementer can actually open it.
+
+- **T8-7 — Nested tmux.** If `agentctl` is run from inside a tmux client, the new iTerm tab inherits `$TMUX` and `tmux attach` refuses with *"sessions should be nested with care"* — surfacing as a `ViewerError` on every spawn. Cheap fix: prefix the command with `TMUX= `. This also matters for Deferred Decision 1 (orchestrator inside tmux).
+
+- **T8-8 — No teardown counterpart.** `reveal` runs before the handshake, so if the spawn then fails, cleanup kills the window and the human is left with an orphaned iTerm tab whose `tmux attach` has exited. Cosmetic, not token-burning, so I would accept it — but say so explicitly in the ticket rather than leaving it unexamined, given Ticket 6's ethos about orphans.
+
+- **Verified safe, no action:** adding a `viewer: str` field to the frozen `Config` is fine — `Config` is only ever constructed via `from_env` with keyword arguments (no positional construction anywhere in `agentctl.py` or `tests/`). And `VIEWERS: dict[str, type[Viewer]]` with a `Protocol` value type passes `mypy --strict`, since `BACKENDS: dict[str, type[Backend]]` already does exactly that today.
+
+- **Ticket 8's `run`-is-unvalidated premise is correct.** `AGENT_NAME` appears at 780 and is used only once, at 1127, against the *agent* name. No run-id validation exists. The defensive-quoting posture is justified.
+
+### What I verified for Ticket 8
+
+| Claim | Method | Result |
+|---|---|---|
+| All 11 `agentctl.py` / test / SKILL.md line citations | opened each range | All accurate |
+| AC's expected argv for `\;` | built the string, ran `shlex.split` | **Wrong** — yields `;`, not `\;` |
+| Reveal call site sits inside a broad cleanup handler | read `spawn_agent` 1143-1203 | **Confirmed** — `except Exception` kills window + worktree |
+| Backend targets sessions exactly | read `_target` (636-638) | **Confirmed** — `=<run>`; ticket's viewer omits it |
+| `SKILL.md` recommends `-CC attach` | read SKILL.md 55-75 | **Confirmed** — calls it "the intended way" |
+| `run` is unvalidated | grepped `AGENT_NAME` usage | Confirmed — agent names only |
+| `Config` construction sites | grepped `agentctl.py` + `tests/` | Only `from_env`, keyword-only — safe to extend |
+| `esc()` helper | read `launch-agents.sh:44` | Exists as described; **path in ticket is wrong** |
+| iTerm/AppleScript behaviour, `tmux attach` | — | **Not tested — tmux is not installed** |

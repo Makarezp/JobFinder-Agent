@@ -167,6 +167,63 @@ def test_spawn_passes_model_and_isolation_flags(tmp_path: Path, role: Path) -> N
     assert argv[argv.index("--permission-mode") + 1] == "acceptEdits"
 
 
+class _RecordingViewer:
+    """A local test double -- only `spawn` consumes `Viewer` today, so unlike
+    `FakeBackend` (which every command touches) this does not ship as a
+    reusable fake."""
+
+    def __init__(self, raises: Exception | None = None) -> None:
+        self.calls: list[tuple[str, str]] = []
+        self._raises = raises
+
+    def reveal(self, run: str, handle: str) -> None:
+        self.calls.append((run, handle))
+        if self._raises is not None:
+            raise self._raises
+
+
+def test_spawn_calls_reveal_exactly_once_with_the_backends_handle(tmp_path: Path, role: Path) -> None:
+    paths = agentctl.RunPaths.build(tmp_path / "rt", "cvv")
+    backend = agentctl.FakeBackend()
+    _responder(paths, backend, "critic")
+    viewer = _RecordingViewer()
+
+    meta = agentctl.spawn_agent(paths, backend, "critic", role, claude_binary=TRUE_BINARY, spawn_timeout=10, bootstrap_timeout=10, viewer=viewer)
+
+    assert viewer.calls == [("cvv", meta.handle)]
+
+
+def test_spawn_survives_a_viewer_that_raises_something_other_than_viewer_error(tmp_path: Path, role: Path) -> None:
+    paths = agentctl.RunPaths.build(tmp_path / "rt", "cvv")
+    backend = agentctl.FakeBackend()
+    _responder(paths, backend, "critic")
+    viewer = _RecordingViewer(raises=RuntimeError("boom, not a ViewerError"))
+
+    meta = agentctl.spawn_agent(paths, backend, "critic", role, claude_binary=TRUE_BINARY, spawn_timeout=10, bootstrap_timeout=10, viewer=viewer)
+
+    assert meta.handle
+    assert viewer.calls == [("cvv", meta.handle)]
+
+
+def test_spawn_without_a_viewer_behaves_exactly_as_before_this_ticket(tmp_path: Path, role: Path) -> None:
+    # No viewer= argument: the CLI default. Nothing visible should change --
+    # the default NullViewer is a no-op, so this is the regression guard for
+    # "spawn without --viewer behaves exactly as it does today."
+    paths = agentctl.RunPaths.build(tmp_path / "rt", "cvv")
+    backend = agentctl.FakeBackend()
+    _responder(paths, backend, "critic")
+
+    meta = agentctl.spawn_agent(paths, backend, "critic", role, claude_binary=TRUE_BINARY, spawn_timeout=10, bootstrap_timeout=10)
+
+    window = backend.windows[meta.handle]
+    assert window.env == {
+        agentctl.ENV_RUNTIME: str(paths.runtime_root),
+        agentctl.ENV_RUN: "cvv",
+        agentctl.ENV_AGENT: "critic",
+    }
+    assert agentctl.AgentMeta.load(paths.meta("critic")).handle == meta.handle
+
+
 def test_bootstrap_doorbell_is_a_pointer_not_the_payload(tmp_path: Path, role: Path) -> None:
     paths = agentctl.RunPaths.build(tmp_path / "rt", "cvv")
     backend = agentctl.FakeBackend()

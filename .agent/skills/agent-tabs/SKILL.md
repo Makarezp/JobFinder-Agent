@@ -66,8 +66,18 @@ Ctrl-b <n>               # switch to window n
 Ctrl-b d                 # detach (agents keep running)
 ```
 
-In iTerm2, `tmux -CC attach -t <run>` renders each window as a **native iTerm
-tab**, switchable with `Cmd-1` / `Cmd-2`. That is the intended way to watch a run.
+Two mutually exclusive ways to watch a run, both iTerm2-specific:
+
+- `tmux -CC attach -t <run>` renders every window in the run as a **native
+  iTerm tab**, switchable with `Cmd-1` / `Cmd-2` — the whole-session view.
+- `agentctl spawn ... --viewer iterm-tab` opens one new iTerm tab, already
+  attached to that one agent's window, the moment `spawn` creates it — the
+  per-agent, hands-off view. Off by default; nothing changes unless you pass
+  `--viewer`.
+
+**Do not mix them within one run.** A plain attach and a control-mode attach
+to the same tmux session in the same iTerm window is a real footgun, not a
+cosmetic one — pick one style per run.
 
 ---
 

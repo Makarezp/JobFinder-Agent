@@ -605,6 +605,118 @@ The two documents that make the framework usable by an agent rather than by a hu
 
 ---
 
+## Ticket 8: `Viewer` Plugin — Reveal a Spawned Agent Without a Manual Attach
+
+**Status:** Not started
+
+#### Overview
+Today `spawn` leaves every window detached; a human only sees an agent after manually running `tmux attach` or `tmux -CC attach` (`SKILL.md:61-70`). This ticket adds an optional, swappable "viewer" step that runs right after a window is created, so e.g. an iTerm user can get a live tab per agent automatically — without hard-wiring iTerm into `spawn` or into the `Backend` protocol, which must stay terminal-emulator-agnostic (it is also driven by `FakeBackend` in every non-tmux test).
+
+Inspiration: `~/Library/CloudStorage/GoogleDrive-makarezp1@gmail.com/My Drive/cv-builder/scripts/launch-agents.sh` already does the useful part of this manually — it drives iTerm via `osascript` to open one new tab per agent, `cd`s into place, and types a bootstrap prompt. This ticket generalises the "open a tab and attach" half of that script into a pluggable `Viewer`, independent of `Backend`. Reusing that script's own approach (`claude --model ... ; delay ...`) is explicitly **not** in scope — this framework already has a real readiness handshake (T3); the new viewer only has to attach a terminal to an *existing* tmux window, never re-launch or re-bootstrap the agent.
+
+#### Implementation Steps
+
+1. **Define the protocol** — in `agentctl.py`, next to the `Backend` protocol (`agentctl.py:566-588`), add:
+   ```python
+   @runtime_checkable
+   class Viewer(Protocol):
+       def reveal(self, run: str, handle: str) -> None: ...
+   ```
+   `reveal` takes only the tmux run id and window handle — nothing viewer-specific should leak into `spawn_agent`'s signature. A viewer that cannot do its job (program not installed, wrong OS, `osascript` failure) must raise `ViewerError` (new exception, subclass of `AgentTabsError`, mirroring `BackendError`) — it must **never** raise a *different* exception type, so the one `except` clause in step 4 stays exhaustive.
+
+2. **`NullViewer`** — `reveal` is a no-op. This is today's behaviour (manual attach) and stays the default; adding the plugin must not change any existing test's expectations for `spawn` without `--viewer`.
+
+3. **`ItermTabViewer`** — the one real implementation this ticket ships.
+   - Opens a **new iTerm tab in the current window** (not a new OS window) and runs a **plain `tmux attach`**, not `tmux -CC`:
+     ```
+     TMUX= tmux attach -t =<run> \; select-window -t <handle>
+     ```
+     This is a normal tmux client attach + jump-to-window, so it works whether the run has one agent or ten, and does not depend on iTerm's tmux control-mode integration (`tmux -CC`) at all — control mode attaches to the *whole session* as a batch of native tabs, which is a different mode this ticket deliberately does not build (see the SKILL.md's own `-CC` note, which remains the documented manual alternative).
+     - **The target must be `=<run>` (exact match), not bare `<run>`.** `TmuxBackend._target` (`agentctl.py:635-638`) exists specifically because a bare name silently resolves to whichever session matches first — e.g. `tmux attach -t cvv` can drop the human into `cvv-hotfix` while `select-window -t <handle>` still (correctly, since window ids are server-global) jumps to the right window, landing them attached to the *wrong session* showing the *right* window. Reuse `_target` itself (make it a module-level function both `TmuxBackend` and `ItermTabViewer` call) rather than re-deriving the `=` rule a second time.
+     - **`TMUX= ` prefix is required**, not decorative: if `agentctl` (and therefore the new iTerm tab, which inherits its environment) is itself run from inside a tmux client, `$TMUX` is set and `tmux attach` refuses with *"sessions should be nested with care"* — turning every `reveal` call into a `ViewerError` the moment the orchestrator itself runs under tmux.
+   - Two independent escaping layers, both required, neither optional (this is the same class of defect as B1 in `agent-tabs-iteration-1-review.md`, and must be tested the same way — round-trip, not "contains the substring"):
+     1. `shlex.quote` on `=<run>` (the whole target token, not just `run`) and on `handle`, when building the `tmux attach ...` command string — that string is executed by the *shell running inside the new iTerm tab*, exactly like `launch-agents.sh`'s `write text` targets are shell command lines, not argv lists. The `\;` tmux command separator is a **literal**, written as-is (or as `';'`) — it must never be passed through `shlex.quote` itself, only the tokens around it.
+     2. AppleScript string-literal escaping of the *whole* resulting command (backslash, then double-quote) before it is embedded in the `write text "..."` line — reuse the exact escaping rule `launch-agents.sh`'s `esc()` helper implements (`~/Library/CloudStorage/GoogleDrive-makarezp1@gmail.com/My Drive/cv-builder/scripts/launch-agents.sh:44`), since `run` (user-supplied, e.g. via `--run`) is **not** validated against `AGENT_NAME` (`agentctl.py:780`) or any pattern today, so it may legitimately contain quotes or backslashes.
+   - Build the full AppleScript as one string:
+     ```applescript
+     tell application "iTerm"
+       activate
+       if (count of windows) = 0 then create window with default profile
+       tell current window
+         set s to (current session of (create tab with default profile))
+         tell s
+           write text "<escaped tmux attach command>"
+         end tell
+       end tell
+     end tell
+     ```
+   - Run it via **stdin**, not `-e`, to avoid AppleScript's own line-splitting quirks with multi-line `-e` scripts: `subprocess.run(["osascript", "-"], input=script, text=True, capture_output=True, check=False)`.
+   - Accept an injectable runner for testability, mirroring `TmuxBackend`'s own `_run`/`_exe` split (`agentctl.py:618-627`): `ItermTabViewer(runner: Callable[[str], subprocess.CompletedProcess[str]] | None = None)`, defaulting to the real `subprocess.run` call above. A non-zero exit or a missing `osascript` binary (`shutil.which("osascript") is None`) raises `ViewerError` carrying stderr — never a bare `subprocess.CalledProcessError` or `FileNotFoundError`.
+
+4. **Registry — mirror `get_backend`'s actual signature (`agentctl.py:757-768`), not just its shape.** `get_backend` is `get_backend(name: str | None = None, config: Config | None = None)`, with `cfg = config if config is not None else Config.from_env()` — both parameters optional, `config` defaulted and resolved internally when omitted. Match that exactly:
+   ```python
+   VIEWERS: dict[str, type[Viewer]] = {"none": NullViewer, "iterm-tab": ItermTabViewer}
+
+   def get_viewer(name: str | None = None, config: Config | None = None) -> Viewer:
+       cfg = config if config is not None else Config.from_env()
+       chosen = name or cfg.viewer
+       try:
+           factory = VIEWERS[chosen]
+       except KeyError as exc:
+           raise ViewerError(f"unknown viewer {chosen!r}; available: {', '.join(sorted(VIEWERS))}") from exc
+       return factory()
+   ```
+   Add `ENV_VIEWER = "AGENT_TABS_VIEWER"` and `DEFAULT_VIEWER = "none"` next to the existing `ENV_BACKEND`/`DEFAULT_BACKEND` constants (`agentctl.py:52-55`), and a `viewer: str` field on `Config` (`agentctl.py:74-97`), read in `Config.from_env` exactly like `backend` is today. **Do not** add `--viewer` to the shared `common` parser used by every subcommand — only `spawn` creates a window worth revealing, so `--viewer` belongs on `spawn_parser` alone (`agentctl.py:1621-1633`), next to `--backend`'s existing per-command precedent.
+
+5. **Wire into `spawn_agent`** (`agentctl.py:1104-1191`). Add a `viewer: Viewer = NullViewer()` keyword parameter. Call `viewer.reveal(paths.run, handle)` **immediately after `handle = backend.open(...)`** (right after `agentctl.py:1168`), *before* the `wait_for_event` block — so the human can watch the agent's own boot handshake happen live in the new tab, rather than only seeing it once already idle. The call site sits inside `spawn_agent`'s own `try:` block (opens at 1143), whose `except Exception` handler (1192) kills the window, removes the worktree, and re-raises — so the reveal call must **never let anything propagate out of it**, not merely anything typed `ViewerError`:
+   ```python
+   try:
+       viewer.reveal(paths.run, handle)
+   except Exception as exc:  # noqa: BLE001 - a cosmetic step must never fail a spawn
+       log.warning("viewer %r could not reveal %s: %s", viewer, handle, exc)
+   ```
+   Catching only `ViewerError` here is a real defect, not a stylistic choice: it only protects against a viewer that already behaves, which is not the failure this catch exists for. An `AttributeError` in the AppleScript builder, a `TypeError` from a misbehaving injected runner, or an `OSError` `ItermTabViewer` forgot to wrap would otherwise propagate straight into `spawn_agent`'s cleanup handler and **kill a healthy agent and its worktree over a cosmetic failure**. `ViewerError` remains the type a well-behaved viewer *should* raise for diagnosis (it carries stderr, etc.) — correctness at this call site must not depend on viewers honouring that convention. This mirrors the reasoning already used twice elsewhere in this file: the hook subcommand's exit-0-always rule, and `spawn_agent`'s own cleanup handler.
+
+   Note also that `reveal` runs before the readiness handshake: if the spawn subsequently times out or fails, the window (and the iTerm tab attached to it) is killed out from under the human. This leaves an orphaned iTerm tab whose `tmux attach` has simply exited — cosmetic, not a token-burning orphan the way a live but forgotten agent would be (Ticket 6's concern), and accepted as-is for this ticket. Do not build teardown for it.
+
+6. **CLI plumbing** — `_cmd_spawn` (`agentctl.py:1770-1788`) passes `viewer=get_viewer(args.viewer, config)`. Add `spawn_parser.add_argument("--viewer", help="viewer name (default: none); overrides $AGENT_TABS_VIEWER")`.
+
+7. **Tests — `tests/test_viewer.py` (new)**, plus a few additions to `tests/test_spawn.py`.
+   - **Quoting round-trip, done the B1 way:** build a viewer with a recording runner, call `reveal` with a `run` value containing a space, a double quote, and a backslash (e.g. `My "Run"\Two`) and a handle like `@3`. Assert the exact tmux command embedded in the captured AppleScript, once **both** unescaping steps are undone (AppleScript string-literal unescape, then `shlex.split`), equals `["TMUX=", "tmux", "attach", "-t", "=My \"Run\"\\Two", ";", "select-window", "-t", "@3"]` — or equivalent exact-argv assertion. Note the leading `"TMUX="` token: `shlex.split` treats the env-var-clearing prefix as its own word (it does not understand shell assignment-prefix semantics), so an implementation that gets everything else right will still fail a test that forgets this token — build the expected list by running `shlex.split` over the real intended command line while writing the test, not by hand-transcribing it. Note the separator token: `shlex.split` resolves a shell-escaped `\;` to a bare `;`, not to `\;` — build the expected list by actually running `shlex.split` over the intended literal command during test-writing, don't hand-transcribe it, or the test will fail against a *correct* implementation and pass only if the separator is mangled into a literal backslash-semicolon (which breaks the `select-window` chain in real tmux). Also note the target is `=My "Run"\Two`, the exact-match form, not the bare run id. Asserting the script merely "contains the run id substring" passes on a broken version; do not weaken this, per the standing rule from B1.
+   - `NullViewer().reveal(...)` is a no-op and returns `None` for any input, including nonsense strings.
+   - `get_viewer("iterm-tab", config)` returns an `ItermTabViewer`; `get_viewer("nonsense", config)` raises `ViewerError` naming the valid choices.
+   - `get_viewer(None, config)` with `$AGENT_TABS_VIEWER=iterm-tab` in the environment returns an `ItermTabViewer`; with nothing set, returns `NullViewer` (the default-off contract from the design decision above).
+   - A viewer whose runner returns a non-zero exit code causes `reveal` to raise `ViewerError` carrying the captured stderr.
+   - In `tests/test_spawn.py`: extend the existing `FakeBackend`-driven spawn test (pattern at `test_spawn_reports_identity_through_the_environment`, `agentctl.py`/`tests/test_spawn.py:137`) with a small local test double implementing `Viewer` (recording `reveal` calls) — **not** a new shipped `FakeViewer`, since only `spawn` consumes `Viewer` today, unlike `Backend` which every command touches. Assert:
+     - `spawn_agent(..., viewer=recorder)` calls `reveal(run, handle)` exactly once, with the handle `FakeBackend.open` returned.
+     - A recorder whose `reveal` raises `ViewerError` does not prevent the spawn from completing successfully (the existing `wait_for_event`/bootstrap flow still runs and `spawn_agent` still returns a `meta`).
+     - Omitting `viewer=` entirely (the CLI default) behaves exactly as today — no new call, no new attribute on `meta`.
+
+8. **Update `SKILL.md`'s watch section (`SKILL.md:61-70`).** It currently presents `tmux -CC attach -t <run>` as "the intended way to watch a run," with no mention of a per-agent alternative. Add a short note presenting `-CC attach` and `--viewer iterm-tab` as two *mutually exclusive* ways to watch a run, and say plainly not to mix them within one run (a plain attach and a control-mode attach to the same session in the same iTerm window is a real footgun — see the constraint below). Ticket 7's genericity test (`agentctl.py`, `SKILL.md`, `WORKER.md` greeped for `ticket`/`sprint`/`cvviewer`) still applies to this edit — keep it generic.
+
+#### Explicit Constraints & Warnings
+- **`Viewer` must stay orthogonal to `Backend`.** It has no knowledge of tmux internals beyond a run id and an opaque handle string; it must not call `backend.*` methods directly, and `Backend` must not gain a `reveal` method. Keeping the roles-in-tmux abstraction and the how-does-a-human-see-it abstraction separate is the entire point of this ticket — collapsing them is the mistake to avoid.
+- **This is not `tmux -CC`.** Do not attempt to detect or reuse an existing `tmux -CC` control-mode connection; `ItermTabViewer` always does a plain client attach. Mixing a plain attach and a control-mode attach to the same session in the same iTerm window is a real tmux/iTerm footgun and out of scope.
+- **Never re-type the bootstrap or role prompt from the viewer.** That already happens through the T3 handshake and the T4 doorbell; a viewer that also "helpfully" types something into the pane risks colliding with, or duplicating, an in-flight doorbell keystroke.
+- **`run` is attacker-adjacent, not just untrusted-in-theory.** It is a CLI argument with no validation today (unlike agent names, which are checked against `AGENT_NAME`). Treat it exactly like B1 treated the repo's own path: quote defensively, prove it with a round-trip test, never with a substring check.
+- **Do not make `iterm-tab` the default.** Per the design decision behind this ticket: `spawn` without `--viewer` must behave exactly as it does today. This also keeps headless/CI use of `agentctl` (no display, no iTerm, possibly no `osascript`) working unchanged.
+- **A viewer must never be able to fail a spawn.** The `spawn_agent` call site (step 5) catches `Exception`, deliberately broadly — not just `ViewerError` — because the whole point of the catch is to survive a viewer that misbehaves, not just one that behaves and raises the documented type. `ViewerError` is what a well-written viewer *should* raise for diagnosis; it is not what correctness may depend on.
+- Test functions fully annotated — `mypy --strict` runs over `tests/` per the standing project rule (H1 in the review doc).
+- macOS-only in practice (`osascript`, `iTerm`), but nothing in the `Viewer` protocol itself is macOS-specific — a future `TerminalTabViewer` (plain Terminal.app) or a Linux/`gnome-terminal` viewer is a one-`class` addition to `VIEWERS`, same as `iterm` would be for `Backend` (`SKILL.md`'s own aspiration, `agentctl.py:757`).
+
+#### Acceptance Criteria
+- [Automated] A `run` value containing a space, a double quote, and a backslash produces a captured AppleScript whose embedded tmux command round-trips via AppleScript-unescape + `shlex.split` to the exact expected argv (leading `"TMUX="` token, target `=<run>`, separator a bare `;` after `shlex.split`, per step 7) — not merely "contains" it.
+- [Automated] The attach target is `=<run>`, never bare `<run>` — asserted separately from the round-trip test so a future edit can't silently drop the `=` while keeping the rest of the argv correct.
+- [Automated] `spawn_agent` with no `viewer=` argument makes zero calls to any viewer and returns the same `AgentMeta` as before this ticket (regression guard against changing default behaviour).
+- [Automated] `spawn_agent` with a `viewer` whose `reveal` raises **any** exception type — not just `ViewerError` (e.g. a bare `RuntimeError`) — still returns a successful `meta`. This is the AC that actually exercises T8-2; a test that only raises `ViewerError` would pass against the defective narrow-catch version too.
+- [Automated] `get_viewer` resolution order matches `get_backend`'s, including the no-argument defaults: `get_viewer()` with no args reads `Config.from_env()`; explicit name wins over `$AGENT_TABS_VIEWER`, which wins over the `none` default.
+- [Manual] `agentctl spawn reviewer --role <path> --run demo --viewer iterm-tab` opens a new iTerm tab in the current window, already attached to the right window, within a couple seconds of the command returning — no `tmux attach` typed by hand.
+- [Manual] With two runs live (`demo` and `demo-hotfix`), spawning with `--viewer iterm-tab --run demo` attaches the new tab to `demo`, never `demo-hotfix`.
+- [Manual] The same command with `--viewer` omitted behaves exactly as before: the window is created detached, nothing appears on screen.
+- [Manual] Running `agentctl spawn ... --viewer iterm-tab` from inside an existing tmux client (i.e. with `$TMUX` set) still succeeds — the nested-session refusal is suppressed.
+
+---
+
 ## Build Order
 
 1. **T1** — nothing works without the bus. Write the concurrency test first, in the B3-corrected form.
@@ -614,6 +726,7 @@ The two documents that make the framework usable by an agent rather than by a hu
 **Stop here and evaluate.** T1→T3 is the slice that proves the core hypothesis: that `spawned` and `turn_start` fire reliably from a live TUI session. All three blockers lived in this slice. If the handshake holds, T4–T7 are mechanical.
 
 4. T4 → T5 → T6 → T7.
+5. **T8** is independent of T4–T7 — it only touches `spawn`'s window-creation path (step 5, after `backend.open`) and ships behind an opt-in `--viewer` flag. Build it any time after T3; it does not block or get blocked by T4–T7.
 
 ## Deferred Decisions
 

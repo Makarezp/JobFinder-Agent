@@ -35,7 +35,7 @@ import shlex
 import shutil
 import subprocess
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -50,9 +50,11 @@ ENV_RUNTIME = "AGENT_TABS_RUNTIME"
 ENV_RUN = "AGENT_TABS_RUN"
 ENV_AGENT = "AGENT_TABS_AGENT"
 ENV_BACKEND = "AGENT_TABS_BACKEND"
+ENV_VIEWER = "AGENT_TABS_VIEWER"
 
 DEFAULT_STATE_HOME = "~/.local/state/agent-tabs"
 DEFAULT_BACKEND = "tmux"
+DEFAULT_VIEWER = "none"
 
 INBOX_WIDTH = 4
 REPO_HASH_WIDTH = 12
@@ -84,6 +86,7 @@ class Config:
     run: str | None
     agent: str | None
     backend: str
+    viewer: str
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> Config:
@@ -94,6 +97,7 @@ class Config:
             run=source.get(ENV_RUN),
             agent=source.get(ENV_AGENT),
             backend=source.get(ENV_BACKEND, DEFAULT_BACKEND),
+            viewer=source.get(ENV_VIEWER, DEFAULT_VIEWER),
         )
 
 
@@ -588,7 +592,129 @@ class Backend(Protocol):
     def kill_run(self, run: str) -> None: ...
 
 
+class ViewerError(AgentTabsError):
+    """A viewer could not reveal a window to the human."""
+
+
+@runtime_checkable
+class Viewer(Protocol):
+    """Attaches a human's terminal to an already-open window.
+
+    Orthogonal to ``Backend``: a viewer knows only a run id and an opaque
+    handle, never how the window was created. It must never call ``backend.*``
+    directly, and ``Backend`` must never grow a ``reveal`` method -- the two
+    abstractions (how an agent lives in tmux, how a human sees it) stay
+    separate on purpose.
+    """
+
+    def reveal(self, run: str, handle: str) -> None: ...
+
+
+class NullViewer:
+    """Today's behaviour: nothing happens, the window stays detached."""
+
+    def reveal(self, run: str, handle: str) -> None:
+        return None
+
+
+class ItermTabViewer:
+    """Opens a new iTerm tab in the current window, attached to one agent.
+
+    Drives iTerm the same way ``launch-agents.sh`` does (AppleScript via
+    ``osascript``), but only for the "open a tab and attach" half -- the
+    agent is already up (T3's readiness handshake proved it); this never
+    re-launches or re-bootstraps anything.
+
+    Deliberately a plain ``tmux attach``, not ``tmux -CC``: control mode
+    attaches to the whole session as a batch of native tabs, a different
+    workflow this viewer does not build. Mixing the two against the same
+    session in the same iTerm window is a real footgun -- see SKILL.md.
+    """
+
+    def __init__(self, runner: Callable[[str], subprocess.CompletedProcess[str]] | None = None) -> None:
+        self._runner = runner or self._osascript
+
+    @staticmethod
+    def _osascript(script: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(["osascript", "-"], input=script, text=True, capture_output=True, check=False)
+
+    @staticmethod
+    def _applescript_escape(text: str) -> str:
+        # Same rule as launch-agents.sh's esc(): backslash first, then the
+        # double-quote that would otherwise close the AppleScript string early.
+        return text.replace("\\", "\\\\").replace('"', '\\"')
+
+    @staticmethod
+    def _shell_quote(value: str) -> str:
+        # Deliberately not shlex.quote(): that implements POSIX-sh quoting,
+        # which treats a leading '=' as safe and leaves it unquoted. But the
+        # shell that actually runs this line is the human's interactive
+        # shell -- zsh by default on macOS -- which has a non-POSIX
+        # extension: an unquoted word starting with '=' undergoes "equals
+        # expansion" ('=cmd' -> full path of cmd on $PATH, erroring if not
+        # found). Every tmux target this viewer builds is '=<run>', so an
+        # unquoted target breaks for every run, not just adversarial ones --
+        # this was caught by a live spawn against a real zsh, not by any
+        # string-level test. Always single-quoting sidesteps zsh's expansion
+        # unconditionally, regardless of what any one shell's quoting rules
+        # consider "safe".
+        return "'" + value.replace("'", "'\\''") + "'"
+
+    def reveal(self, run: str, handle: str) -> None:
+        if shutil.which("osascript") is None:
+            raise ViewerError("osascript is not installed or not on PATH (iTerm viewer is macOS-only)")
+
+        # TMUX= clears the env var the new tab would otherwise inherit if
+        # agentctl itself runs inside a tmux client -- without it, tmux
+        # refuses with "sessions should be nested with care" on every reveal.
+        # Only the target and handle are shell-quoted; ';' is tmux's own
+        # command separator, not the shell's -- it must reach tmux as a
+        # single literal argument, so it is itself escaped from the *shell*
+        # that will run this line (`\;`), not passed through shell quoting.
+        # An unescaped ' ; ' here is a real, live-tested bug: the shell reads
+        # it as its own separator and splits the line into two commands,
+        # the second of which ("select-window ...") is not a program.
+        command = f"TMUX= tmux attach -t {self._shell_quote(tmux_target(run))} \\; select-window -t {self._shell_quote(handle)}"
+        escaped = self._applescript_escape(command)
+        script = (
+            'tell application "iTerm"\n'
+            "  activate\n"
+            "  if (count of windows) = 0 then create window with default profile\n"
+            "  tell current window\n"
+            "    set s to (current session of (create tab with default profile))\n"
+            "    tell s\n"
+            f'      write text "{escaped}"\n'
+            "    end tell\n"
+            "  end tell\n"
+            "end tell\n"
+        )
+        completed = self._runner(script)
+        if completed.returncode != 0:
+            raise ViewerError(f"osascript failed to open an iTerm tab: {completed.stderr.strip()}")
+
+
+VIEWERS: dict[str, type[Viewer]] = {"none": NullViewer, "iterm-tab": ItermTabViewer}
+
+
+def get_viewer(name: str | None = None, config: Config | None = None) -> Viewer:
+    """Construct a viewer by name: --viewer, then the environment, then none."""
+    cfg = config if config is not None else Config.from_env()
+    chosen = name or cfg.viewer
+    try:
+        factory = VIEWERS[chosen]
+    except KeyError as exc:
+        raise ViewerError(f"unknown viewer {chosen!r}; available: {', '.join(sorted(VIEWERS))}") from exc
+    return factory()
+
+
 ROOT_WINDOW = "__root__"
+
+
+def tmux_target(run: str) -> str:
+    # '=' forces an exact match, so a run named 'cvv' never resolves to 'cvv-hotfix'.
+    # Shared by TmuxBackend and any viewer that also attaches by run id, so the
+    # exact-match rule lives in exactly one place.
+    return f"={run}"
 
 
 class TmuxBackend:
@@ -634,8 +760,7 @@ class TmuxBackend:
 
     @staticmethod
     def _target(run: str) -> str:
-        # '=' forces an exact match, so a run named 'cvv' never resolves to 'cvv-hotfix'.
-        return f"={run}"
+        return tmux_target(run)
 
     def _session_exists(self, run: str) -> bool:
         return self._run("has-session", "-t", self._target(run)).returncode == 0
@@ -1116,6 +1241,7 @@ def spawn_agent(
     spawn_timeout: float = DEFAULT_SPAWN_TIMEOUT,
     bootstrap_timeout: float = DEFAULT_BOOTSTRAP_TIMEOUT,
     claude_binary: str | None = None,
+    viewer: Viewer = NullViewer(),
 ) -> AgentMeta:
     """Bring up one agent and prove it is up before returning.
 
@@ -1166,6 +1292,15 @@ def spawn_agent(
 
         env = {ENV_RUNTIME: str(paths.runtime_root), ENV_RUN: paths.run, ENV_AGENT: name}
         handle = backend.open(paths.run, name, argv, str(working_dir), env)
+        try:
+            viewer.reveal(paths.run, handle)
+        except Exception as exc:  # noqa: BLE001 - a cosmetic step must never fail a spawn
+            # Deliberately broader than ViewerError: this call sits inside the
+            # outer try/except below, whose handler kills the window and the
+            # worktree on ANY exception. A viewer that raises something else
+            # (an AttributeError in a script builder, a bad injected runner)
+            # would otherwise destroy a healthy agent over a cosmetic failure.
+            log.warning("viewer %r could not reveal %s: %s", viewer, handle, exc)
         if "agy" in Path(binary).name:
             time.sleep(1.5)
             backend.send(handle, "", enter=True)
@@ -1630,6 +1765,7 @@ def build_parser() -> argparse.ArgumentParser:
     spawn_parser.add_argument("--no-doorbell", action="store_true", help="do not send the bootstrap instruction")
     spawn_parser.add_argument("--spawn-timeout", type=float, default=DEFAULT_SPAWN_TIMEOUT)
     spawn_parser.add_argument("--bootstrap-timeout", type=float, default=DEFAULT_BOOTSTRAP_TIMEOUT)
+    spawn_parser.add_argument("--viewer", help="viewer name (default: none); overrides $AGENT_TABS_VIEWER")
     spawn_parser.set_defaults(handler=_cmd_spawn)
 
     send_parser = subparsers.add_parser("send", parents=[common], help="deliver an instruction to a running agent")
@@ -1783,6 +1919,7 @@ def _cmd_spawn(args: argparse.Namespace, config: Config) -> int:
         spawn_timeout=args.spawn_timeout,
         bootstrap_timeout=args.bootstrap_timeout,
         claude_binary=args.binary,
+        viewer=get_viewer(args.viewer, config),
     )
     print(f"{meta.name}\t{meta.handle}\t{meta.cwd}")
     return 0
