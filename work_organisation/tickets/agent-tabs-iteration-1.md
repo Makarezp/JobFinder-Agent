@@ -717,6 +717,54 @@ Inspiration: `~/Library/CloudStorage/GoogleDrive-makarezp1@gmail.com/My Drive/cv
 
 ---
 
+## Ticket 9: Stop `spawn` Silently Preferring `agy` Over `claude`
+
+**Status:** Not started
+
+#### Overview
+`spawn_agent` picks a worker binary with `binary = claude_binary or shutil.which("agy") or shutil.which("claude")` (`agentctl.py:1261`) — on any machine with both `agy` (Antigravity CLI) and `claude` installed, `agy` silently wins even though the caller asked for neither explicitly. This was not a hypothetical: spawning an agent with `agentctl spawn viewer-impl --role ... --run ticket8 --model sonnet` (no `--binary`) on this machine picked `agy`, whose bootstrap path is a blind `time.sleep(1.5)` followed by an unconditional blank `backend.send(handle, "", enter=True)` (`agentctl.py:1304-1306`) — the exact "sleep-and-hope" pattern this framework's own `spawn` command exists to eliminate (`SKILL.md`'s spawn section: *"there is no sleep-and-hope"*). `agy` exited on its own within that 1.5s window (for a reason nothing in `agentctl` captured), tmux closed the now-empty window, and the blind `send-keys` a moment later failed with an opaque `can't find window: @123` — a message that names a tmux mechanics failure and says nothing about the real cause, `agy` itself refusing to start. Re-running with `--binary "$(which claude)"` explicitly worked immediately.
+
+Two distinct problems, both in scope: (1) the *default* silently favors the binary that (as implemented today) is more likely to fail and offers no readiness handshake of its own, and (2) once it does fail, there is no information anywhere — not on stdout, not in `meta.json`, not in the error message — recording *which* binary was chosen, so the failure is far harder to diagnose than it needs to be.
+
+#### Implementation Steps
+
+1. **Flip the default precedence — `agentctl.py:1261`.** Change
+   ```python
+   binary = claude_binary or shutil.which("agy") or shutil.which("claude")
+   ```
+   to
+   ```python
+   binary = claude_binary or shutil.which("claude") or shutil.which("agy")
+   ```
+   `claude` is the binary this framework's readiness handshake (T3), doorbell (T4), and every hook in `write_settings` are built and tested against; `agy` is reached only as an explicit, opt-in fallback via `--binary agy` or `--binary "$(which agy)"`, never by silent default. Update the error message at `agentctl.py:1262-1263` (currently `"neither agy nor claude is installed or on PATH"`) to name `claude` first, matching the new precedence.
+
+2. **Record which binary was actually used — new field on `AgentMeta` (`agentctl.py:1143-1152`).** Add `binary: str` (the resolved absolute path, not the raw `claude_binary` argument, so `meta.json` shows what actually ran even when resolution fell through `shutil.which`). Pass it into the `AgentMeta(...)` construction at `agentctl.py:1308-1318`. This is the same category of fix as the model/permission-mode fields that already exist there — a spawn's own record should be able to answer "what did this actually launch" without cross-referencing PATH state that may have since changed.
+
+3. **Surface the choice at spawn time, not just after the fact.** `_cmd_spawn`'s success line (`print(f"{meta.name}\t{meta.handle}\t{meta.cwd}")`, near `agentctl.py:1921`) tells the caller nothing about which binary ran. Extend it to include the resolved binary, e.g. `print(f"{meta.name}\t{meta.handle}\t{meta.cwd}\t{meta.binary}")`, and update any test asserting the exact stdout format (`tests/test_spawn.py`) accordingly.
+
+4. **Give the `agy` bootstrap path a diagnosable failure, since it still exists as an opt-in.** At `agentctl.py:1304-1306`, before the blind `send`, check `backend.alive(handle)`. If it is already `False` (the process exited during the sleep, as reproduced live), raise a `SpawnError` that says so explicitly — `f"agy exited on its own within {AGY_BOOT_DELAY}s of starting; last screen:\n{backend.capture(handle, 40)}"` — using whatever of `capture`'s last output is still available, rather than letting the blind `send-keys` fail with a generic tmux-mechanics message that names the wrong layer. This does not fix `agy`'s own instability (out of scope — `agentctl` does not own that binary) and does not turn the blind sleep into a real handshake (a deeper change, and `agy`'s own readiness signalling, if any, is unexplored) — it only makes the failure legible instead of opaque, matching the standing rule that a spawn which cannot be proven must fail with enough information to say why.
+
+5. **Tests — extend `tests/test_spawn.py`.**
+   - With both `shutil.which("agy")` and `shutil.which("claude")` monkeypatched to return paths, and no `--binary` given, assert the resolved binary is the `claude` path, not the `agy` one (the precedence flip's own regression guard — the previous behaviour must not silently come back).
+   - `--binary` explicitly set to an `agy`-shaped path still takes that path unconditionally (precedence is a *default* only, not a removal of the option).
+   - `meta.json` written by a successful spawn contains a `binary` field equal to the resolved path used to `backend.open(...)`.
+   - A `FakeBackend` whose `alive(handle)` returns `False` immediately after `open()`, with a binary named `agy...`, causes `spawn_agent` to raise `SpawnError` mentioning `agy` and *not* to reach the blind `backend.send` call at all (assert zero entries were added to `FakeBackend.sends` for that handle).
+
+#### Explicit Constraints & Warnings
+- **This ticket does not touch `agy`'s own bootstrap mechanism beyond the liveness check in step 4.** Replacing the `sleep(1.5)` + blind `Enter` with a real event-driven handshake for `agy` is a larger change (it would need to know what, if anything, `agy` reports on startup) and is explicitly out of scope here — track it separately if `agy` becomes a first-class supported binary rather than an opt-in fallback.
+- **Do not remove `agy` support.** The fix is precedence and diagnosability, not deletion — `--binary agy` (or an absolute path to it) must keep working exactly as it does today.
+- **`--binary` explicit values must still win over everything.** Nothing in this ticket may make the flag less authoritative than the default; the precedence change only affects what happens when the caller specifies nothing.
+- Test functions fully annotated — `mypy --strict` runs over `tests/` per the standing project rule.
+
+#### Acceptance Criteria
+- [Automated] With both `agy` and `claude` present on `PATH` and no `--binary` given, `spawn_agent` resolves to the `claude` path.
+- [Automated] `meta.json` after a successful spawn contains a `binary` field naming the resolved path actually passed to `backend.open`.
+- [Automated] A backend that reports the window as dead immediately after `open()`, combined with an `agy`-named binary, raises `SpawnError` naming `agy` and never calls `backend.send` for that handle.
+- [Manual] On this machine (both `agy` and `claude` installed), `agentctl spawn <name> --role <path> --run <run>` with no `--binary` produces a `meta.json` whose `binary` field points at `claude`, and the handshake completes without the `can't find window` failure reproduced above.
+- [Manual] `agentctl spawn <name> --role <path> --run <run> --binary agy` still attempts `agy` as before — the opt-in path is unchanged.
+
+---
+
 ## Build Order
 
 1. **T1** — nothing works without the bus. Write the concurrency test first, in the B3-corrected form.
@@ -727,6 +775,7 @@ Inspiration: `~/Library/CloudStorage/GoogleDrive-makarezp1@gmail.com/My Drive/cv
 
 4. T4 → T5 → T6 → T7.
 5. **T8** is independent of T4–T7 — it only touches `spawn`'s window-creation path (step 5, after `backend.open`) and ships behind an opt-in `--viewer` flag. Build it any time after T3; it does not block or get blocked by T4–T7.
+6. **T9** is also independent — a small, self-contained fix to `spawn`'s binary resolution (`agentctl.py:1261`), found live while spawning an agent to build T8. Build it any time after T3; it has no dependency on T8 and vice versa.
 
 ## Deferred Decisions
 

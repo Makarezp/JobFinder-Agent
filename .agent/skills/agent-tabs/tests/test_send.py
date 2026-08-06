@@ -59,6 +59,7 @@ def _make_agent(
         cwd=str(tmp_path),
         permission_mode="acceptEdits",
         created_at=agentctl.utc_now(),
+        binary="claude",
     )
     paths.meta("critic").write_text(meta.to_json(), encoding="utf-8")
     for event in events:

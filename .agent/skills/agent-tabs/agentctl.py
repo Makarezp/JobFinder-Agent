@@ -55,6 +55,7 @@ ENV_VIEWER = "AGENT_TABS_VIEWER"
 DEFAULT_STATE_HOME = "~/.local/state/agent-tabs"
 DEFAULT_BACKEND = "tmux"
 DEFAULT_VIEWER = "none"
+AGY_BOOT_DELAY = 1.5
 
 INBOX_WIDTH = 4
 REPO_HASH_WIDTH = 12
@@ -1147,6 +1148,7 @@ class AgentMeta:
     cwd: str
     permission_mode: str
     created_at: str
+    binary: str
     model: str | None = None
     worktree: str | None = None
     isolated_settings: bool = False
@@ -1258,9 +1260,13 @@ def spawn_agent(
     if any(window.name == name for window in backend.list_handles(paths.run)):
         raise SpawnError(f"agent {name!r} is already running in run {paths.run!r}")
 
-    binary = claude_binary or shutil.which("agy") or shutil.which("claude")
+    binary = (
+        shutil.which(claude_binary) or str(Path(claude_binary).expanduser().resolve())
+        if claude_binary
+        else shutil.which("claude") or shutil.which("agy")
+    )
     if binary is None:
-        raise SpawnError("neither agy nor claude is installed or on PATH")
+        raise SpawnError("neither claude nor agy is installed or on PATH")
 
     source = Path(cwd).expanduser().resolve() if cwd else Path.cwd()
     paths.ensure_agent(name)
@@ -1302,7 +1308,9 @@ def spawn_agent(
             # would otherwise destroy a healthy agent over a cosmetic failure.
             log.warning("viewer %r could not reveal %s: %s", viewer, handle, exc)
         if "agy" in Path(binary).name:
-            time.sleep(1.5)
+            time.sleep(AGY_BOOT_DELAY)
+            if not backend.alive(handle):
+                raise SpawnError(f"agy exited on its own within {AGY_BOOT_DELAY}s of starting; last screen:\n{backend.capture(handle, 40)}")
             backend.send(handle, "", enter=True)
 
         meta = AgentMeta(
@@ -1312,6 +1320,7 @@ def spawn_agent(
             cwd=str(working_dir),
             permission_mode=permission_mode,
             created_at=utc_now(),
+            binary=binary,
             model=model,
             worktree=str(worktree_path) if worktree_path else None,
             isolated_settings=isolated_settings,
@@ -1921,7 +1930,7 @@ def _cmd_spawn(args: argparse.Namespace, config: Config) -> int:
         claude_binary=args.binary,
         viewer=get_viewer(args.viewer, config),
     )
-    print(f"{meta.name}\t{meta.handle}\t{meta.cwd}")
+    print(f"{meta.name}\t{meta.handle}\t{meta.cwd}\t{meta.binary}")
     return 0
 
 

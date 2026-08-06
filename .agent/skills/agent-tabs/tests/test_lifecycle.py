@@ -80,6 +80,7 @@ def _agent(
         cwd="/tmp",
         permission_mode="acceptEdits",
         created_at=created_at or agentctl.utc_now(),
+        binary="claude",
         model=model,
         worktree=str(worktree) if worktree else None,
     )

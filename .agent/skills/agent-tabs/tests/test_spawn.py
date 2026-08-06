@@ -149,6 +149,67 @@ def test_spawn_reports_identity_through_the_environment(tmp_path: Path, role: Pa
     }
     assert agentctl.AgentMeta.load(paths.meta("critic")).handle == meta.handle
     assert meta.permission_mode == "acceptEdits"
+    assert meta.binary == TRUE_BINARY
+    assert json.loads(paths.meta("critic").read_text(encoding="utf-8"))["binary"] == TRUE_BINARY
+
+
+def test_spawn_prefers_claude_when_both_default_binaries_are_available(tmp_path: Path, role: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    paths = agentctl.RunPaths.build(tmp_path / "rt", "cvv")
+    backend = agentctl.FakeBackend()
+    _responder(paths, backend, "critic")
+    binaries = {"claude": "/opt/bin/claude", "agy": "/opt/bin/agy"}
+    monkeypatch.setattr(shutil, "which", binaries.get)
+
+    meta = agentctl.spawn_agent(paths, backend, "critic", role, spawn_timeout=10, bootstrap_timeout=10)
+
+    assert meta.binary == "/opt/bin/claude"
+    assert backend.windows[meta.handle].cmd[0] == "/opt/bin/claude"
+
+
+def test_spawn_honors_explicit_agy_binary(tmp_path: Path, role: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    paths = agentctl.RunPaths.build(tmp_path / "rt", "cvv")
+    backend = agentctl.FakeBackend()
+    _responder(paths, backend, "critic")
+    monkeypatch.setattr(shutil, "which", lambda name: "/opt/bin/agy" if name == "agy" else None)
+    monkeypatch.setattr(time, "sleep", lambda _seconds: None)
+
+    meta = agentctl.spawn_agent(paths, backend, "critic", role, claude_binary="agy", spawn_timeout=10, bootstrap_timeout=10)
+
+    assert meta.binary == "/opt/bin/agy"
+    assert backend.windows[meta.handle].cmd[0] == "/opt/bin/agy"
+
+
+def test_dead_agy_window_raises_before_the_blind_send(tmp_path: Path, role: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    paths = agentctl.RunPaths.build(tmp_path / "rt", "cvv")
+    backend = agentctl.FakeBackend()
+    monkeypatch.setattr(time, "sleep", lambda _seconds: None)
+    monkeypatch.setattr(backend, "alive", lambda _handle: False)
+
+    with pytest.raises(agentctl.SpawnError, match="agy exited on its own"):
+        agentctl.spawn_agent(paths, backend, "critic", role, claude_binary="/opt/bin/agy")
+
+    assert backend.sends == []
+
+
+def test_spawn_command_prints_the_resolved_binary(
+    tmp_path: Path, role: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    paths = agentctl.RunPaths.build(tmp_path / "rt", "cvv")
+    expected = agentctl.AgentMeta(
+        name="critic",
+        role=str(role),
+        handle="@1",
+        cwd=str(tmp_path),
+        permission_mode="acceptEdits",
+        created_at=agentctl.utc_now(),
+        binary="/opt/bin/claude",
+    )
+    monkeypatch.setattr(agentctl, "spawn_agent", lambda *_args, **_kwargs: expected)
+    args = agentctl.build_parser().parse_args(["--runtime", str(paths.runtime_root), "--run", paths.run, "spawn", "critic", "--role", str(role)])
+    config = agentctl.Config(runtime_root=None, run=None, agent=None, backend="fake", viewer="none")
+
+    assert agentctl._cmd_spawn(args, config) == 0
+    assert capsys.readouterr().out == f"critic\t@1\t{tmp_path}\t/opt/bin/claude\n"
 
 
 def test_spawn_passes_model_and_isolation_flags(tmp_path: Path, role: Path) -> None:
