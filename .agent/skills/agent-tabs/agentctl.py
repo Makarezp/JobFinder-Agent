@@ -905,7 +905,20 @@ class SpawnError(AgentTabsError):
 
 AGENT_NAME = re.compile(r"^[A-Za-z0-9_-]+$")
 
+
+class WorkerProvider(StrEnum):
+    """A worker CLI with its own launch and lifecycle contract."""
+
+    CLAUDE = "claude"
+    AGY = "agy"
+    CODEX = "codex"
+
+
 DEFAULT_PERMISSION_MODE = "acceptEdits"
+DEFAULT_CODEX_SANDBOX = "workspace-write"
+DEFAULT_CODEX_APPROVAL = "never"
+CODEX_SANDBOXES = frozenset({"read-only", "workspace-write", "danger-full-access"})
+CODEX_APPROVAL_POLICIES = frozenset({"untrusted", "on-request", "never"})
 DEFAULT_SPAWN_TIMEOUT = 60.0
 DEFAULT_BOOTSTRAP_TIMEOUT = 30.0
 POLL_INTERVAL = 0.25
@@ -1149,6 +1162,7 @@ class AgentMeta:
     permission_mode: str
     created_at: str
     binary: str
+    provider: str = WorkerProvider.CLAUDE.value
     model: str | None = None
     worktree: str | None = None
     isolated_settings: bool = False
@@ -1158,7 +1172,9 @@ class AgentMeta:
 
     @classmethod
     def load(cls, path: Path) -> AgentMeta:
-        return cls(**json.loads(path.read_text(encoding="utf-8")))
+        data = json.loads(path.read_text(encoding="utf-8"))
+        data.setdefault("provider", WorkerProvider.CLAUDE.value)
+        return cls(**data)
 
 
 def _one_line(text: str) -> str:
@@ -1171,15 +1187,19 @@ def doorbell_text(inbox_path: Path) -> str:
 
 
 def bootstrap_body(paths: RunPaths, meta: AgentMeta) -> str:
+    return bootstrap_body_for(paths, meta.name, Path(meta.role))
+
+
+def bootstrap_body_for(paths: RunPaths, name: str, role: Path) -> str:
     protocol = Path(__file__).resolve().parent / "WORKER.md"
     protocol_line = f"- Read the worker protocol: {protocol}\n" if protocol.exists() else ""
     return (
-        f"# Bootstrap: {meta.name}\n\n"
+        f"# Bootstrap: {name}\n\n"
         f"You are running in a terminal window a human can see and type into.\n"
         f"Both that human and an orchestrator can address you.\n\n"
-        f"- Read your role and operate as it describes: {meta.role}\n"
+        f"- Read your role and operate as it describes: {role}\n"
         f"{protocol_line}"
-        f"- Check your inbox at the start of every turn: {paths.inbox(meta.name)}\n"
+        f"- Check your inbox at the start of every turn: {paths.inbox(name)}\n"
         f"- Report back with: `{Path(__file__).resolve()} reply --status reply|question|blocked` (body on stdin).\n"
         f"  Your identity comes from the environment; do not pass --run or --agent yourself.\n"
         f"- Never assume the orchestrator can see your screen. Anything it must know goes through `reply`.\n\n"
@@ -1228,6 +1248,99 @@ def write_reply(paths: RunPaths, agent: str, status: OutboxStatus, body: str) ->
     return path
 
 
+def _known_provider(binary: str) -> WorkerProvider | None:
+    """Infer a provider only from an executable name we recognize."""
+    name = Path(binary).name.lower()
+    if "codex" in name:
+        return WorkerProvider.CODEX
+    if "agy" in name:
+        return WorkerProvider.AGY
+    if "claude" in name:
+        return WorkerProvider.CLAUDE
+    return None
+
+
+def _resolve_worker(binary_name: str | None, provider_name: str | None) -> tuple[str, WorkerProvider]:
+    """Resolve the executable without letting an explicit provider drift."""
+    try:
+        requested = WorkerProvider(provider_name) if provider_name else None
+    except ValueError as exc:
+        available = ", ".join(provider.value for provider in WorkerProvider)
+        raise SpawnError(f"unknown worker provider {provider_name!r}; available: {available}") from exc
+    binary: str | None
+    if binary_name:
+        binary = shutil.which(binary_name) or str(Path(binary_name).expanduser().resolve())
+    elif requested is WorkerProvider.CODEX:
+        binary = shutil.which(WorkerProvider.CODEX.value)
+    elif requested is WorkerProvider.AGY:
+        binary = shutil.which(WorkerProvider.AGY.value)
+    elif requested is WorkerProvider.CLAUDE:
+        binary = shutil.which(WorkerProvider.CLAUDE.value)
+    else:
+        binary = shutil.which(WorkerProvider.CLAUDE.value) or shutil.which(WorkerProvider.AGY.value)
+
+    if binary is None:
+        needed = requested.value if requested else "claude or agy"
+        raise SpawnError(f"{needed} is not installed or not on PATH")
+
+    detected = _known_provider(binary)
+    if requested is not None and detected is not None and detected is not requested:
+        raise SpawnError(f"binary {binary!r} is {detected.value}, not requested provider {requested.value}")
+    return binary, requested or detected or WorkerProvider.CLAUDE
+
+
+def _worker_argv(
+    provider: WorkerProvider,
+    binary: str,
+    working_dir: Path,
+    *,
+    settings_path: Path | None,
+    model: str | None,
+    permission_mode: str,
+    isolated_settings: bool,
+    codex_sandbox: str | None,
+    codex_approval: str | None,
+    initial_prompt: str | None,
+) -> list[str]:
+    """Build a provider's launch vector; callers never construct shell text."""
+    if provider is WorkerProvider.CODEX:
+        sandbox = codex_sandbox or DEFAULT_CODEX_SANDBOX
+        approval = codex_approval or DEFAULT_CODEX_APPROVAL
+        if permission_mode != DEFAULT_PERMISSION_MODE:
+            raise SpawnError("--permission-mode is not supported by provider codex; use --sandbox and --ask-for-approval")
+        if isolated_settings:
+            raise SpawnError("--isolated-settings is not supported by provider codex")
+        if sandbox not in CODEX_SANDBOXES:
+            raise SpawnError(f"invalid Codex sandbox {sandbox!r}")
+        if approval not in CODEX_APPROVAL_POLICIES:
+            raise SpawnError(f"invalid Codex approval policy {approval!r}")
+        argv = [binary, "--cd", str(working_dir), "--sandbox", sandbox, "--ask-for-approval", approval]
+        if model:
+            argv += ["--model", model]
+        if initial_prompt:
+            argv.append(initial_prompt)
+        return argv
+
+    if provider is WorkerProvider.AGY:
+        argv = [binary, "--dangerously-skip-permissions"]
+        if permission_mode == "acceptEdits":
+            argv += ["--mode", "accept-edits"]
+        elif permission_mode and permission_mode != "bypassPermissions":
+            argv += ["--mode", permission_mode]
+        if model:
+            argv += ["--model", model]
+        return [*argv, "-i"]
+
+    if settings_path is None:
+        raise SpawnError("Claude provider requires generated settings")
+    argv = [binary, "--settings", str(settings_path), "--permission-mode", permission_mode]
+    if isolated_settings:
+        argv += ["--setting-sources", ""]
+    if model:
+        argv += ["--model", model]
+    return argv
+
+
 def spawn_agent(
     paths: RunPaths,
     backend: Backend,
@@ -1243,14 +1356,16 @@ def spawn_agent(
     spawn_timeout: float = DEFAULT_SPAWN_TIMEOUT,
     bootstrap_timeout: float = DEFAULT_BOOTSTRAP_TIMEOUT,
     claude_binary: str | None = None,
+    provider: str | None = None,
+    codex_sandbox: str | None = None,
+    codex_approval: str | None = None,
     viewer: Viewer = NullViewer(),
 ) -> AgentMeta:
     """Bring up one agent and prove it is up before returning.
 
-    Readiness is an event handshake, never a sleep: the worker's SessionStart
-    hook writes ``spawned``, and the bootstrap doorbell is confirmed by
-    ``turn_start``. A spawn that cannot be proven never leaves a half-live
-    window or an orphaned worktree behind.
+    Claude uses a hook handshake. Codex exposes no compatible hook surface, so
+    agentctl records its successful launch and delivers the bootstrap through
+    the durable inbox instead of fabricating turn events.
     """
     if not AGENT_NAME.match(name):
         raise SpawnError(f"invalid agent name {name!r}: use letters, digits, underscore or hyphen")
@@ -1260,13 +1375,7 @@ def spawn_agent(
     if any(window.name == name for window in backend.list_handles(paths.run)):
         raise SpawnError(f"agent {name!r} is already running in run {paths.run!r}")
 
-    binary = (
-        shutil.which(claude_binary) or str(Path(claude_binary).expanduser().resolve())
-        if claude_binary
-        else shutil.which("claude") or shutil.which("agy")
-    )
-    if binary is None:
-        raise SpawnError("neither claude nor agy is installed or on PATH")
+    binary, worker_provider = _resolve_worker(claude_binary, provider)
 
     source = Path(cwd).expanduser().resolve() if cwd else Path.cwd()
     paths.ensure_agent(name)
@@ -1274,27 +1383,35 @@ def spawn_agent(
 
     worktree_path: Path | None = None
     handle: str | None = None
+    bootstrap_path: Path | None = None
     try:
         if worktree:
             worktree_path = add_worktree(paths, name, source)
         working_dir = worktree_path or source
 
-        settings_path = write_settings(paths, name)
-        if "agy" in Path(binary).name:
-            argv = [binary, "--dangerously-skip-permissions"]
-            if permission_mode == "acceptEdits":
-                argv += ["--mode", "accept-edits"]
-            elif permission_mode and permission_mode != "bypassPermissions":
-                argv += ["--mode", permission_mode]
-            if model:
-                argv += ["--model", model]
-            argv.append("-i")
-        else:
-            argv = [binary, "--settings", str(settings_path), "--permission-mode", permission_mode]
-            if isolated_settings:
-                argv += ["--setting-sources", ""]
-            if model:
-                argv += ["--model", model]
+        settings_path = write_settings(paths, name) if worker_provider is not WorkerProvider.CODEX else None
+        initial_prompt = None
+        if worker_provider is WorkerProvider.CODEX and doorbell:
+            bootstrap_path = write_inbox(paths, name, bootstrap_body_for(paths, name, role_path))
+            initial_prompt = (
+                "You are an Agent Tabs worker. Before exploring the repository or asking questions, "
+                f"read and follow the worker protocol at {Path(__file__).resolve().parent / 'WORKER.md'} "
+                f"and the bootstrap inbox file at {bootstrap_path}. "
+                "Treat that file as the orchestrator's task. Do not ask the user to choose a persona. "
+                "Use agentctl reply --status reply|question|blocked to report back."
+            )
+        argv = _worker_argv(
+            worker_provider,
+            binary,
+            working_dir,
+            settings_path=settings_path,
+            model=model,
+            permission_mode=permission_mode,
+            isolated_settings=isolated_settings,
+            codex_sandbox=codex_sandbox,
+            codex_approval=codex_approval,
+            initial_prompt=initial_prompt,
+        )
 
         env = {ENV_RUNTIME: str(paths.runtime_root), ENV_RUN: paths.run, ENV_AGENT: name}
         handle = backend.open(paths.run, name, argv, str(working_dir), env)
@@ -1307,7 +1424,7 @@ def spawn_agent(
             # (an AttributeError in a script builder, a bad injected runner)
             # would otherwise destroy a healthy agent over a cosmetic failure.
             log.warning("viewer %r could not reveal %s: %s", viewer, handle, exc)
-        if "agy" in Path(binary).name:
+        if worker_provider is WorkerProvider.AGY:
             time.sleep(AGY_BOOT_DELAY)
             if not backend.alive(handle):
                 raise SpawnError(f"agy exited on its own within {AGY_BOOT_DELAY}s of starting; last screen:\n{backend.capture(handle, 40)}")
@@ -1321,17 +1438,27 @@ def spawn_agent(
             permission_mode=permission_mode,
             created_at=utc_now(),
             binary=binary,
+            provider=worker_provider.value,
             model=model,
             worktree=str(worktree_path) if worktree_path else None,
             isolated_settings=isolated_settings,
         )
         paths.meta(name).write_text(meta.to_json(), encoding="utf-8")
 
-        if wait_for_event(paths, agent=name, types=[EventType.SPAWNED], from_seq=watermark, timeout=spawn_timeout) is None:
+        if worker_provider is WorkerProvider.CODEX:
+            if not backend.alive(handle):
+                raise SpawnError(f"codex exited before bootstrap; last screen:\n{backend.capture(handle, 40)}")
+            append_event(paths, name, EventType.SPAWNED, {"provider": WorkerProvider.CODEX.value, "source": "agentctl"})
+        elif wait_for_event(paths, agent=name, types=[EventType.SPAWNED], from_seq=watermark, timeout=spawn_timeout) is None:
             raise SpawnError(f"agent {name!r} never reported SessionStart within {spawn_timeout:.0f}s.\nLast screen:\n{backend.capture(handle, 40)}")
 
         if doorbell:
-            _bootstrap(paths, backend, meta, bootstrap_timeout)
+            if worker_provider is WorkerProvider.CODEX:
+                if bootstrap_path is None:
+                    raise SpawnError("Codex bootstrap inbox was not prepared")
+                _deliver(paths, backend, meta.name, meta.handle, bootstrap_path, enter=True)
+            else:
+                _bootstrap(paths, backend, meta, bootstrap_timeout)
         return meta
     except Exception as exc:
         # Never leave a half-live agent: no window, no worktree, and the failure
@@ -1416,6 +1543,14 @@ def _input_row_looks_busy(screen: str) -> bool:
     return False
 
 
+def _composer_looks_busy(screen: str, provider: str) -> bool:
+    """Apply only a renderer heuristic that is evidenced for this provider."""
+    if provider == WorkerProvider.CODEX.value:
+        log.debug("Codex composer detector is unavailable; assuming the input row is free")
+        return False
+    return _input_row_looks_busy(screen)
+
+
 @dataclass(frozen=True)
 class Readiness:
     ready: bool
@@ -1428,13 +1563,14 @@ def is_ready(paths: RunPaths, backend: Backend, agent: str, handle: str | None =
     if state not in SENDABLE_STATES:
         return Readiness(False, state.value)
 
-    target = handle or AgentMeta.load(paths.meta(agent)).handle
+    meta = AgentMeta.load(paths.meta(agent))
+    target = handle or meta.handle
     if backend.in_mode(target):
         # The human is scrolled back reading this agent. send-keys would be
         # swallowed by copy-mode, silently, in exactly the situation this
         # framework exists to support. Refuse rather than cancel their scroll.
         return Readiness(False, "copy_mode")
-    if _input_row_looks_busy(backend.capture(target, COMPOSER_SCAN_LINES)):
+    if _composer_looks_busy(backend.capture(target, COMPOSER_SCAN_LINES), meta.provider):
         return Readiness(False, "human_typing")
     return Readiness(True, state.value)
 
@@ -1765,9 +1901,16 @@ def build_parser() -> argparse.ArgumentParser:
     spawn_parser = subparsers.add_parser("spawn", parents=[common], help="launch an agent in a visible window")
     spawn_parser.add_argument("name")
     spawn_parser.add_argument("--role", required=True, help="path to the role document the agent adopts")
-    spawn_parser.add_argument("--binary", help="path or name of the worker binary (e.g. agy or claude)")
+    spawn_parser.add_argument(
+        "--provider",
+        choices=[provider.value for provider in WorkerProvider],
+        help="worker CLI contract; omit for legacy Claude then AGY resolution",
+    )
+    spawn_parser.add_argument("--binary", help="path or name of the worker binary (e.g. claude, agy, or codex)")
     spawn_parser.add_argument("--model", help="model alias, e.g. opus or sonnet")
     spawn_parser.add_argument("--permission-mode", default=DEFAULT_PERMISSION_MODE)
+    spawn_parser.add_argument("--sandbox", choices=sorted(CODEX_SANDBOXES), help="Codex sandbox policy (default: workspace-write)")
+    spawn_parser.add_argument("--ask-for-approval", choices=sorted(CODEX_APPROVAL_POLICIES), help="Codex approval policy (default: never)")
     spawn_parser.add_argument("--isolated-settings", action="store_true", help="load only the generated settings")
     spawn_parser.add_argument("--worktree", action="store_true", help="give the agent its own git checkout")
     spawn_parser.add_argument("--cwd", help="working directory (default: current)")
@@ -1928,6 +2071,9 @@ def _cmd_spawn(args: argparse.Namespace, config: Config) -> int:
         spawn_timeout=args.spawn_timeout,
         bootstrap_timeout=args.bootstrap_timeout,
         claude_binary=args.binary,
+        provider=args.provider,
+        codex_sandbox=args.sandbox,
+        codex_approval=args.ask_for_approval,
         viewer=get_viewer(args.viewer, config),
     )
     print(f"{meta.name}\t{meta.handle}\t{meta.cwd}\t{meta.binary}")

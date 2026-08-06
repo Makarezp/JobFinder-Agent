@@ -37,6 +37,13 @@ into another agent's mailbox.
 `question` and `blocked` are how you hand control back. Use them when you are
 genuinely stuck; do not use them to check in.
 
+## Codex workers
+
+Codex workers use this same inbox/outbox protocol, but do not emit the Claude
+lifecycle hooks. Read the bootstrap and inbox files, then use `reply` for your
+final result, question, or blocker. The orchestrator can observe those reports
+and terminal liveness, but cannot infer Codex turn boundaries.
+
 ## Two rules
 
 **Never assume the orchestrator can see your screen.** It cannot read your

@@ -85,18 +85,25 @@ cosmetic one — pick one style per run.
 
 Every command takes `--run <id>`, or reads `$AGENT_TABS_RUN`.
 
-### `spawn` — bring an agent up, and prove it came up
+### `spawn` — bring an agent up, and prove what its provider can prove
 
 ```bash
 agentctl spawn reviewer --role path/to/ROLE.md --run demo [--model sonnet]
+agentctl spawn reviewer --provider codex --role path/to/ROLE.md --run demo \
+  --sandbox workspace-write --ask-for-approval never
 ```
 
-Blocks until the agent's `SessionStart` hook fires and its first turn begins.
+Claude blocks until its `SessionStart` hook fires and its first turn begins.
+Codex has no compatible hook surface, so Agent Tabs proves its tmux window is
+alive, records a synthetic `spawned` event, and delivers the durable bootstrap
+inbox message; its reply/question/blocked reports are the observable lifecycle.
 There is no sleep-and-hope: a spawn that cannot be proven kills its own window
 and cleans up rather than leaving a half-live agent behind.
 
 Useful flags: `--worktree` (own git checkout, for agents editing in parallel),
-`--permission-mode`, `--isolated-settings`, `--cwd`, `--no-doorbell`.
+`--permission-mode`, `--isolated-settings`, `--cwd`, `--no-doorbell`. Codex is
+explicit (`--provider codex`) and uses `--sandbox` plus `--ask-for-approval`;
+it starts the interactive TUI, never `codex exec`.
 
 ### `send` — deliver an instruction
 
