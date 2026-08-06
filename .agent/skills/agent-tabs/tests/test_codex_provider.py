@@ -27,6 +27,7 @@ def _spawn_codex(tmp_path: Path, role: Path, model: str | None = None) -> tuple[
         backend,
         "reviewer",
         role,
+        initial_task="Review the current diff for regressions.",
         provider="codex",
         claude_binary="/opt/tools/codex",
         model=model,
@@ -66,6 +67,14 @@ def test_codex_spawn_uses_interactive_codex_argv_and_synthetic_lifecycle(tmp_pat
     assert agentctl.read_events(paths, "reviewer")[0].data == {"provider": "codex", "source": "agentctl"}
     assert len(backend.sends) == 1
     assert (paths.inbox("reviewer") / "0001.md").is_file()
+    bootstrap = (paths.inbox("reviewer") / "0001.md").read_text(encoding="utf-8")
+    assert "## Worker protocol" in bootstrap
+    assert "## Role" in bootstrap
+    assert "## Initial assignment" in bootstrap
+    assert "Review the current diff for regressions." in bootstrap
+    assert str(paths.inbox("reviewer")) in bootstrap
+    assert "agentctl.py reply --status reply|question|blocked" in bootstrap
+    assert "identity comes from the environment" in bootstrap
 
 
 def test_codex_rejects_claude_only_options(tmp_path: Path, role: Path) -> None:
@@ -77,10 +86,31 @@ def test_codex_rejects_claude_only_options(tmp_path: Path, role: Path) -> None:
             agentctl.FakeBackend(),
             "reviewer",
             role,
+            initial_task="Review the current diff for regressions.",
             provider="codex",
             claude_binary="/opt/tools/codex",
             permission_mode="bypassPermissions",
         )
+
+
+def test_codex_no_doorbell_still_prewrites_bootstrap_without_typing(tmp_path: Path, role: Path) -> None:
+    paths = agentctl.RunPaths.build(tmp_path / "runtime", "codex-run")
+    backend = agentctl.FakeBackend()
+    meta = agentctl.spawn_agent(
+        paths,
+        backend,
+        "reviewer",
+        role,
+        initial_task="Review without sending a bootstrap pointer.",
+        provider="codex",
+        claude_binary="/opt/tools/codex",
+        doorbell=False,
+        cwd=tmp_path,
+    )
+
+    assert meta.provider == "codex"
+    assert len(backend.sends) == 0
+    assert (paths.inbox("reviewer") / "0001.md").is_file()
 
 
 def test_explicit_provider_rejects_a_conflicting_binary_before_open(tmp_path: Path, role: Path) -> None:
@@ -88,7 +118,9 @@ def test_explicit_provider_rejects_a_conflicting_binary_before_open(tmp_path: Pa
     backend = agentctl.FakeBackend()
 
     with pytest.raises(agentctl.SpawnError, match="not requested provider codex"):
-        agentctl.spawn_agent(paths, backend, "reviewer", role, provider="codex", claude_binary="/opt/tools/claude")
+        agentctl.spawn_agent(
+            paths, backend, "reviewer", role, initial_task="Review the current diff.", provider="codex", claude_binary="/opt/tools/claude"
+        )
 
     assert backend.windows == {}
 
@@ -119,7 +151,9 @@ def test_dead_codex_window_is_cleaned_up_and_recorded(tmp_path: Path, role: Path
     monkeypatch.setattr(backend, "alive", lambda _handle: False)
 
     with pytest.raises(agentctl.SpawnError, match="codex exited before bootstrap"):
-        agentctl.spawn_agent(paths, backend, "reviewer", role, provider="codex", claude_binary="/opt/tools/codex")
+        agentctl.spawn_agent(
+            paths, backend, "reviewer", role, initial_task="Review the current diff.", provider="codex", claude_binary="/opt/tools/codex"
+        )
 
     assert all(window.alive is False for window in backend.windows.values())
     assert agentctl.read_events(paths, "reviewer")[-1].type is agentctl.EventType.ERROR
@@ -163,7 +197,7 @@ def test_end_to_end_codex_spawn_stays_alive_through_bootstrap(tmp_path: Path, ro
     paths = agentctl.RunPaths.build(tmp_path / "runtime", f"agenttabs-codex-{uuid4().hex[:6]}")
     backend = agentctl.TmuxBackend()
     try:
-        meta = agentctl.spawn_agent(paths, backend, "probe", role, provider="codex", cwd=tmp_path)
+        meta = agentctl.spawn_agent(paths, backend, "probe", role, initial_task="Check the worker bootstrap.", provider="codex", cwd=tmp_path)
         assert backend.alive(meta.handle)
         assert (paths.inbox("probe") / "0001.md").is_file()
     finally:

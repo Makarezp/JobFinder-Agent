@@ -107,7 +107,7 @@ def test_get_viewer_resolves_by_name_and_environment() -> None:
     config = agentctl.Config.from_env({agentctl.ENV_VIEWER: "iterm-tab"})
     assert isinstance(agentctl.get_viewer(None, config), agentctl.ItermTabViewer)
 
-    assert isinstance(agentctl.get_viewer(None, agentctl.Config.from_env({})), agentctl.NullViewer)
+    assert isinstance(agentctl.get_viewer(None, agentctl.Config.from_env({})), agentctl.ItermTabViewer)
     assert isinstance(agentctl.get_viewer(), agentctl.Viewer)
 
 

@@ -70,10 +70,10 @@ Two mutually exclusive ways to watch a run, both iTerm2-specific:
 
 - `tmux -CC attach -t <run>` renders every window in the run as a **native
   iTerm tab**, switchable with `Cmd-1` / `Cmd-2` — the whole-session view.
-- `agentctl spawn ... --viewer iterm-tab` opens one new iTerm tab, already
-  attached to that one agent's window, the moment `spawn` creates it — the
-  per-agent, hands-off view. Off by default; nothing changes unless you pass
-  `--viewer`.
+- `agentctl spawn ...` opens one new iTerm tab by default, already attached to
+  that one agent's window, the moment `spawn` creates it — the per-agent,
+  hands-off view. Use `--viewer none` (or `AGENT_TABS_VIEWER=none`) for a
+  headless run.
 
 **Do not mix them within one run.** A plain attach and a control-mode attach
 to the same tmux session in the same iTerm window is a real footgun, not a
@@ -90,7 +90,10 @@ Every command takes `--run <id>`, or reads `$AGENT_TABS_RUN`.
 ```bash
 agentctl spawn reviewer --role path/to/ROLE.md --run demo [--model sonnet]
 agentctl spawn reviewer --provider codex --role path/to/ROLE.md --run demo \
-  --sandbox workspace-write --ask-for-approval never
+  --sandbox workspace-write --ask-for-approval never \
+  --task "Review the current diff for regressions"
+agentctl spawn reviewer --role .agent/skills/agent-tabs/examples/reviewer-role.md \
+  --task-file brief.md --run demo
 ```
 
 Claude blocks until its `SessionStart` hook fires and its first turn begins.
@@ -103,7 +106,9 @@ and cleans up rather than leaving a half-live agent behind.
 Useful flags: `--worktree` (own git checkout, for agents editing in parallel),
 `--permission-mode`, `--isolated-settings`, `--cwd`, `--no-doorbell`. Codex is
 explicit (`--provider codex`) and uses `--sandbox` plus `--ask-for-approval`;
-it starts the interactive TUI, never `codex exec`.
+it starts the interactive TUI, never `codex exec`. The role defines standing
+behavior, the bootstrap's Initial assignment is the first concrete request, and
+`agentctl send` delivers subsequent requests.
 
 ### `send` — deliver an instruction
 

@@ -1,5 +1,7 @@
 ### Ticket 11: Require and Deliver a Concrete Initial Task When Spawning a Worker
 
+**Status:** DONE
+
 #### Overview
 
 Make `agentctl spawn` accept one concrete initial assignment and store it in the worker's bootstrap inbox before a Codex process is launched. This prevents a visible Codex worker from treating generic launch instructions or its role document as its task, while retaining `agentctl send` as the mechanism for later follow-up work.

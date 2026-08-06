@@ -21,6 +21,7 @@ import agentctl
 import pytest
 
 TRUE_BINARY = "/usr/bin/true"
+TASK = "Review the current change and report findings."
 
 
 @pytest.fixture
@@ -139,7 +140,7 @@ def test_spawn_reports_identity_through_the_environment(tmp_path: Path, role: Pa
     backend = agentctl.FakeBackend()
     _responder(paths, backend, "critic")
 
-    meta = agentctl.spawn_agent(paths, backend, "critic", role, claude_binary=TRUE_BINARY, spawn_timeout=10, bootstrap_timeout=10)
+    meta = agentctl.spawn_agent(paths, backend, "critic", role, initial_task=TASK, claude_binary=TRUE_BINARY, spawn_timeout=10, bootstrap_timeout=10)
 
     window = backend.windows[meta.handle]
     assert window.env == {
@@ -160,7 +161,7 @@ def test_spawn_prefers_claude_when_both_default_binaries_are_available(tmp_path:
     binaries = {"claude": "/opt/bin/claude", "agy": "/opt/bin/agy"}
     monkeypatch.setattr(shutil, "which", binaries.get)
 
-    meta = agentctl.spawn_agent(paths, backend, "critic", role, spawn_timeout=10, bootstrap_timeout=10)
+    meta = agentctl.spawn_agent(paths, backend, "critic", role, initial_task=TASK, spawn_timeout=10, bootstrap_timeout=10)
 
     assert meta.binary == "/opt/bin/claude"
     assert backend.windows[meta.handle].cmd[0] == "/opt/bin/claude"
@@ -173,7 +174,7 @@ def test_spawn_honors_explicit_agy_binary(tmp_path: Path, role: Path, monkeypatc
     monkeypatch.setattr(shutil, "which", lambda name: "/opt/bin/agy" if name == "agy" else None)
     monkeypatch.setattr(time, "sleep", lambda _seconds: None)
 
-    meta = agentctl.spawn_agent(paths, backend, "critic", role, claude_binary="agy", spawn_timeout=10, bootstrap_timeout=10)
+    meta = agentctl.spawn_agent(paths, backend, "critic", role, initial_task=TASK, claude_binary="agy", spawn_timeout=10, bootstrap_timeout=10)
 
     assert meta.binary == "/opt/bin/agy"
     assert backend.windows[meta.handle].cmd[0] == "/opt/bin/agy"
@@ -186,9 +187,21 @@ def test_dead_agy_window_raises_before_the_blind_send(tmp_path: Path, role: Path
     monkeypatch.setattr(backend, "alive", lambda _handle: False)
 
     with pytest.raises(agentctl.SpawnError, match="agy exited on its own"):
-        agentctl.spawn_agent(paths, backend, "critic", role, claude_binary="/opt/bin/agy")
+        agentctl.spawn_agent(paths, backend, "critic", role, initial_task=TASK, claude_binary="/opt/bin/agy")
 
     assert backend.sends == []
+
+
+def test_agy_no_doorbell_does_not_type_a_blank_enter(tmp_path: Path, role: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    paths = agentctl.RunPaths.build(tmp_path / "rt", "cvv")
+    backend = agentctl.FakeBackend()
+    _responder(paths, backend, "critic", acknowledge_bootstrap=False)
+    monkeypatch.setattr(time, "sleep", lambda _seconds: None)
+
+    agentctl.spawn_agent(paths, backend, "critic", role, initial_task=TASK, claude_binary="agy", doorbell=False, spawn_timeout=10)
+
+    assert backend.sends == []
+    assert (paths.inbox("critic") / "0001.md").is_file()
 
 
 def test_spawn_command_prints_the_resolved_binary(
@@ -205,7 +218,9 @@ def test_spawn_command_prints_the_resolved_binary(
         binary="/opt/bin/claude",
     )
     monkeypatch.setattr(agentctl, "spawn_agent", lambda *_args, **_kwargs: expected)
-    args = agentctl.build_parser().parse_args(["--runtime", str(paths.runtime_root), "--run", paths.run, "spawn", "critic", "--role", str(role)])
+    args = agentctl.build_parser().parse_args(
+        ["--runtime", str(paths.runtime_root), "--run", paths.run, "spawn", "critic", "--role", str(role), "--task", TASK]
+    )
     config = agentctl.Config(runtime_root=None, run=None, agent=None, backend="fake", viewer="none")
 
     assert agentctl._cmd_spawn(args, config) == 0
@@ -218,7 +233,16 @@ def test_spawn_passes_model_and_isolation_flags(tmp_path: Path, role: Path) -> N
     _responder(paths, backend, "critic")
 
     meta = agentctl.spawn_agent(
-        paths, backend, "critic", role, model="opus", isolated_settings=True, claude_binary=TRUE_BINARY, spawn_timeout=10, bootstrap_timeout=10
+        paths,
+        backend,
+        "critic",
+        role,
+        initial_task=TASK,
+        model="opus",
+        isolated_settings=True,
+        claude_binary=TRUE_BINARY,
+        spawn_timeout=10,
+        bootstrap_timeout=10,
     )
 
     argv = backend.windows[meta.handle].cmd
@@ -249,7 +273,9 @@ def test_spawn_calls_reveal_exactly_once_with_the_backends_handle(tmp_path: Path
     _responder(paths, backend, "critic")
     viewer = _RecordingViewer()
 
-    meta = agentctl.spawn_agent(paths, backend, "critic", role, claude_binary=TRUE_BINARY, spawn_timeout=10, bootstrap_timeout=10, viewer=viewer)
+    meta = agentctl.spawn_agent(
+        paths, backend, "critic", role, initial_task=TASK, claude_binary=TRUE_BINARY, spawn_timeout=10, bootstrap_timeout=10, viewer=viewer
+    )
 
     assert viewer.calls == [("cvv", meta.handle)]
 
@@ -260,21 +286,22 @@ def test_spawn_survives_a_viewer_that_raises_something_other_than_viewer_error(t
     _responder(paths, backend, "critic")
     viewer = _RecordingViewer(raises=RuntimeError("boom, not a ViewerError"))
 
-    meta = agentctl.spawn_agent(paths, backend, "critic", role, claude_binary=TRUE_BINARY, spawn_timeout=10, bootstrap_timeout=10, viewer=viewer)
+    meta = agentctl.spawn_agent(
+        paths, backend, "critic", role, initial_task=TASK, claude_binary=TRUE_BINARY, spawn_timeout=10, bootstrap_timeout=10, viewer=viewer
+    )
 
     assert meta.handle
     assert viewer.calls == [("cvv", meta.handle)]
 
 
 def test_spawn_without_a_viewer_behaves_exactly_as_before_this_ticket(tmp_path: Path, role: Path) -> None:
-    # No viewer= argument: the CLI default. Nothing visible should change --
-    # the default NullViewer is a no-op, so this is the regression guard for
-    # "spawn without --viewer behaves exactly as it does today."
+    # The library API remains safe for callers that omit viewer=; the CLI
+    # resolves its default through Config and opens iTerm on macOS.
     paths = agentctl.RunPaths.build(tmp_path / "rt", "cvv")
     backend = agentctl.FakeBackend()
     _responder(paths, backend, "critic")
 
-    meta = agentctl.spawn_agent(paths, backend, "critic", role, claude_binary=TRUE_BINARY, spawn_timeout=10, bootstrap_timeout=10)
+    meta = agentctl.spawn_agent(paths, backend, "critic", role, initial_task=TASK, claude_binary=TRUE_BINARY, spawn_timeout=10, bootstrap_timeout=10)
 
     window = backend.windows[meta.handle]
     assert window.env == {
@@ -290,7 +317,7 @@ def test_bootstrap_doorbell_is_a_pointer_not_the_payload(tmp_path: Path, role: P
     backend = agentctl.FakeBackend()
     _responder(paths, backend, "critic")
 
-    agentctl.spawn_agent(paths, backend, "critic", role, claude_binary=TRUE_BINARY, spawn_timeout=10, bootstrap_timeout=10)
+    agentctl.spawn_agent(paths, backend, "critic", role, initial_task=TASK, claude_binary=TRUE_BINARY, spawn_timeout=10, bootstrap_timeout=10)
 
     _, text, enter = backend.sends[0]
     assert "\n" not in text
@@ -305,7 +332,9 @@ def test_spawn_timeout_leaves_no_window_and_no_worktree(tmp_path: Path, role: Pa
     backend = agentctl.FakeBackend()
 
     with pytest.raises(agentctl.SpawnError, match="never reported SessionStart"):
-        agentctl.spawn_agent(paths, backend, "critic", role, worktree=True, cwd=git_repo, claude_binary=TRUE_BINARY, spawn_timeout=0.5)
+        agentctl.spawn_agent(
+            paths, backend, "critic", role, initial_task=TASK, worktree=True, cwd=git_repo, claude_binary=TRUE_BINARY, spawn_timeout=0.5
+        )
 
     assert all(window.alive is False for window in backend.windows.values())
     assert not (paths.worktrees / "critic").exists()
@@ -319,7 +348,7 @@ def test_unacknowledged_bootstrap_is_retried_exactly_once_then_fails(tmp_path: P
     _responder(paths, backend, "critic", acknowledge_bootstrap=False)
 
     with pytest.raises(agentctl.SpawnError, match="never started a turn"):
-        agentctl.spawn_agent(paths, backend, "critic", role, claude_binary=TRUE_BINARY, spawn_timeout=10, bootstrap_timeout=0.5)
+        agentctl.spawn_agent(paths, backend, "critic", role, initial_task=TASK, claude_binary=TRUE_BINARY, spawn_timeout=10, bootstrap_timeout=0.5)
 
     assert len(backend.sends) == 2
     assert all(window.alive is False for window in backend.windows.values())
@@ -332,7 +361,7 @@ def test_spawn_rejects_a_duplicate_name_before_touching_the_backend(tmp_path: Pa
     before = len(backend.windows)
 
     with pytest.raises(agentctl.SpawnError, match="already running"):
-        agentctl.spawn_agent(paths, backend, "critic", role, claude_binary=TRUE_BINARY)
+        agentctl.spawn_agent(paths, backend, "critic", role, initial_task=TASK, claude_binary=TRUE_BINARY)
 
     assert len(backend.windows) == before
 
@@ -341,13 +370,52 @@ def test_spawn_rejects_a_duplicate_name_before_touching_the_backend(tmp_path: Pa
 def test_spawn_rejects_unusable_names(tmp_path: Path, role: Path, name: str) -> None:
     paths = agentctl.RunPaths.build(tmp_path / "rt", "cvv")
     with pytest.raises(agentctl.SpawnError, match="invalid agent name"):
-        agentctl.spawn_agent(paths, agentctl.FakeBackend(), name, role, claude_binary=TRUE_BINARY)
+        agentctl.spawn_agent(paths, agentctl.FakeBackend(), name, role, initial_task=TASK, claude_binary=TRUE_BINARY)
 
 
 def test_spawn_rejects_a_missing_role(tmp_path: Path) -> None:
     paths = agentctl.RunPaths.build(tmp_path / "rt", "cvv")
     with pytest.raises(agentctl.SpawnError, match="role file not found"):
-        agentctl.spawn_agent(paths, agentctl.FakeBackend(), "critic", tmp_path / "nope.md", claude_binary=TRUE_BINARY)
+        agentctl.spawn_agent(paths, agentctl.FakeBackend(), "critic", tmp_path / "nope.md", initial_task=TASK, claude_binary=TRUE_BINARY)
+
+
+def test_spawn_rejects_blank_task_before_any_runtime_or_backend_side_effect(tmp_path: Path, role: Path) -> None:
+    paths = agentctl.RunPaths.build(tmp_path / "rt", "cvv")
+    backend = agentctl.FakeBackend()
+
+    with pytest.raises(agentctl.SpawnError, match="initial task"):
+        agentctl.spawn_agent(paths, backend, "critic", role, initial_task=" \n\t", claude_binary=TRUE_BINARY)
+
+    assert backend.windows == {}
+    assert not paths.root.exists()
+
+
+def test_spawn_parser_requires_exactly_one_task_input(tmp_path: Path, role: Path) -> None:
+    parser = agentctl.build_parser()
+    base = ["--run", "cvv", "spawn", "critic", "--role", str(role)]
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(base)
+    with pytest.raises(SystemExit):
+        parser.parse_args([*base, "--task", TASK, "--task-file", str(tmp_path / "task.md")])
+
+
+def test_task_file_strips_bom_and_passes_exact_text_to_spawn(tmp_path: Path, role: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    task_file = tmp_path / "task.md"
+    task_file.write_text("\ufeffReview headings\n## Keep this heading\n", encoding="utf-8")
+    captured: dict[str, str] = {}
+
+    def fake_spawn(*_args: object, **kwargs: object) -> agentctl.AgentMeta:
+        captured["task"] = str(kwargs["initial_task"])
+        return agentctl.AgentMeta("critic", str(role), "@1", str(tmp_path), "acceptEdits", agentctl.utc_now(), "/opt/bin/claude")
+
+    monkeypatch.setattr(agentctl, "spawn_agent", fake_spawn)
+    args = agentctl.build_parser().parse_args(["--run", "cvv", "spawn", "critic", "--role", str(role), "--task-file", str(task_file)])
+    config = agentctl.Config(runtime_root=tmp_path / "rt", run=None, agent=None, backend="fake", viewer="none")
+
+    agentctl._cmd_spawn(args, config)
+
+    assert captured["task"] == "Review headings\n## Keep this heading\n"
 
 
 # ---------------------------------------------------------------------------
@@ -374,7 +442,16 @@ def test_spawn_with_worktree_gives_the_agent_its_own_checkout(tmp_path: Path, ro
     _responder(paths, backend, "critic")
 
     meta = agentctl.spawn_agent(
-        paths, backend, "critic", role, worktree=True, cwd=git_repo, claude_binary=TRUE_BINARY, spawn_timeout=10, bootstrap_timeout=10
+        paths,
+        backend,
+        "critic",
+        role,
+        initial_task=TASK,
+        worktree=True,
+        cwd=git_repo,
+        claude_binary=TRUE_BINARY,
+        spawn_timeout=10,
+        bootstrap_timeout=10,
     )
 
     assert meta.worktree == str(paths.worktrees / "critic")
@@ -480,7 +557,9 @@ def test_end_to_end_spawn_completes_the_handshake(tmp_path: Path, role: Path) ->
     paths = agentctl.RunPaths.build(runtime, run)
     backend = agentctl.TmuxBackend()
     try:
-        meta = agentctl.spawn_agent(paths, backend, "probe", role, model="sonnet", cwd=Path.cwd(), spawn_timeout=90, bootstrap_timeout=90)
+        meta = agentctl.spawn_agent(
+            paths, backend, "probe", role, initial_task=TASK, model="sonnet", cwd=Path.cwd(), spawn_timeout=90, bootstrap_timeout=90
+        )
         assert backend.alive(meta.handle)
         types = [event.type for event in agentctl.read_events(paths, "probe")]
         assert agentctl.EventType.SPAWNED in types

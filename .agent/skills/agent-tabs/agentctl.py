@@ -54,7 +54,9 @@ ENV_VIEWER = "AGENT_TABS_VIEWER"
 
 DEFAULT_STATE_HOME = "~/.local/state/agent-tabs"
 DEFAULT_BACKEND = "tmux"
-DEFAULT_VIEWER = "none"
+# On macOS, make the human-visible experience the default. `none` remains
+# available through --viewer none or AGENT_TABS_VIEWER=none for headless runs.
+DEFAULT_VIEWER = "iterm-tab"
 AGY_BOOT_DELAY = 1.5
 
 INBOX_WIDTH = 4
@@ -468,9 +470,18 @@ def next_inbox_path(paths: RunPaths, agent: str) -> Path:
 
 
 def write_inbox(paths: RunPaths, agent: str, body: str) -> Path:
-    path = next_inbox_path(paths, agent)
-    path.write_text(body, encoding="utf-8")
-    return path
+    directory = paths.inbox(agent)
+    directory.mkdir(parents=True, exist_ok=True)
+    candidate = next_inbox_path(paths, agent)
+    while True:
+        try:
+            with candidate.open("x", encoding="utf-8") as handle:
+                handle.write(body)
+                handle.flush()
+                os.fsync(handle.fileno())
+            return candidate
+        except FileExistsError:
+            candidate = directory / f"{int(candidate.stem) + 1:0{INBOX_WIDTH}d}.md"
 
 
 # ---------------------------------------------------------------------------
@@ -698,7 +709,7 @@ VIEWERS: dict[str, type[Viewer]] = {"none": NullViewer, "iterm-tab": ItermTabVie
 
 
 def get_viewer(name: str | None = None, config: Config | None = None) -> Viewer:
-    """Construct a viewer by name: --viewer, then the environment, then none."""
+    """Construct a viewer by name: --viewer, then env, then iTerm tabs."""
     cfg = config if config is not None else Config.from_env()
     chosen = name or cfg.viewer
     try:
@@ -1186,24 +1197,35 @@ def doorbell_text(inbox_path: Path) -> str:
     return _one_line(f"[orchestrator] new instruction: {inbox_path}")
 
 
-def bootstrap_body(paths: RunPaths, meta: AgentMeta) -> str:
-    return bootstrap_body_for(paths, meta.name, Path(meta.role))
+def _validate_initial_task(initial_task: str) -> str:
+    if not isinstance(initial_task, str) or not initial_task.strip():
+        raise SpawnError("initial task must contain non-whitespace text")
+    return initial_task
 
 
-def bootstrap_body_for(paths: RunPaths, name: str, role: Path) -> str:
+def bootstrap_body(paths: RunPaths, meta: AgentMeta, initial_task: str) -> str:
+    return bootstrap_body_for(paths, meta.name, Path(meta.role), initial_task)
+
+
+def bootstrap_body_for(paths: RunPaths, name: str, role: Path, initial_task: str) -> str:
+    task = _validate_initial_task(initial_task)
     protocol = Path(__file__).resolve().parent / "WORKER.md"
-    protocol_line = f"- Read the worker protocol: {protocol}\n" if protocol.exists() else ""
+    task_bytes = task.encode("utf-8")
     return (
         f"# Bootstrap: {name}\n\n"
         f"You are running in a terminal window a human can see and type into.\n"
         f"Both that human and an orchestrator can address you.\n\n"
-        f"- Read your role and operate as it describes: {role}\n"
-        f"{protocol_line}"
-        f"- Check your inbox at the start of every turn: {paths.inbox(name)}\n"
-        f"- Report back with: `{Path(__file__).resolve()} reply --status reply|question|blocked` (body on stdin).\n"
-        f"  Your identity comes from the environment; do not pass --run or --agent yourself.\n"
-        f"- Never assume the orchestrator can see your screen. Anything it must know goes through `reply`.\n\n"
-        f"Begin now.\n"
+        f"## Worker protocol\n"
+        f"Read and follow `{protocol}` for inbox checking and `agentctl reply` reporting.\n\n"
+        f"- Check your inbox at the start of every turn: `{paths.inbox(name)}`\n"
+        f"- Report with `{Path(__file__).resolve()} reply --status reply|question|blocked` (body on stdin).\n"
+        "  Your identity comes from the environment; do not pass --run or --agent yourself.\n"
+        "- Never assume the orchestrator can see your screen; report anything it must know through reply.\n\n"
+        f"## Role\n"
+        f"Read `{role}`; it defines your standing responsibilities, not this assignment.\n\n"
+        f"## Initial assignment\n"
+        f"<!-- agent-tabs-initial-assignment utf8-bytes={len(task_bytes)} -->\n"
+        f"{task}"
     )
 
 
@@ -1347,6 +1369,7 @@ def spawn_agent(
     name: str,
     role: Path,
     *,
+    initial_task: str,
     model: str | None = None,
     permission_mode: str = DEFAULT_PERMISSION_MODE,
     isolated_settings: bool = False,
@@ -1367,6 +1390,7 @@ def spawn_agent(
     agentctl records its successful launch and delivers the bootstrap through
     the durable inbox instead of fabricating turn events.
     """
+    task = _validate_initial_task(initial_task)
     if not AGENT_NAME.match(name):
         raise SpawnError(f"invalid agent name {name!r}: use letters, digits, underscore or hyphen")
     role_path = Path(role).expanduser().resolve()
@@ -1389,10 +1413,10 @@ def spawn_agent(
             worktree_path = add_worktree(paths, name, source)
         working_dir = worktree_path or source
 
+        bootstrap_path = write_inbox(paths, name, bootstrap_body_for(paths, name, role_path, task))
         settings_path = write_settings(paths, name) if worker_provider is not WorkerProvider.CODEX else None
         initial_prompt = None
         if worker_provider is WorkerProvider.CODEX and doorbell:
-            bootstrap_path = write_inbox(paths, name, bootstrap_body_for(paths, name, role_path))
             initial_prompt = (
                 "You are an Agent Tabs worker. Before exploring the repository or asking questions, "
                 f"read and follow the worker protocol at {Path(__file__).resolve().parent / 'WORKER.md'} "
@@ -1428,7 +1452,8 @@ def spawn_agent(
             time.sleep(AGY_BOOT_DELAY)
             if not backend.alive(handle):
                 raise SpawnError(f"agy exited on its own within {AGY_BOOT_DELAY}s of starting; last screen:\n{backend.capture(handle, 40)}")
-            backend.send(handle, "", enter=True)
+            if doorbell:
+                backend.send(handle, "", enter=True)
 
         meta = AgentMeta(
             name=name,
@@ -1458,7 +1483,7 @@ def spawn_agent(
                     raise SpawnError("Codex bootstrap inbox was not prepared")
                 _deliver(paths, backend, meta.name, meta.handle, bootstrap_path, enter=True)
             else:
-                _bootstrap(paths, backend, meta, bootstrap_timeout)
+                _bootstrap(paths, backend, meta, bootstrap_path, bootstrap_timeout)
         return meta
     except Exception as exc:
         # Never leave a half-live agent: no window, no worktree, and the failure
@@ -1469,12 +1494,29 @@ def spawn_agent(
         if worktree_path is not None:
             with _suppressed():
                 remove_worktree(paths, worktree_path, source)
+        bootstrap_error_path: str | None = None
+        if bootstrap_path is not None and bootstrap_path.exists():
+            agent_dir = paths.agent_dir(name)
+            other_files = [path for path in agent_dir.rglob("*") if path.is_file() and path != bootstrap_path]
+            if not other_files:
+                with _suppressed():
+                    bootstrap_path.unlink()
+                    for child in (paths.inbox(name), paths.outbox(name)):
+                        if child.exists() and not any(child.iterdir()):
+                            child.rmdir()
+                    if agent_dir.exists() and not any(agent_dir.iterdir()):
+                        agent_dir.rmdir()
+            else:
+                bootstrap_error_path = str(bootstrap_path)
         with _suppressed():
-            append_event(paths, name, EventType.ERROR, {"stage": "spawn", "error": str(exc)})
+            error_data: dict[str, str] = {"stage": "spawn", "error": str(exc)}
+            if bootstrap_error_path is not None:
+                error_data["bootstrap"] = bootstrap_error_path
+            append_event(paths, name, EventType.ERROR, error_data)
         raise
 
 
-def _bootstrap(paths: RunPaths, backend: Backend, meta: AgentMeta, timeout: float) -> None:
+def _bootstrap(paths: RunPaths, backend: Backend, meta: AgentMeta, bootstrap_path: Path, timeout: float) -> None:
     """Ring the bootstrap doorbell and prove it landed.
 
     Every later message is recoverable because the worker re-reads its inbox
@@ -1483,10 +1525,9 @@ def _bootstrap(paths: RunPaths, backend: Backend, meta: AgentMeta, timeout: floa
     sits idle forever holding a perfectly good instruction. It is the one
     message that must be confirmed, and retried, rather than assumed.
     """
-    body = bootstrap_body(paths, meta)
     for attempt in (1, 2):
         watermark = max_seq(paths)
-        ring_doorbell(paths, backend, meta.name, meta.handle, body)
+        _deliver(paths, backend, meta.name, meta.handle, bootstrap_path, enter=True)
         if wait_for_event(paths, agent=meta.name, types=[EventType.TURN_START], from_seq=watermark, timeout=timeout) is not None:
             return
         log.warning("bootstrap doorbell for %s not acknowledged (attempt %d)", meta.name, attempt)
@@ -1901,6 +1942,9 @@ def build_parser() -> argparse.ArgumentParser:
     spawn_parser = subparsers.add_parser("spawn", parents=[common], help="launch an agent in a visible window")
     spawn_parser.add_argument("name")
     spawn_parser.add_argument("--role", required=True, help="path to the role document the agent adopts")
+    task_group = spawn_parser.add_mutually_exclusive_group(required=True)
+    task_group.add_argument("--task", help="the concrete initial assignment")
+    task_group.add_argument("--task-file", help="UTF-8 file containing the concrete initial assignment")
     spawn_parser.add_argument(
         "--provider",
         choices=[provider.value for provider in WorkerProvider],
@@ -1917,7 +1961,7 @@ def build_parser() -> argparse.ArgumentParser:
     spawn_parser.add_argument("--no-doorbell", action="store_true", help="do not send the bootstrap instruction")
     spawn_parser.add_argument("--spawn-timeout", type=float, default=DEFAULT_SPAWN_TIMEOUT)
     spawn_parser.add_argument("--bootstrap-timeout", type=float, default=DEFAULT_BOOTSTRAP_TIMEOUT)
-    spawn_parser.add_argument("--viewer", help="viewer name (default: none); overrides $AGENT_TABS_VIEWER")
+    spawn_parser.add_argument("--viewer", help="viewer name (default: iterm-tab); overrides $AGENT_TABS_VIEWER")
     spawn_parser.set_defaults(handler=_cmd_spawn)
 
     send_parser = subparsers.add_parser("send", parents=[common], help="deliver an instruction to a running agent")
@@ -2057,11 +2101,23 @@ def _cmd_hook(args: argparse.Namespace, config: Config) -> int:
 
 def _cmd_spawn(args: argparse.Namespace, config: Config) -> int:
     paths = RunPaths.build(resolve_runtime_root(args.runtime, config), _require_run(args, config))
+    if args.task is not None:
+        initial_task = _validate_initial_task(args.task)
+    else:
+        task_path = Path(args.task_file).expanduser()
+        if not task_path.is_file():
+            raise SpawnError(f"task file not found: {task_path}")
+        try:
+            initial_task = task_path.read_text(encoding="utf-8-sig")
+        except (OSError, UnicodeError) as exc:
+            raise SpawnError(f"could not read task file {task_path}: {exc}") from exc
+        initial_task = _validate_initial_task(initial_task)
     meta = spawn_agent(
         paths,
         get_backend(args.backend, config),
         args.name,
         Path(args.role),
+        initial_task=initial_task,
         model=args.model,
         permission_mode=args.permission_mode,
         isolated_settings=args.isolated_settings,

@@ -21,7 +21,7 @@ import pytest
 TOOL_DIR = Path(__file__).resolve().parents[1]
 
 # The product: what would be copied into a standalone repository.
-SHIPPED = ("agentctl.py", "SKILL.md", "WORKER.md")
+SHIPPED = ("agentctl.py", "SKILL.md", "WORKER.md", "examples/reviewer-role.md")
 
 BANNED = ("ticket", "sprint", "cvviewer")
 HOST_REPO = "cvviewer"

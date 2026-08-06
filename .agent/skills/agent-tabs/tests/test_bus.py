@@ -10,6 +10,7 @@ import json
 import multiprocessing
 import subprocess
 import sys
+import threading
 from pathlib import Path
 
 import agentctl
@@ -66,6 +67,29 @@ def test_concurrent_appends_assign_unique_sequences(tmp_path: Path) -> None:
     assert len(events) == workers * per_worker
     assert sequences == list(range(1, workers * per_worker + 1))
     assert len(set(sequences)) == len(sequences)
+
+
+def test_concurrent_inbox_writes_are_exclusive_and_complete(tmp_path: Path) -> None:
+    paths = agentctl.RunPaths.build(tmp_path / "runtime", "inbox-race")
+    count = 20
+    results: list[Path] = []
+    lock = threading.Lock()
+
+    def write(index: int) -> None:
+        path = agentctl.write_inbox(paths, "reviewer", f"body-{index}")
+        with lock:
+            results.append(path)
+
+    threads = [threading.Thread(target=write, args=(index,)) for index in range(count)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=10)
+
+    assert len(results) == count
+    assert len({path.name for path in results}) == count
+    assert sorted(int(path.stem) for path in results) == list(range(1, count + 1))
+    assert {path.read_text(encoding="utf-8") for path in results} == {f"body-{index}" for index in range(count)}
 
 
 # ---------------------------------------------------------------------------

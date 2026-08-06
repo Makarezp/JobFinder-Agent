@@ -44,6 +44,10 @@ lifecycle hooks. Read the bootstrap and inbox files, then use `reply` for your
 final result, question, or blocker. The orchestrator can observe those reports
 and terminal liveness, but cannot infer Codex turn boundaries.
 
+The bootstrap's byte-delimited **Initial assignment** is the first task. The
+worker protocol and role are not assignments. Later work arrives as new numbered
+inbox files from `agentctl send`.
+
 ## Two rules
 
 **Never assume the orchestrator can see your screen.** It cannot read your
