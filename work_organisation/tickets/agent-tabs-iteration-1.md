@@ -82,6 +82,8 @@ tmux -V                    # expect >= 3.0
 
 ## Ticket 1: Bus Layer — Runtime Root, Event Log, State Derivation
 
+**Status: DONE**
+
 #### Overview
 Build the durable, terminal-independent core: an on-disk run directory plus an append-only event log from which every agent's state is derived. No knowledge of tmux; fully unit-testable without a terminal.
 
@@ -213,6 +215,8 @@ Build the durable, terminal-independent core: an on-disk run directory plus an a
 
 ## Ticket 2: tmux Backend Adapter + Fake Backend
 
+**Status: DONE** — the three tmux behaviours in step 1 were verified against tmux 3.7b and all matched the assumptions. Recorded in `TmuxBackend`'s docstring.
+
 #### Overview
 Isolate every terminal-specific operation behind one interface, with an in-memory fake so everything above it is testable without a terminal. This interface is the only thing that changes to support iTerm or Ghostty later.
 
@@ -278,6 +282,10 @@ Isolate every terminal-specific operation behind one interface, with an in-memor
 ---
 
 ## Ticket 3: `spawn` — Hook Settings, Quoting, and the Readiness Handshake
+
+**Status: DONE** — the stop-and-evaluate gate below was passed: a real `claude` in a real tmux window completed the full `spawned` → `message_sent` → `turn_start` → `turn_end` handshake in 10.74s. The core hypothesis is proven.
+
+A defect worth remembering: `--runtime`/`--run` were declared only on the top-level parser while `hook_command` emitted them *after* the subcommand. argparse exited 2 before the exit-0-always handler could run, so **every real session's hooks failed silently while 63 unit tests passed** — the hook test used environment variables, the shipped command used flags. Fixed with `parents=[common]` + `default=argparse.SUPPRESS`, and pinned by `test_generated_hook_commands_actually_execute`, which runs the generated string through a real shell.
 
 #### Overview
 Launch a live Claude session in a tmux window, wired so it reports its own lifecycle to the bus. Replaces the legacy `BOOT_DELAY=4` guess with a real handshake.
@@ -384,6 +392,8 @@ Launch a live Claude session in a tmux window, wired so it reports its own lifec
 
 ## Ticket 4: `send` (Doorbell) and `read`
 
+**Status: DONE** — composer fixtures are literal captures from a live Claude Code v2.1.223 session, not approximations. The heuristic deliberately fails *open*.
+
 #### Overview
 Deliver instructions without pushing the payload through the keyboard, and let the orchestrator observe both deliberate replies and the raw screen the human sees.
 
@@ -444,6 +454,8 @@ Deliver instructions without pushing the payload through the keyboard, and let t
 
 ## Ticket 5: `wait` — Predicate Tail Over the Bus
 
+**Status: DONE**. Deviations: `status` dropped from the predicate grammar (it could only ever match nothing, and for a blocking call that is indistinguishable from "still working" — it is now a hard error pointing at `type=`); `wait_for_event` refactored onto `BusTail` rather than left as a second, independently-drifting tail implementation.
+
 #### Overview
 An event-driven block instead of polling. Run under background Bash, `wait` exits the moment a matching event lands and the harness re-invokes the orchestrator.
 
@@ -491,6 +503,14 @@ An event-driven block instead of polling. Run under background Bash, `wait` exit
 ---
 
 ## Ticket 6: `list`, `status`, `close`, `reap` — Reconciliation and Teardown
+
+**Status: DONE** — signed off after manual verification against live tmux.
+
+Deviations accepted during implementation:
+- Reconciliation keys idempotency on *the absence of an `exit` event*, not on derived state. `error` also derives to `dead`, so the ticket's "non-dead agents" rule would permanently exclude a live agent after one failed keystroke.
+- `reap` ships as `[--apply] [--all] [--dry-run]`. The ticket's flag list was internally inconsistent — dry-run as the default leaves `--dry-run` meaningless and nothing to make it act. `--dry-run` wins over `--apply` when both are given.
+- `list` reports total outbox count, not "unread": nothing records what the orchestrator has read, by design (`read --since` puts that on the caller).
+- `validated_worktree()` split out of `remove_worktree()` so callers validate *before* acting; `main_checkout()` added because git refuses to remove the worktree it is standing in.
 
 #### Overview
 Make liveness observable and teardown reliable. Orphaned agents in a detached tmux session burn tokens invisibly; this is the defence, and it ships now rather than later.
@@ -566,7 +586,9 @@ The two documents that make the framework usable by an agent rather than by a hu
 
 3. **Convenience wrapper — `scripts/agentctl`** — executable one-liner: `exec python3 "$(dirname "$0")/../.agent/skills/agent-tabs/agentctl.py" "$@"`. POSIX-sh compatible; no bashisms (macOS bash is 3.2).
 
-4. **`scripts/test.sh` — add a tmux block (M1).** After the existing Docker-gated integration block, add a parallel block gated on `command -v tmux`, running `pytest -m tmux -ra`, with a yellow skip message when tmux is absent — mirroring the Docker pattern already there.
+4. **~~`scripts/test.sh` — add a tmux block (M1).~~ SUPERSEDED.** The original instruction was to wire `pytest -m tmux -ra` into the host repository's test runner. That is backwards: it makes the host repo's pipeline depend on the tool, which is the coupling this iteration exists to avoid, and it does not survive extraction. It was also unbuildable as written — T2 deliberately replaced M1's marker with `pytest.mark.skipif` so the tool needs no host pytest configuration, and `testpaths` excludes `.agent/` anyway.
+
+   **Instead: the tool carries its own gate.** `.agent/skills/agent-tabs/test.sh`, POSIX sh, self-contained. Requires only `pytest`; runs `ruff` and `mypy --strict` when they are importable and reports them as skipped when they are not. Honours `$AGENTCTL_PYTHON`. Nothing in the host repository references it.
 
 5. **README section** in `SKILL.md`: the `brew install tmux` prerequisite, `Ctrl-b <n>` / `Ctrl-b d` basics, and a pointer to iTerm's `tmux -CC` mode which renders windows as native iTerm tabs.
 
@@ -578,7 +600,7 @@ The two documents that make the framework usable by an agent rather than by a hu
 #### Acceptance Criteria
 - [Automated] A test greps `SKILL.md`, `WORKER.md`, and `agentctl.py` for case-insensitive `ticket`, `sprint`, `cvviewer` and asserts zero matches — the genericity contract encoded as a test rather than an intention.
 - [Manual] `./scripts/agentctl list` runs identically from the repo root and from a subdirectory.
-- [Manual] `./scripts/test.sh` completes all six steps; with tmux absent it prints the skip message rather than failing.
+- [Manual] `.agent/skills/agent-tabs/test.sh` passes standalone, from outside the repository, and with tmux absent prints the skip note rather than failing. The host repository's `scripts/test.sh` is **unchanged**.
 - [Manual] End-to-end: spawn two agents with different roles, `send` distinct instructions, watch both in `tmux attach`, type a follow-up into one as the human, confirm `agentctl read <name> --screen 40` shows that exchange, then `close-run` and confirm clean teardown.
 
 ---

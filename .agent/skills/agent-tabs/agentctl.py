@@ -14,6 +14,16 @@ a virtualenv, and is intended to be lifted into its own repo unchanged.
 
 from __future__ import annotations
 
+import sys
+
+# Must run before the 3.11+ imports below, or the failure a user sees is
+# `ImportError: cannot import name 'StrEnum'` -- true, but it says nothing about
+# the cause. This tool is meant to be dropped into any repository, so the
+# interpreter it lands on is exactly the thing that varies.
+# noqa: UP036 is required: ruff targets py311 and so reads this as dead code.
+if sys.version_info < (3, 11):  # noqa: UP036
+    raise SystemExit(f"agentctl requires Python 3.11+, found {sys.version.split()[0]} at {sys.executable}")
+
 import argparse
 import fcntl
 import hashlib
@@ -24,7 +34,6 @@ import re
 import shlex
 import shutil
 import subprocess
-import sys
 import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
@@ -933,17 +942,41 @@ def add_worktree(paths: RunPaths, agent: str, source: Path) -> Path:
     return target
 
 
-def remove_worktree(paths: RunPaths, worktree: Path | str, source: Path) -> None:
-    """Remove a worktree, refusing any path outside the runtime tree.
+def validated_worktree(paths: RunPaths, worktree: Path | str | None) -> Path | None:
+    """Resolve a recorded worktree path, refusing anything outside the runtime tree.
 
     The guard is the point: a bug or a doctored meta.json must never be able to
-    talk git into deleting a directory holding real work.
+    talk git into deleting a directory holding real work. It lives in one
+    function so that every removal path shares it -- a guard that holds at only
+    some call sites is not a guard.
+
+    Separate from the removal itself so callers can validate *before* taking any
+    destructive action, rather than discovering a poisoned path halfway through.
     """
+    if not worktree:
+        return None
     resolved = Path(worktree).expanduser().resolve()
     allowed = paths.worktrees.resolve()
     if not resolved.is_relative_to(allowed):
         raise BusError(f"refusing to remove worktree outside {allowed}: {resolved}")
-    if resolved.exists():
+    return resolved
+
+
+def main_checkout(cwd: Path | None = None) -> Path:
+    """The main working tree: the only safe place to run `git worktree remove` from.
+
+    Never an agent's own directory. git refuses to remove the worktree you are
+    standing in, and an agent spawned with --worktree is standing in precisely
+    the one being removed.
+    """
+    common = git_common_dir(cwd)
+    return common.parent if common.name == ".git" else common
+
+
+def remove_worktree(paths: RunPaths, worktree: Path | str, source: Path) -> None:
+    """Remove a worktree, refusing any path outside the runtime tree."""
+    resolved = validated_worktree(paths, worktree)
+    if resolved is not None and resolved.exists():
         _git(source, "worktree", "remove", "--force", str(resolved))
 
 
@@ -1316,6 +1349,238 @@ def send_message(
 
 
 # ---------------------------------------------------------------------------
+# Lifecycle: reconciliation and teardown
+#
+# Three authorities, and they are not interchangeable: the runtime tree says
+# which agents *exist*, the backend says which are *alive*, and the bus says
+# what that *means*. Every command below reconciles the first two and records
+# the answer in the third.
+# ---------------------------------------------------------------------------
+
+
+DEFAULT_CLOSE_TIMEOUT = 30.0
+DEFAULT_STALLED_AFTER = 300.0
+STATUS_EVENT_TAIL = 15
+EXIT_COMMAND = "/exit"
+
+
+def list_agent_names(paths: RunPaths) -> list[str]:
+    """Every agent this run has a record of, alive or not.
+
+    Directories without a meta.json are spawns that died before recording
+    anything; they are skipped here and left for ``reap``.
+    """
+    directory = paths.root / "agents"
+    if not directory.is_dir():
+        return []
+    return sorted(entry.name for entry in directory.iterdir() if entry.is_dir() and (entry / "meta.json").is_file())
+
+
+def _load_meta(paths: RunPaths, agent: str) -> AgentMeta | None:
+    try:
+        return AgentMeta.load(paths.meta(agent))
+    except (OSError, ValueError, TypeError) as exc:
+        log.warning("unreadable meta.json for %s: %s", agent, exc)
+        return None
+
+
+def _has_exited(paths: RunPaths, agent: str) -> bool:
+    return any(event.type is EventType.EXIT for event in read_events(paths, agent))
+
+
+def reconcile(paths: RunPaths, backend: Backend, agents: Sequence[str] | None = None) -> list[str]:
+    """Record an ``exit`` for every agent whose window is gone. Returns their names.
+
+    Nothing fires SessionEnd when a human closes a window by hand or the machine
+    reboots, so without this the log claims that agent is alive forever and the
+    orchestrator waits on a reply that can never come.
+
+    Idempotency is keyed on the absence of an ``exit`` event rather than on the
+    derived state. ``error`` also derives to ``dead``, so gating on state would
+    permanently exclude a live agent that once had a single failed keystroke.
+
+    Two concurrent callers can both append an ``exit``; the append itself is
+    locked, and a duplicate does not change the derived state, so the cost is one
+    extra log line rather than a second locking protocol over the bus.
+    """
+    vanished: list[str] = []
+    for agent in list(agents) if agents is not None else list_agent_names(paths):
+        if _has_exited(paths, agent):
+            continue
+        meta = _load_meta(paths, agent)
+        if meta is None or backend.alive(meta.handle):
+            continue
+        append_event(paths, agent, EventType.EXIT, {"reason": "window_vanished"})
+        vanished.append(agent)
+    return vanished
+
+
+def _age_seconds(timestamp: str) -> float | None:
+    try:
+        parsed = datetime.fromisoformat(timestamp)
+    except ValueError:
+        return None
+    return (datetime.now(UTC) - parsed).total_seconds()
+
+
+@dataclass(frozen=True)
+class AgentSummary:
+    meta: AgentMeta
+    state: AgentState
+    alive: bool
+    outbox_count: int
+    uptime_seconds: float | None
+
+
+def summarise(paths: RunPaths, backend: Backend, agent: str) -> AgentSummary:
+    meta = AgentMeta.load(paths.meta(agent))
+    outbox = read_outbox(paths, agent)
+    return AgentSummary(
+        meta=meta,
+        state=derive_state(read_events(paths, agent), outbox),
+        alive=backend.alive(meta.handle),
+        outbox_count=len(outbox),
+        uptime_seconds=_age_seconds(meta.created_at),
+    )
+
+
+def stalled_for(events: Sequence[Event], state: AgentState, threshold: float = DEFAULT_STALLED_AFTER) -> float | None:
+    """How long an agent has been mid-turn, once that exceeds ``threshold``.
+
+    A worker deadlocked on an unattended permission dialog is indistinguishable
+    from one thinking hard: both are ``busy`` with no ``turn_end``. Elapsed time
+    is the only signal available, so this is a hint for the human rather than a
+    verdict -- it says "go look at that window", never "that agent is broken".
+    """
+    if state is not AgentState.BUSY:
+        return None
+    starts = [event for event in events if event.type is EventType.TURN_START]
+    if not starts:
+        return None
+    age = _age_seconds(max(starts, key=lambda event: event.seq).ts)
+    return age if age is not None and age >= threshold else None
+
+
+def close_agent(
+    paths: RunPaths,
+    backend: Backend,
+    agent: str,
+    *,
+    force: bool = False,
+    timeout: float = DEFAULT_CLOSE_TIMEOUT,
+    source: Path | None = None,
+) -> str:
+    """Shut one agent down and clean up after it. Returns what actually happened.
+
+    The graceful path types ``/exit`` so the worker flushes its transcript, but
+    it is best effort and **the timeout is the real guarantee**. ``send-keys -l``
+    puts the text wherever focus happens to be: mid-turn, in copy-mode, or with a
+    dialog open it lands somewhere harmless and the kill follows regardless. Do
+    not "fix" this by lengthening the timeout -- there is nothing to wait for.
+
+    The worktree path is validated before anything is killed, so a doctored
+    meta.json aborts the whole operation rather than being discovered halfway.
+    """
+    meta = AgentMeta.load(paths.meta(agent))
+    worktree = validated_worktree(paths, meta.worktree)
+
+    if not backend.alive(meta.handle):
+        outcome = "already_gone"
+    elif force:
+        with _suppressed():
+            backend.kill(meta.handle)
+        outcome = "forced"
+    else:
+        watermark = max_seq(paths)
+        with _suppressed():
+            backend.send(meta.handle, EXIT_COMMAND, enter=True)
+            wait_for_event(paths, agent=agent, types=[EventType.EXIT], from_seq=watermark, timeout=timeout)
+        with _suppressed():
+            backend.kill(meta.handle)
+        outcome = "graceful"
+
+    if worktree is not None:
+        remove_worktree(paths, worktree, source or main_checkout())
+    if not _has_exited(paths, agent):
+        append_event(paths, agent, EventType.EXIT, {"reason": outcome})
+    refresh_state_cache(paths, agent)
+    return outcome
+
+
+@dataclass(frozen=True)
+class ReapPlan:
+    """What a sweep would remove. Building it touches nothing."""
+
+    agents: list[str]
+    worktrees: list[Path]
+    session: bool
+
+    @property
+    def empty(self) -> bool:
+        return not self.agents and not self.worktrees and not self.session
+
+
+def plan_reap(paths: RunPaths, backend: Backend, *, include_session: bool = False) -> ReapPlan:
+    """Find orphans: agents whose window is gone, and worktrees nobody owns."""
+    orphans: list[str] = []
+    owned: set[Path] = set()
+    for agent in list_agent_names(paths):
+        meta = _load_meta(paths, agent)
+        if meta is None:
+            continue
+        if backend.alive(meta.handle):
+            if meta.worktree:
+                owned.add(Path(meta.worktree).expanduser().resolve())
+        else:
+            orphans.append(agent)
+
+    stale: list[Path] = []
+    if paths.worktrees.is_dir():
+        stale = sorted(entry for entry in paths.worktrees.iterdir() if entry.is_dir() and entry.resolve() not in owned)
+
+    return ReapPlan(agents=orphans, worktrees=stale, session=include_session and not backend.list_handles(paths.run))
+
+
+def apply_reap(paths: RunPaths, backend: Backend, plan: ReapPlan) -> None:
+    """Act on a plan. Every removal still passes the runtime-tree guard."""
+    for agent in plan.agents:
+        if not _has_exited(paths, agent):
+            append_event(paths, agent, EventType.EXIT, {"reason": "reaped"})
+        refresh_state_cache(paths, agent)
+
+    source: Path | None = None
+    for worktree in plan.worktrees:
+        if source is None:
+            source = main_checkout()
+        remove_worktree(paths, worktree, source)
+
+    if plan.session:
+        backend.kill_run(paths.run)
+
+
+def close_run(paths: RunPaths, backend: Backend, *, force: bool = False, timeout: float = DEFAULT_CLOSE_TIMEOUT) -> list[str]:
+    """Tear down every agent in the run, then the session that held them.
+
+    Every worktree path is validated up front: one poisoned meta.json aborts
+    before a single window is killed.
+
+    Known gap: were the orchestrator ever moved inside the tmux session (a
+    deferred decision), this would kill the window it is itself running in. That
+    is left explicit rather than half-guarded, because a partial guard here would
+    read as safety that is not there.
+    """
+    names = list_agent_names(paths)
+    for name in names:
+        validated_worktree(paths, AgentMeta.load(paths.meta(name)).worktree)
+
+    for name in names:
+        with _suppressed():
+            close_agent(paths, backend, name, force=force, timeout=timeout)
+    backend.kill_run(paths.run)
+    return names
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
@@ -1390,6 +1655,34 @@ def build_parser() -> argparse.ArgumentParser:
     read_parser.add_argument("--since", type=int, default=0, help="only outbox messages after this index")
     read_parser.add_argument("--json", action="store_true", help="machine-readable output")
     read_parser.set_defaults(handler=_cmd_read)
+
+    list_parser = subparsers.add_parser("list", parents=[common], help="show every agent in the run")
+    list_parser.add_argument("--json", action="store_true", help="machine-readable output")
+    list_parser.set_defaults(handler=_cmd_list)
+
+    status_parser = subparsers.add_parser("status", parents=[common], help="detail on one agent, including a stalled-turn hint")
+    status_parser.add_argument("name")
+    status_parser.add_argument("--stalled-after", type=float, default=DEFAULT_STALLED_AFTER, help="seconds mid-turn before flagging a stall")
+    status_parser.add_argument("--json", action="store_true", help="machine-readable output")
+    status_parser.set_defaults(handler=_cmd_status)
+
+    close_parser = subparsers.add_parser("close", parents=[common], help="shut one agent down and clean up after it")
+    close_parser.add_argument("name")
+    close_parser.add_argument("--force", action="store_true", help="kill immediately, skipping the /exit courtesy")
+    close_parser.add_argument("--timeout", type=float, default=DEFAULT_CLOSE_TIMEOUT)
+    close_parser.set_defaults(handler=_cmd_close)
+
+    reap_parser = subparsers.add_parser("reap", parents=[common], help="sweep orphaned agents and worktrees (reports only unless --apply)")
+    reap_parser.add_argument("--apply", action="store_true", help="actually remove what would be reported")
+    reap_parser.add_argument("--all", action="store_true", help="implies --apply, and kills the session once it is empty")
+    reap_parser.add_argument("--dry-run", action="store_true", help="explicit form of the default: report and change nothing")
+    reap_parser.add_argument("--json", action="store_true", help="machine-readable output")
+    reap_parser.set_defaults(handler=_cmd_reap)
+
+    close_run_parser = subparsers.add_parser("close-run", parents=[common], help="tear down every agent and the session holding them")
+    close_run_parser.add_argument("--force", action="store_true", help="kill immediately, skipping the /exit courtesy")
+    close_run_parser.add_argument("--timeout", type=float, default=DEFAULT_CLOSE_TIMEOUT)
+    close_run_parser.set_defaults(handler=_cmd_close_run)
 
     reply_parser = subparsers.add_parser("reply", parents=[common], help="report back to the orchestrator (invoked by workers)")
     reply_parser.add_argument("--status", default=OutboxStatus.REPLY.value, choices=[status.value for status in OutboxStatus])
@@ -1570,6 +1863,151 @@ def _cmd_read(args: argparse.Namespace, config: Config) -> int:
     for message in messages:
         flag = " (malformed frontmatter)" if message.malformed else ""
         print(f"\n--- {message.index:04d} [{message.status.value}]{flag} ---\n{message.body.strip()}")
+    return 0
+
+
+def _format_duration(seconds: float | None) -> str:
+    if seconds is None or seconds < 0:
+        return "-"
+    if seconds < 60:
+        return f"{int(seconds)}s"
+    if seconds < 3600:
+        return f"{int(seconds // 60)}m"
+    return f"{int(seconds // 3600)}h{int(seconds % 3600 // 60):02d}m"
+
+
+def _cmd_list(args: argparse.Namespace, config: Config) -> int:
+    paths = RunPaths.build(resolve_runtime_root(args.runtime, config), _require_run(args, config))
+    backend = get_backend(args.backend, config)
+    reconcile(paths, backend)
+    summaries = [summarise(paths, backend, agent) for agent in list_agent_names(paths)]
+
+    if args.json:
+        print(
+            json.dumps(
+                {
+                    "run": paths.run,
+                    "agents": [
+                        {
+                            "name": summary.meta.name,
+                            "state": summary.state.value,
+                            "model": summary.meta.model,
+                            "handle": summary.meta.handle,
+                            "alive": summary.alive,
+                            "uptime_seconds": summary.uptime_seconds,
+                            "outbox": summary.outbox_count,
+                        }
+                        for summary in summaries
+                    ],
+                },
+                indent=2,
+            )
+        )
+        return 0
+
+    if not summaries:
+        print(f"no agents in run {paths.run!r}")
+        return 0
+    print(f"{'NAME':<16}{'STATE':<16}{'MODEL':<10}{'HANDLE':<8}{'UPTIME':<8}OUTBOX")
+    for summary in summaries:
+        model = summary.meta.model or "-"
+        print(
+            f"{summary.meta.name:<16}{summary.state.value:<16}{model:<10}"
+            f"{summary.meta.handle:<8}{_format_duration(summary.uptime_seconds):<8}{summary.outbox_count}"
+        )
+    return 0
+
+
+def _cmd_status(args: argparse.Namespace, config: Config) -> int:
+    paths = RunPaths.build(resolve_runtime_root(args.runtime, config), _require_run(args, config))
+    backend = get_backend(args.backend, config)
+    reconcile(paths, backend, [args.name])
+
+    summary = summarise(paths, backend, args.name)
+    events = read_events(paths, args.name)
+    stalled = stalled_for(events, summary.state, args.stalled_after)
+    tail = events[-STATUS_EVENT_TAIL:]
+
+    if args.json:
+        print(
+            json.dumps(
+                {
+                    "meta": summary.meta.__dict__,
+                    "state": summary.state.value,
+                    "alive": summary.alive,
+                    "uptime_seconds": summary.uptime_seconds,
+                    "outbox": summary.outbox_count,
+                    "stalled_seconds": stalled,
+                    "events": [json.loads(event.to_line()) for event in tail],
+                },
+                indent=2,
+            )
+        )
+        return 0
+
+    print(f"{summary.meta.name}: {summary.state.value}{'' if summary.alive else ' (window gone)'}")
+    print(f"  handle:   {summary.meta.handle}")
+    print(f"  model:    {summary.meta.model or '-'}")
+    print(f"  role:     {summary.meta.role}")
+    print(f"  cwd:      {summary.meta.cwd}")
+    print(f"  worktree: {summary.meta.worktree or '-'}")
+    print(f"  uptime:   {_format_duration(summary.uptime_seconds)}")
+    print(f"  outbox:   {summary.outbox_count}")
+    if stalled is not None:
+        # Not a verdict: a permission dialog nobody answered looks exactly like
+        # hard thinking. Point the human at the window and let them judge.
+        print(f"  STALLED:  mid-turn for {_format_duration(stalled)} with no turn_end -- check this window")
+    print(f"\n  last {len(tail)} events:")
+    for event in tail:
+        print(f"    {event.seq:>4}  {event.ts}  {event.wire_type()}")
+    return 0
+
+
+def _cmd_close(args: argparse.Namespace, config: Config) -> int:
+    paths = RunPaths.build(resolve_runtime_root(args.runtime, config), _require_run(args, config))
+    outcome = close_agent(paths, get_backend(args.backend, config), args.name, force=args.force, timeout=args.timeout)
+    print(f"closed\t{args.name}\t{outcome}")
+    return 0
+
+
+def _cmd_reap(args: argparse.Namespace, config: Config) -> int:
+    """Sweep orphans. Reports and changes nothing unless asked to act."""
+    paths = RunPaths.build(resolve_runtime_root(args.runtime, config), _require_run(args, config))
+    backend = get_backend(args.backend, config)
+    apply = (args.apply or args.all) and not args.dry_run
+    plan = plan_reap(paths, backend, include_session=args.all)
+
+    if args.json:
+        print(
+            json.dumps(
+                {"applied": apply, "agents": plan.agents, "worktrees": [str(path) for path in plan.worktrees], "session": plan.session},
+                indent=2,
+            )
+        )
+    if apply:
+        apply_reap(paths, backend, plan)
+
+    if args.json:
+        return 0
+    if plan.empty:
+        print("nothing to reap")
+        return 0
+    verb = "removed" if apply else "would remove"
+    for agent in plan.agents:
+        print(f"{verb} agent record: {agent} (window gone)")
+    for worktree in plan.worktrees:
+        print(f"{verb} worktree: {worktree}")
+    if plan.session:
+        print(f"{'killed' if apply else 'would kill'} empty session: {paths.run}")
+    if not apply:
+        print("\nnothing was changed; pass --apply to act, or --all to also kill the empty session")
+    return 0
+
+
+def _cmd_close_run(args: argparse.Namespace, config: Config) -> int:
+    paths = RunPaths.build(resolve_runtime_root(args.runtime, config), _require_run(args, config))
+    names = close_run(paths, get_backend(args.backend, config), force=args.force, timeout=args.timeout)
+    print(f"closed run {paths.run}: {', '.join(names) if names else 'no agents'}")
     return 0
 
 
