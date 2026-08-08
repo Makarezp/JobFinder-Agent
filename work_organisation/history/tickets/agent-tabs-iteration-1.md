@@ -2,6 +2,7 @@
 
 **Revision 2** — incorporates `agent-tabs-iteration-1-review.md` in full.
 **Track:** Tooling / meta (not part of `sprint_v2_search_ledger.md`)
+**Status:** DONE — archived 2026-08-08; shipped prerequisite of the probe loop.
 **Goal:** A generic, project-agnostic framework that lets an orchestrating agent launch, message, observe, and close *human-visible* Claude sessions running in tmux windows.
 
 ## Context

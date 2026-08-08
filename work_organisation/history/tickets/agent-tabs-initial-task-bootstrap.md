@@ -1,6 +1,6 @@
 ### Ticket 11: Require and Deliver a Concrete Initial Task When Spawning a Worker
 
-**Status:** DONE
+**Status:** DONE — archived 2026-08-08.
 
 #### Overview
 

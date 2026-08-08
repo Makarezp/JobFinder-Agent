@@ -1,7 +1,7 @@
 # Agent-Tabs — Codex Worker Support
 
 **Track:** Tooling / meta
-**Status:** Proposed
+**Status:** DONE — archived 2026-08-08; implementation is a shipped prerequisite of the probe loop.
 **Discovery baseline:** `codex-cli 0.146.1`, inspected locally on 2026-08-06. Its interactive invocation is `codex [OPTIONS] [PROMPT]`; it exposes `--model`, `--sandbox {read-only,workspace-write,danger-full-access}`, `--ask-for-approval {untrusted,on-request,never}`, and `--cd`. It does **not** expose the Claude `--settings` hook mechanism used by the existing spawn handshake.
 
 ### Ticket 10: Add Codex as an Explicit Agent-Tabs Worker Provider

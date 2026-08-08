@@ -1,7 +1,7 @@
 # Sprint V3: Agent-Tabs Hardening & Probe Loop
 
 **Branch:** `probe-spike` (cut from `main` at `1bb37a7`)
-**Track:** Tooling / meta — deliberately separate from `sprint_v2_search_ledger.md`, which is a product sprint on `migration` and has already landed.
+**Track:** Tooling / meta — deliberately separate from the archived product sprint `history/sprints/sprint_v2_search_ledger.md`, which has already landed.
 
 ## Why this sprint exists
 
@@ -46,7 +46,7 @@ T5b cmdlog checks ──────────────┘   (unblocked —
 | # | Ticket | File | State |
 |---|---|---|---|
 | T0 | Composer readiness regression (D1 + D2) | `tickets/agent-tabs-composer-readiness-regression.md` | **IMPLEMENTED — live verification pending** (2026-08-08) |
-| T1–T7 | Probe loop, seven tickets | `tickets/agent-tabs-probe-loop.md` (Rev 3) | needs Rev 4 |
+| T1–T7 | Probe loop, seven tickets | `tickets/agent-tabs-probe-loop.md` (Revision 4) | planned |
 
 ### T0 — Composer readiness regression *(implementation complete; live verification pending)*
 
@@ -69,7 +69,7 @@ Two coupled defects in `agentctl`'s only rendering-dependent code path.
 
 ### T1–T7 — Probe loop
 
-Detail lives in `tickets/agent-tabs-probe-loop.md`. **Revision 4 must fold in:**
+Detail lives in `tickets/agent-tabs-probe-loop.md`. **Revision 4 already folds in:**
 
 - Workspace-trust pre-seeding for Route A (decision 3 — absent from the ticket entirely).
 - The ~250 ms tolerance rule, and `_deliver`'s ordering stated as a load-bearing invariant (decision 4).

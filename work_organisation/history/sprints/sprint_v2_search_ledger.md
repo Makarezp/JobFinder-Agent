@@ -1,6 +1,7 @@
 # Sprint V2: Search Ledger — Persistent Search Memory
 
 **Branch:** `migration-v2`
+**Status:** ARCHIVED — declared landed by Sprint V3 on 2026-08-08.
 
 ## Owner Decisions (Binding)
 

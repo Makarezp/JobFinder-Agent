@@ -2,12 +2,12 @@
 
 **Revision 4** — incorporates two rounds of defensive review **and a live spike** (`probe-spike`, Opus, 2026-08-08) that answered both open questions and found four defects. Sprint: `sprint_v3_agent_tabs_hardening.md`. See *Review dispositions* at the foot of this document.
 
-> **T0 blocks part of this ticket.** `agentctl send` is broken against the installed Claude Code — see `tickets/agent-tabs-composer-readiness-regression.md`. T2's `dirty-composer` criteria are unbuildable until it lands.
+> **T0 gates part of this ticket.** T0's live verification remains pending; T2's `dirty-composer` criteria must not begin until T0 is marked Done.
 
 > **Read W11 before implementing any step.** Both prior revisions shipped confident, specific, wrong claims — and in round 2 every new defect was in text the *previous fix* introduced. Verify each specific against the source before acting on it.
 
-**Track:** Tooling / meta (not part of `sprint_v2_search_ledger.md`)
-**Depends on:** `agent-tabs-iteration-1.md` (shipped), `agent-tabs-codex-support.md` (shipped)
+**Track:** Tooling / meta (not part of archived `history/sprints/sprint_v2_search_ledger.md`)
+**Depends on:** `history/tickets/agent-tabs-iteration-1.md` (shipped), `history/tickets/agent-tabs-codex-support.md` (shipped)
 **Goal:** A self-improving conformance harness that measures whether `SKILL.md` and `WORKER.md` actually induce correct behaviour in real workers and orchestrators, records what it has already explored, and emits specs for what it finds.
 
 ## Context

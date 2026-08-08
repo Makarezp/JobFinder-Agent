@@ -1,5 +1,6 @@
 # Defensive Review — Agent-Tabs Iteration 1
 
+**Status:** ARCHIVED — review evidence incorporated into the shipped Iteration 1 work.
 Reviewed against the actual machine and repo, not against the ticket's own claims. Findings marked **[VERIFIED]** were reproduced empirically; **[UNVERIFIED]** means I could not test it (tmux is not installed) and it must be confirmed before coding.
 
 Overall: the architecture is sound and the invariants (inbox-first doorbell, state-derived-from-events, adapter isolation) are the right ones. But three defects will stop Iteration 1 dead on *this* machine, and all three are in Tickets 1 and 3 — the critical path.
