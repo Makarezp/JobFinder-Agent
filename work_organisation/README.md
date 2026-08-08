@@ -16,7 +16,8 @@ Only active work belongs in `sprints/` or `tickets/`. Move completed or supersed
 | Work item | Status | Authority | Next action |
 |---|---|---|---|
 | Sprint V3: Agent-Tabs Hardening & Probe Loop | Active | `sprints/sprint_v3_agent_tabs_hardening.md` | Follow its dependency graph and execution notes. |
-| T4–T5b, T6–T7: Probe loop | Planned — Revision 4 | `tickets/agent-tabs-probe-loop.md` | T4 is next in the V3 execution order; then follow its dependency graph. |
+| T6: Journal and coverage digest | Implemented — human review pending | `tickets/agent-tabs-probe-loop.md` | Review the generated digest and exploration gate. |
+| T7: Oracle triage and spec emission | Planned — Revision 4 | `tickets/agent-tabs-probe-loop.md` | Follow T6 human review. |
 
 ## Evidence and proposals
 
@@ -39,6 +40,8 @@ Only active work belongs in `sprints/` or `tickets/`. Move completed or supersed
 | T5a: Bus-only orchestrator checks | Human-signed-off ground-truth checks and fluency counters. | `history/tickets/agent-tabs-probe-bus-only-checks.md` |
 | T1: Probe substrate | Human-signed-off isolated lifecycle and ground-truth readers. | `history/tickets/agent-tabs-probe-substrate.md` |
 | T2: Deterministic puppet fault states | Human-signed-off deterministic terminal fault injector. | `history/tickets/agent-tabs-probe-puppet.md` |
+| T4: Conformance briefs | Human-signed-off reduced-scope real-worker conformance smoke. | `history/tickets/agent-tabs-probe-conformance-briefs.md` |
+| T5b: Cmdlog checks | Human-signed-off Route A instrumentation and cmdlog conformance checks. | `history/tickets/agent-tabs-probe-cmdlog-checks.md` |
 
 ## Maintenance rule
 

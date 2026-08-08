@@ -46,7 +46,7 @@ T5b cmdlog checks ──────────────┘   (unblocked —
 | # | Ticket | File | State |
 |---|---|---|---|
 | T0 | Composer readiness regression (D1 + D2) | `history/tickets/agent-tabs-composer-readiness-regression.md` | **DONE** (2026-08-08) |
-| T1–T7 | Probe loop, seven tickets | `tickets/agent-tabs-probe-loop.md` (Revision 4) | T1, T2, T3, and T5a **DONE**; T4 is next; remaining work planned |
+| T1–T7 | Probe loop, seven tickets | `tickets/agent-tabs-probe-loop.md` (Revision 4) | T1, T2, T3, T4, T5a, and T5b **DONE**; T6 implemented — human review pending; T7 planned |
 
 ### T0 — Composer readiness regression *(Done; archived ticket)*
 
@@ -79,7 +79,7 @@ Detail lives in `tickets/agent-tabs-probe-loop.md`. **Revision 4 already folds i
 
 ## Smallest useful slice
 
-**T0, T1, T2, T3, and T5a are complete. T4 is next** in the V3 execution order.
+**T0, T1, T2, T3, T4, T5a, and T5b are complete. T6 is implemented and awaiting human review.**
 
 T3 and T5a answer the question that decides whether the remaining tickets are worth building: *does an orchestrator reading `SKILL.md` actually obey it?*
 

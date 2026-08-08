@@ -78,4 +78,4 @@ def test_coverage_command_reports_registry_counts(capsys: CapturedOutputFixture)
     """The human-facing command reports covered, uncovered, and stale claims."""
     assert probe.main(["coverage"]) == 0
     captured = capsys.readouterr()
-    assert captured.out == "covered: 0\nuncovered: 15\nstale: 0\n"
+    assert captured.out == "covered: 3\nuncovered: 12\nstale: 0\n"

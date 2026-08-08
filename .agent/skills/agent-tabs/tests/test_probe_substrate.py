@@ -23,7 +23,7 @@ from probe.lib.assertions import (
 )
 from probe.lib.ground import events, inbox_files, outbox_messages, windows
 from probe.lib.nonce import mint, tokens_in
-from probe.lib.sut import Sut, create_sut, destroy_sut, spawn_command
+from probe.lib.sut import Sut, configure_cmdlog, create_sut, destroy_sut, spawn_command
 
 HAS_TMUX = shutil.which("tmux") is not None
 needs_tmux = pytest.mark.skipif(not HAS_TMUX, reason="requires a local tmux binary")
@@ -56,6 +56,22 @@ def test_create_sut_uses_spacey_trusted_isolated_runtime(tmp_path: Path, monkeyp
     assert destroy_sut(sut, preserve=False) is None
     assert not sut.runtime.exists()
     assert str(sut.runtime) not in json.loads(config_path.read_text(encoding="utf-8"))["projects"]
+
+
+def test_configure_cmdlog_installs_both_quoted_hook_phases(tmp_path: Path) -> None:
+    workspace = tmp_path / "probe cwd@fixture"
+    workspace.mkdir()
+    sut = _sut(workspace)
+
+    settings = configure_cmdlog(sut)
+    configured = json.loads(settings.read_text(encoding="utf-8"))
+
+    hooks = configured["hooks"]
+    assert set(hooks) == {"PreToolUse", "PostToolUse"}
+    assert hooks["PreToolUse"][0]["matcher"] == "Bash"
+    command = hooks["PreToolUse"][0]["hooks"][0]["command"]
+    assert "--phase pre" in command
+    assert str(sut.agentctl) in command
 
 
 def test_destroy_sut_preserves_then_removes_runtime(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

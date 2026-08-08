@@ -331,6 +331,10 @@ Measure whether the documented worker behaviour actually occurs, using real mode
 - [Manual] `python3 probe/probe.py run B002 --trials 10` completes, appends exactly one ledger line, and preserves artifact directories only for the failing trials.
 - [Manual] The three seeded briefs have a real rate recorded against commit `1bb37a7`. A rate below `1.0` is a **successful** run of this ticket, not a failure of it.
 
+#### Status
+
+**DONE — HUMAN-SIGNED-OFF AT REDUCED SMOKE SCOPE (2026-08-08).** Archived record: `history/tickets/agent-tabs-probe-conformance-briefs.md`. The owner accepted one corrected control-plus-target live trial for B001, B002, and B003 instead of the prescribed ten-trial rate measurement.
+
 ---
 
 ### Ticket 5: Orchestrator conformance and fluency counters
@@ -438,10 +442,7 @@ Measure whether the documented worker behaviour actually occurs, using real mode
 
 **DONE — HUMAN-SIGNED-OFF (2026-08-08).** Archived record: `history/tickets/agent-tabs-probe-bus-only-checks.md`. The user-approved shared reader and append-only journal primitive remain in the probe harness for T1 and T6 to extend.
 
-**T5b — cmdlog-dependent. Blocked until Step 0 resolves.**
-- [Automated] `polling_wait`, `screen_parsing` and `unwatermarked_send` each have a tripping fixture and a near-miss (two `wait` calls 30s apart with the same predicate is legitimate sequencing, not polling; a `read --screen` followed by an unrelated `send` is not screen-parsing).
-- [Automated] A test asserts the three cmdlog checks raise a harness error on an empty or missing `commands.jsonl` rather than returning zero violations.
-- [Manual] The Step 0 outcome is recorded: which route was taken, and if Route A, evidence that the `PreToolUse` hook fired under a working directory containing a space and an `@`.
+**T5b — DONE — HUMAN-SIGNED-OFF (2026-08-08).** Archived record: `history/tickets/agent-tabs-probe-cmdlog-checks.md`.
 
 ---
 
@@ -457,7 +458,8 @@ Without a durable record, a fresh author agent rediscovers the same dead ends ev
    (claim, fault, counterparty, provider, concurrency)
 
    fault         none | lost-doorbell | copy-mode | busy | dirty-composer |
-                 hard-kill | spacey-path | corrupt-settings | human-interrupt
+                 hard-kill | spacey-path | corrupt-settings | human-interrupt |
+                 inbox-discipline | watermark
    counterparty  real-haiku | real-sonnet | puppet | orchestrator-loop
    provider      claude | codex
    concurrency   1 | n-workers | worktree
@@ -492,6 +494,13 @@ Without a durable record, a fresh author agent rediscovers the same dead ends ev
 - [Automated] A test asserts an `explore` entry with `outcome: dead-end` and no `fault_proof` is rejected at append time — the cell must not be poisoned by an unevidenced claim.
 - [Automated] A test asserts `COVERAGE.md` output contains no absolute filesystem paths (regex for a leading `/Users` or `/tmp` segment).
 - [Manual] After running T4's three briefs, `COVERAGE.md` lists the covered claims, the remaining uncovered ones from the T3 seed, and at least one ranked unvisited cell.
+
+#### Status
+
+**IMPLEMENTED — AWAITING HUMAN REVIEW (2026-08-08).**
+- [Automated] `test_probe_journal.py` covers deterministic rendering, hash drift and legacy entries, unevidenced dead-end rejection, path redaction, explore-gate override recording, and derived T4 coverage.
+- [Manual] Regenerated `probe/COVERAGE.md` shows the three covered T4 claims, twelve uncovered T3-seed claims, rate trends for B001–B003, and ranked unvisited cells.
+- [Validation] Ruff and strict mypy pass. The full suite passes with the three expected opt-in E2E skips. `pre-commit run --all-files` passes after normalizing the journal cell and cmdlog phase types; all T6 files are formatted.
 
 ---
 

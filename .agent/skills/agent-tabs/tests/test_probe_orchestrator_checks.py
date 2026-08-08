@@ -3,12 +3,22 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 from pathlib import Path
+from typing import Literal
 
 from agentctl import Event, EventType, RunPaths
-from probe.lib.fluency import measure
+from probe.lib.cmdlog import CommandRecord
+from probe.lib.fluency import measure, measure_cmdlog
 from probe.lib.ground import events, provider
-from probe.lib.orchestrator_checks import ignored_awaiting_human, no_teardown
+from probe.lib.orchestrator_checks import (
+    ignored_awaiting_human,
+    no_teardown,
+    polling_wait,
+    screen_parsing,
+    unwatermarked_send,
+)
 
 
 def _event(seq: int, event_type: EventType, second: float, agent: str = "worker") -> Event:
@@ -19,6 +29,25 @@ def _event(seq: int, event_type: EventType, second: float, agent: str = "worker"
         type=event_type,
         seq=seq,
         data={},
+    )
+
+
+def _command(
+    second: float,
+    command: str,
+    *,
+    screen: str | None = None,
+    phase: Literal["pre", "post"] = "pre",
+    response: str | None = None,
+) -> CommandRecord:
+    return CommandRecord(
+        ts=f"2026-08-08T12:00:{second:06.3f}Z",
+        command=command,
+        agent="orchestrator",
+        run="fixture-run",
+        phase=phase,
+        screen=screen,
+        response=response,
     )
 
 
@@ -87,6 +116,41 @@ def test_question_rate_counts_question_and_blocked_events() -> None:
     assert fluency.question_rate == 1.0
 
 
+def test_fluency_handles_agents_with_no_messages() -> None:
+    assert measure([_event(1, EventType.EXIT, 0)]).turns_per_task == {"worker": ()}
+
+
+def test_cmdlog_checks_detect_and_reject_near_misses() -> None:
+    wait = "python /tool/agentctl.py wait --until agent=worker,type=reply"
+    assert polling_wait([_command(0, wait), _command(4.9, wait)]).verdict == "violation"
+    assert polling_wait([_command(0, wait), _command(30, wait)]).verdict == "clean"
+
+    read = "python /tool/agentctl.py read worker --screen 8"
+    send = "python /tool/agentctl.py send worker 'TOKEN-ABC-123 copied'"
+    unrelated = "python /tool/agentctl.py send worker 'begin the next task'"
+    assert screen_parsing([_command(0, read, screen="TOKEN-ABC-123"), _command(1, send)]).verdict == "suspected"
+    assert screen_parsing([_command(0, read, screen="TOKEN-ABC-123"), _command(1, unrelated)]).verdict == "clean"
+
+    bare_send = "python /tool/agentctl.py send worker message"
+    watermark = "python /tool/agentctl.py seq"
+    assert unwatermarked_send([_command(0, bare_send)]).verdict == "violation"
+    assert unwatermarked_send([_command(0, watermark), _command(1, bare_send)]).verdict == "clean"
+
+
+def test_cmdlog_fluency_uses_post_tool_send_outcomes() -> None:
+    send = "python /tool/agentctl.py send worker message"
+    records = [
+        _command(0, "python /tool/agentctl.py seq"),
+        _command(1, send),
+        _command(2, send, phase="post", response='{"stdout":"sent\\t/path"}'),
+    ]
+
+    fluency = measure_cmdlog([_event(1, EventType.TURN_START, 0)], records)
+
+    assert fluency.doorbell_efficiency == {"delivered": 1, "queued": 0, "forced": 0}
+    assert fluency.orchestrator_overhead == 2.0
+
+
 def test_ground_reader_parses_bus_without_agentctl_read_path(tmp_path: Path) -> None:
     paths = RunPaths.build(tmp_path, "fixture-run")
     paths.root.mkdir(parents=True)
@@ -112,3 +176,22 @@ def test_ground_reader_parses_bus_without_agentctl_read_path(tmp_path: Path) -> 
     assert parsed[0].type is EventType.UNKNOWN
     assert parsed[0].raw_type == "future_event"
     assert provider(paths, "worker") == "codex"
+
+
+def test_checks_exit_two_without_a_command_log(tmp_path: Path) -> None:
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(Path(__file__).resolve().parents[1] / "probe" / "probe.py"),
+            "checks",
+            "--runtime",
+            str(tmp_path),
+            "--run",
+            "fixture-run",
+        ],
+        capture_output=True,
+        check=False,
+        text=True,
+    )
+
+    assert completed.returncode == 2
