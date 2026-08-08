@@ -1,5 +1,5 @@
 ---
-status: open
+status: inconclusive -- turn_end never fired for the losing turn; harness teardown race is the leading explanation, not a confirmed drop. Superseded pending a turn_end-aware B002 re-measurement (see TICKET-007).
 brief: explore
 claim: C014
 rate: n/a
@@ -36,19 +36,26 @@ triage: manual (no automated oracle path -- oracle wiring in probe/lib/oracle.py
   equivalent caveat on the `C002` spec in this same directory), so this spec
   is hand-authored, following the oracle's own template, and carries no
   oracle verdict.
-* **Target:** ambiguous between the **worker's actual behavior** (an
-  haiku-model instruction-following gap under `.agent/skills/agent-tabs/probe/roles/probe-worker.md`
-  and `.agent/skills/agent-tabs/WORKER.md`, which may or may not generalize
-  beyond the probe-worker role's wording) and the **measurement
-  methodology** (a single `--trials 1` run of `B002` is not enough to trust
-  a `1.0` rate as durable; `B002`'s own default is 10 trials, and this gap
-  might already show up at that sample size). Neither `agentctl.py` (the
-  mechanical inbox/bus plumbing worked exactly as documented: the message
-  really was written without a `message_sent` event, and it really was
-  still sitting in the inbox for the worker to find) nor `SKILL.md`/`WORKER.md`
-  text appear to be at fault here -- this looks like real worker behavior
-  under-delivering on the protocol's guarantee, which is a harder thing to
-  "fix" than a code bug.
+* **Target:** ambiguous between three candidate causes, in descending order
+  of current likelihood: (1) **harness teardown racing the worker's
+  turn** -- `turn_end` never fired for this turn (no `Stop` hook event in
+  `bus.jsonl`), and the SUT was killed 0.822s after the `reply`, faster than
+  the 1.7-3.7s post-reply windows observed in the same transcript's two
+  completed turns; the worker may have been about to sweep its inbox and
+  reply a second time when it was killed. This is currently the most likely
+  explanation and is structurally identical to the `B001`/`B003`
+  `harness`-verdict findings this spec originally (and incorrectly) claimed
+  not to resemble. (2) the **worker's actual behavior** (a haiku-model
+  instruction-following gap under `.agent/skills/agent-tabs/probe/roles/probe-worker.md`
+  and `.agent/skills/agent-tabs/WORKER.md`), if a `turn_end`-aware
+  re-measurement still shows the miss. (3) the **measurement methodology**
+  (a single `--trials 1` run of `B002` is not enough to trust a `1.0` rate
+  as durable). Note that `agentctl.py`'s mechanical inbox/bus plumbing
+  behaved exactly as documented regardless of which of the three holds:
+  `write_lost_doorbell` (`runner.py:89-100`) uses exclusive `"x"` creation
+  plus `fsync`, emits no `message_sent` event, and B's token genuinely
+  appears in no outbox file -- only the *interpretation* of that absence
+  (as a confirmed drop rather than an inconclusive kill) was wrong.
 * **Evidence:** one real-haiku trial, preserved in full. Sequence: bootstrap
   (reply `HANDSHAKE_READY`, matching Initial assignment) -> send A, token
   `TOK-7CWQ` (delivered with doorbell) -> reply `TOK-7CWQ` -> write B, token
@@ -57,11 +64,18 @@ triage: manual (no automated oracle path -- oracle wiring in probe/lib/oracle.py
   send C, token `TOK-GNB9` (delivered with doorbell, landed in `inbox/0004.md`
   since `0003` was already taken) -> single reply, `outbox/0003.md`,
   contains exactly `TOK-GNB9`. `TOK-5WRF` does not appear in any outbox file
-  in the preserved run. `bus.jsonl` shows the final turn completed normally
-  (`turn_start` seq 11 -> `reply` seq 12) before the harness force-closed the
-  SUT (seq 13) -- i.e. this is not a truncated-turn artifact like the prior
-  `B001`/`B003` `harness`-verdict findings; the worker had a complete turn
-  and simply didn't report the earlier message.
+  in the preserved run. **The trial is inconclusive, not a confirmed drop:**
+  a turn is marked complete by `turn_end` (the `Stop` hook), not by `reply`
+  (a `PostToolUse` side effect of `agentctl reply`). Walking `bus.jsonl`,
+  turns 1 and 2 both show a `reply` followed by `turn_end` 1.7-3.7s later;
+  turn 3 shows `turn_start` (seq 11) -> `reply` (seq 12) -> **no `turn_end`
+  ever fires** -- the harness force-killed the SUT (seq 13, `exit`/`forced`)
+  0.822s after the reply, shorter than either of the two post-reply windows
+  actually observed in this same transcript. The worker may well have gone
+  on to read `inbox/0003.md`'s counterpart bookkeeping and reply a second
+  time; it was killed inside the window where that would have happened.
+  This is indistinguishable from the `B001`/`B003` `harness`-verdict
+  findings this spec previously distanced itself from.
 * **Preserved artifacts:**
   * `evidence/run/` (full preserved SUT: `bus.jsonl`, `commands.jsonl` cmdlog, `agents/worker/{meta.json,settings.json,inbox/*,outbox/*}`)
 
