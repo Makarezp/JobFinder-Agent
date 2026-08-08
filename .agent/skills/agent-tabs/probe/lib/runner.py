@@ -170,6 +170,7 @@ def _lost_doorbell(brief: Brief, sut: Sut, *, control: bool) -> set[str]:
     watermark = _seq(sut)
     _send(sut, _instruction(third))
     _wait_for_reply(brief, sut, watermark)
+    _wait_for_turn_end(brief, sut, watermark)
     return {first, second, third}
 
 
@@ -240,6 +241,24 @@ def _wait_for_reply(brief: Brief, sut: Sut, watermark: int) -> None:
     )
     if completed.returncode != 0:
         raise HarnessError(f"worker did not reply before timeout: {completed.stderr.strip()}")
+
+
+def _wait_for_turn_end(brief: Brief, sut: Sut, watermark: int) -> None:
+    completed = _invoke(
+        sut,
+        [
+            "wait",
+            "--until",
+            f"agent={WORKER_NAME},type=turn_end",
+            "--from-seq",
+            str(watermark),
+            "--timeout",
+            str(brief.wait_timeout),
+        ],
+        timeout=brief.wait_timeout + 5,
+    )
+    if completed.returncode != 0:
+        raise HarnessError(f"worker did not finish its turn before timeout: {completed.stderr.strip()}")
 
 
 def _seq(sut: Sut) -> int:
