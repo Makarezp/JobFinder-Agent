@@ -1,0 +1,1 @@
+{"ts": "2026-08-08T09:51:37.528900Z", "hook_event": "PreToolUse", "tool": "Bash", "command": "echo PROBE_MARKER_12345", "cwd": "/private/tmp/probe cwd@spike", "session_id": "18c5be24-342a-4829-ba69-56d3eef3d2b2", "agent_env": "s3", "run_env": "probe-s3"}

@@ -1,0 +1,4 @@
+{"ts":"2026-08-08T09:47:29.186Z","run":"probe-s3","agent":"s3","type":"spawned","seq":1,"data":{"session_id":"18c5be24-342a-4829-ba69-56d3eef3d2b2","cwd":"/private/tmp/probe cwd@spike"}}
+{"ts":"2026-08-08T09:47:29.977Z","run":"probe-s3","agent":"s3","type":"message_sent","seq":2,"data":{"inbox":"/private/tmp/probe-spike-run/probe-s3/agents/s3/inbox/0001.md"}}
+{"ts":"2026-08-08T09:47:30.071Z","run":"probe-s3","agent":"s3","type":"turn_start","seq":3,"data":{"session_id":"18c5be24-342a-4829-ba69-56d3eef3d2b2","cwd":"/private/tmp/probe cwd@spike"}}
+{"ts":"2026-08-08T09:51:41.920Z","run":"probe-s3","agent":"s3","type":"turn_end","seq":4,"data":{"session_id":"18c5be24-342a-4829-ba69-56d3eef3d2b2","cwd":"/private/tmp/probe cwd@spike"}}
