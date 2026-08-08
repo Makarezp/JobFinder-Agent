@@ -16,8 +16,7 @@ Only active work belongs in `sprints/` or `tickets/`. Move completed or supersed
 | Work item | Status | Authority | Next action |
 |---|---|---|---|
 | Sprint V3: Agent-Tabs Hardening & Probe Loop | Active | `sprints/sprint_v3_agent_tabs_hardening.md` | Follow its dependency graph and execution notes. |
-| T0: Composer readiness regression | Implemented — live verification pending | `tickets/agent-tabs-composer-readiness-regression.md` | Run the opt-in live-worker and manual acceptance checks, then mark done only if they pass. |
-| T1–T7: Probe loop | Planned — Revision 4 | `tickets/agent-tabs-probe-loop.md` | T3 and T5a are independent; the T1 → T2 → T4 → T6 → T7 chain follows the V3 dependency graph. |
+| T4–T5b, T6–T7: Probe loop | Planned — Revision 4 | `tickets/agent-tabs-probe-loop.md` | T4 is next in the V3 execution order; then follow its dependency graph. |
 
 ## Evidence and proposals
 
@@ -35,6 +34,11 @@ Only active work belongs in `sprints/` or `tickets/`. Move completed or supersed
 | Agent-Tabs Iteration 1 and its review | Shipped prerequisite for the probe loop. | `history/tickets/agent-tabs-iteration-1.md`, `history/tickets/agent-tabs-iteration-1-review.md` |
 | Agent-Tabs Codex support | Implemented prerequisite for the probe loop. | `history/tickets/agent-tabs-codex-support.md` |
 | Agent-Tabs initial-task bootstrap | Marked done. | `history/tickets/agent-tabs-initial-task-bootstrap.md` |
+| T0: Composer readiness regression | Human-signed-off fix for the composer gate and unattached captures. | `history/tickets/agent-tabs-composer-readiness-regression.md` |
+| T3: Claim registry | Human-signed-off claim-coverage surface. | `history/tickets/agent-tabs-probe-claim-registry.md` |
+| T5a: Bus-only orchestrator checks | Human-signed-off ground-truth checks and fluency counters. | `history/tickets/agent-tabs-probe-bus-only-checks.md` |
+| T1: Probe substrate | Human-signed-off isolated lifecycle and ground-truth readers. | `history/tickets/agent-tabs-probe-substrate.md` |
+| T2: Deterministic puppet fault states | Human-signed-off deterministic terminal fault injector. | `history/tickets/agent-tabs-probe-puppet.md` |
 
 ## Maintenance rule
 

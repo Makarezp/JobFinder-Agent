@@ -1633,6 +1633,7 @@ SENDABLE_STATES = frozenset({AgentState.IDLE, AgentState.AWAITING_HUMAN})
 COMPOSER_MARKER = "❯"
 COMPOSER_SCAN_LINES = 8
 REPAINT_THROTTLE = 1.0  # seconds between forced repaints of an unattached pane
+REPAINT_SETTLE = 0.05  # seconds to let the terminal draw after SIGWINCH
 DEFAULT_WAIT_IDLE = 120.0
 
 

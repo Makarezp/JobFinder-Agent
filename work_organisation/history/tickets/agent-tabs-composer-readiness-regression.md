@@ -84,7 +84,7 @@ Consequence: `Readiness(False, "human_typing")` → **every `send` exits 3 and n
 
 ## Status
 
-**IMPLEMENTED — AWAITING HUMAN REVIEW (2026-08-08).** Changes live in `.agent/skills/agent-tabs/` (agentctl.py + 3 test files), uncommitted. Unit, tmux-backed, and opt-in live-worker checks are complete. T0 is not Done until the human completes the required review and manual sign-off.
+**DONE — HUMAN-SIGNED-OFF (2026-08-08).** Unit, tmux-backed, opt-in live-worker, and attached-worker manual checks passed. This archived record retains the diagnosis and evidence.
 
 ### Live-verification attempt — 2026-08-08
 

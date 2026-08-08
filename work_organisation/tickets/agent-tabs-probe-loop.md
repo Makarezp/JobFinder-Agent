@@ -157,14 +157,8 @@ Build the foundation every later ticket stands on: a way to create a throwaway s
 
    Set equality would fail a worker that correctly echoed all three tokens and also wrote the word `DONE`. Subset-plus-no-foreign-tokens is the assertion the claim actually needs.
 
-5. **`probe/probe.py` — the runner, with argparse subcommands from the start.**
-   ```
-   probe.py run <brief-id> [--trials N] [--model haiku]
-   probe.py coverage                                    # T3
-   probe.py explore --cell <...> [--new-information S]  # T6
-   ```
-   A bare positional `<brief-id>` cannot coexist with T3's `coverage` and T6's `explore` without ambiguity, so define the subcommand grammar now rather than reshaping the entry point twice.
-   `run` loads the brief, runs N trials, prints a summary, appends one ledger line (schema in T4). Exit `0` when the observed rate meets the brief's declared `expect_rate`, `1` otherwise, `2` on harness error — the last is distinct because a broken harness must never be reported as a finding.
+5. **`probe/probe.py` — preserve only real commands.**
+   T3 owns the working `coverage` command and T5a owns `checks`. T1 must not advertise `run` or `explore` before their real behavior exists: T4 introduces `run` together with briefs and ledger semantics; T6 introduces `explore` together with its journal semantics. Empty command handlers would make the probe claim a capability it does not have.
 
 6. **`tests/test_probe_substrate.py`.**
    Assert: `create_sut(spacey=True)` produces a path containing both `" "` and `"@"`; `destroy_sut(preserve=False)` removes the tree and `preserve=True` retains it; **`tokens_in` recovers all 100 of 100 minted nonces from a body of surrounding prose** (assert the round-trip, not the uniqueness — uniqueness is `mint`'s job and asserting it here is what makes the test flaky) and ignores lowercase and unprefixed 4-character uppercase words; `ground.events()` parses a hand-written `bus.jsonl` fixture including a line with an unknown `type` (which must degrade to `EventType.UNKNOWN`, matching `EventType.parse`'s forward-compatibility contract); `ground.windows()` returns `[]` rather than raising when the tmux session does not exist. Use `@needs_tmux` (W10) for anything touching a real server.
@@ -180,8 +174,12 @@ Build the foundation every later ticket stands on: a way to create a throwaway s
 - [Automated] `assert_tokens` passes when `echoed` is a strict superset of `expected` containing no foreign minted tokens, and fails when a token minted for another message appears.
 - [Automated] A test asserts `create_sut(spacey=True).runtime` matches `r"[ ].*@|@.*[ ]"` — both characters present.
 - [Automated] A test asserts `ProbeFailure` serialises to a dict with exactly the keys `brief_id`, `expected`, `observed`.
-- [Manual] `python3 probe/probe.py --help` lists the `run`, `coverage` and `explore` subcommands, and runs on a machine with no virtualenv active and no `pip install` performed.
-- [Manual] After a deliberately failed trial, the preserved runtime directory still contains a readable `bus.jsonl`; after a passing trial, the directory is gone and `tmux list-sessions` shows no `sut-` session.
+- [Manual] `python3 probe/probe.py --help` lists the implemented `coverage` and `checks` subcommands, and runs on a machine with no virtualenv active and no `pip install` performed.
+- [Manual] The T1 lifecycle API builds its spawn command with an isolated runtime, trusted `cwd`, `--viewer none`, and explicit `--permission-mode bypassPermissions`; real passing/failed worker trials are introduced with T4's brief runner.
+
+#### Status
+
+**DONE — HUMAN-SIGNED-OFF (2026-08-08).** Archived record: `history/tickets/agent-tabs-probe-substrate.md`. The user-approved scope correction keeps `run` and `explore` absent until T4 and T6 own their actual behavior; the T1 lifecycle, readers, nonces, and assertions remain the shared substrate.
 
 ---
 
@@ -256,60 +254,15 @@ A real model cannot be asked to be busy for exactly twenty seconds, or to leave 
 - [Automated] After `hard-kill` and a subsequent reconciliation, `bus.jsonl` contains **exactly one** `EXIT` event carrying `{"reason": "window_vanished"}` (`agentctl.py:1734`), however many times `list` is called. Assert on that reason specifically — a union assertion over `exit`/`error` counts would pass while hiding an unexpected `ERROR`, which is a different bug.
 - [Manual] All three Step 0 spike outcomes — lifecycle, argument delivery, argv shape — are recorded as a docstring in `probe/lib/sut.py`, including the observed argv verbatim.
 
----
+#### Status
 
-### Ticket 3: Claim registry — turning prose into a coverage surface
-
-#### Overview
-`SKILL.md` and `WORKER.md` contain normative propositions. Each is a testable claim. Extracting them converts "think of something to test" — which an agent does badly — into "cover an unaddressed claim", which is a finite, checkable backlog.
-
-#### Implementation Steps
-
-1. **`probe/claims.jsonl`** — one object per line:
-   ```json
-   {"id":"C014","src":"WORKER.md:9-14","section":"Check your inbox at the start of every turn","text":"the worker re-reads its inbox at the start of every turn, lowest number first","kind":"worker-behavior","briefs":["B002"],"hash":"a3f1c0..."}
-   ```
-   `kind` is one of `worker-behavior`, `orchestrator-behavior`, `gate`, `lifecycle`, `invariant`. It tells a brief author which fault vocabulary applies: a `gate` claim wants puppet states, a `worker-behavior` claim wants nonces and a real model.
-
-2. **Seed the registry by hand with these verified claims** (line numbers are current as of commit `1bb37a7`; re-verify before writing):
-
-   | id | src | claim |
-   |---|---|---|
-   | C001 | `SKILL.md:40-41` | state is a pure function of the event log; `state.json` is only a cache |
-   | C002 | `SKILL.md:103-104` | a spawn that cannot be proven kills its own window and cleans up |
-   | C003 | `SKILL.md:120-123` | payload is written to the inbox first; the keystroke is a doorbell, never the message |
-   | C004 | `SKILL.md:125-128` | three gates — busy/dead, copy-mode, dirty composer — leave the message queued |
-   | C005 | `SKILL.md:143-144` | `--from-seq` defaults to the live end, so history cannot cause a false match |
-   | C006 | `SKILL.md:153-155` | the outbox is the machine channel; replies are never parsed from the screen |
-   | C007 | `SKILL.md:164-165` | an agent whose window vanished is recorded dead exactly once, however often you look |
-   | C008 | `SKILL.md:181-184` | graceful `/exit` is best-effort; the timeout is the real guarantee |
-   | C009 | `SKILL.md:218-220` | `awaiting_human` means stop; the orchestrator does not answer on the human's behalf |
-   | C010 | `SKILL.md:258-260` | workers learn identity from the environment, never by typing it |
-   | C014 | `WORKER.md:9-14` | the worker re-reads its inbox at the start of every turn, lowest number first |
-   | C015 | `WORKER.md:33-35` | a worker never passes `--run` or `--agent` to `reply` |
-   | C016 | `WORKER.md:47-49` | the bootstrap's Initial assignment is the first task; role and protocol are not assignments |
-   | C017 | `WORKER.md:53-55` | a worker never assumes the orchestrator can see its screen |
-   | C018 | `WORKER.md:57-58` | a worker never spawns, closes or reaps another worker |
-
-3. **`probe/lib/claims.py`.**
-   - `load() -> list[Claim]`.
-   - `hash_of(claim) -> str` — SHA-256 over the exact source lines named in `src`, so an edit to the prose changes the hash.
-   - `stale() -> list[Claim]` — claims whose stored hash no longer matches the file. **A doc edit thereby schedules its own re-verification**, and coverage honestly drops until it happens.
-   - `uncovered() -> list[Claim]` — `briefs == []`.
-
-4. **`tests/test_probe_claims.py`**: every `src` resolves to real lines in a real file; every `briefs` entry names a file that exists in `probe/briefs/`; `hash_of` changes when a fixture file's referenced lines change and **does not** change when unrelated lines in the same file change.
-
-#### Explicit Constraints & Warnings
-- **Do not auto-extract claims with an agent in this ticket.** A first automated pass over these two documents yields roughly 40 candidates of which ~25 are real; "tmux 3.0+" is a prerequisite, not a normative claim. Hand-seeding the fifteen above costs an hour and every downstream component inherits the discipline. Automated extraction is a later ticket, if ever.
-- **`src` line numbers rot.** That is what `hash` is for — but the hash only detects change, it cannot re-find moved lines. Anchor `src` to the nearest stable heading in a `section` field alongside the line range.
-- The registry is `.jsonl`, so W4's scanning rule does not apply — but keep repository-specific paths out of it anyway.
-
-#### Acceptance Criteria
-- [Automated] A test asserts that editing a fixture's referenced lines flips `stale()` for the claim, and that editing unrelated lines in the same file does not.
-- [Automated] A test asserts every seeded claim's `src` file and line range exists — this fails loudly the moment `SKILL.md` is restructured, which is the intent.
-- [Manual] `python3 probe/probe.py coverage` prints counts of covered, uncovered and stale claims.
+**DONE — HUMAN-SIGNED-OFF (2026-08-08).** Archived record: `history/tickets/agent-tabs-probe-puppet.md`. The shared `Sut` lifecycle and `puppet.py` fault injector are ready for T4’s real-worker briefs.
 
 ---
+
+### Ticket 3: Claim registry — complete
+
+Archived record: `history/tickets/agent-tabs-probe-claim-registry.md`.
 
 ### Ticket 4: Conformance briefs — real workers, nonce grading, rate ledger
 
@@ -480,6 +433,10 @@ Measure whether the documented worker behaviour actually occurs, using real mode
 - [Automated] `no_teardown` reports `inconclusive`, not `violation`, when the tmux session is absent and no `close-run` is evidenced.
 - [Automated] A fluency test asserts `question_rate` counts `question` and `blocked` events and does **not** look for a `type: "awaiting_human"` event (regression guard for W5).
 - [Manual] **The two bus-only checks are run against at least one existing real run's `bus.jsonl` from `~/.local/state/agent-tabs/`**, and the result — violations, clean sheet, or inconclusive — is recorded in the journal. This is the cheapest available test of whether the whole iteration is worth finishing, and it requires nothing from Step 0.
+
+#### Status
+
+**DONE — HUMAN-SIGNED-OFF (2026-08-08).** Archived record: `history/tickets/agent-tabs-probe-bus-only-checks.md`. The user-approved shared reader and append-only journal primitive remain in the probe harness for T1 and T6 to extend.
 
 **T5b — cmdlog-dependent. Blocked until Step 0 resolves.**
 - [Automated] `polling_wait`, `screen_parsing` and `unwatermarked_send` each have a tripping fixture and a near-miss (two `wait` calls 30s apart with the same predicate is legitimate sequencing, not polling; a `read --screen` followed by an unrelated `send` is not screen-parsing).

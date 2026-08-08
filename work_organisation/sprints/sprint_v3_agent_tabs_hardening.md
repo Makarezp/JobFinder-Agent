@@ -45,10 +45,10 @@ T5b cmdlog checks ──────────────┘   (unblocked —
 
 | # | Ticket | File | State |
 |---|---|---|---|
-| T0 | Composer readiness regression (D1 + D2) | `tickets/agent-tabs-composer-readiness-regression.md` | **IMPLEMENTED — live verification pending** (2026-08-08) |
-| T1–T7 | Probe loop, seven tickets | `tickets/agent-tabs-probe-loop.md` (Revision 4) | planned |
+| T0 | Composer readiness regression (D1 + D2) | `history/tickets/agent-tabs-composer-readiness-regression.md` | **DONE** (2026-08-08) |
+| T1–T7 | Probe loop, seven tickets | `tickets/agent-tabs-probe-loop.md` (Revision 4) | T1, T2, T3, and T5a **DONE**; T4 is next; remaining work planned |
 
-### T0 — Composer readiness regression *(implementation complete; live verification pending)*
+### T0 — Composer readiness regression *(Done; archived ticket)*
 
 Two coupled defects in `agentctl`'s only rendering-dependent code path.
 
@@ -79,9 +79,9 @@ Detail lives in `tickets/agent-tabs-probe-loop.md`. **Revision 4 already folds i
 
 ## Smallest useful slice
 
-**T0, then T3 + T5a.** T0 because `send` is broken today. T3 is an hour of hand-work with no dependencies. T5a's two checks are derivable from `bus.jsonl` alone and run against logs already on disk in `~/.local/state/agent-tabs/`.
+**T0, T1, T2, T3, and T5a are complete. T4 is next** in the V3 execution order.
 
-Together they answer the question that decides whether the remaining tickets are worth building: *does an orchestrator reading `SKILL.md` actually obey it?*
+T3 and T5a answer the question that decides whether the remaining tickets are worth building: *does an orchestrator reading `SKILL.md` actually obey it?*
 
 ## Execution notes
 
