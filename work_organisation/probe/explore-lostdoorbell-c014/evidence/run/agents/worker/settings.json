@@ -1,0 +1,44 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "'/Users/acc/Library/CloudStorage/GoogleDrive-makarezp1@gmail.com/My Drive/Projects/CVviewer/.venv/bin/python' '/Users/acc/Library/CloudStorage/GoogleDrive-makarezp1@gmail.com/My Drive/Projects/CVviewer/.agent/skills/agent-tabs/agentctl.py' hook spawned --runtime '/private/var/folders/lk/mmnv5xq50tv5rmxvqhbwm5b80000gn/T/agent-tabs probe@v1kv07bl' --run sut-explore-lostdoorbell-1786209481 --agent worker"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "'/Users/acc/Library/CloudStorage/GoogleDrive-makarezp1@gmail.com/My Drive/Projects/CVviewer/.venv/bin/python' '/Users/acc/Library/CloudStorage/GoogleDrive-makarezp1@gmail.com/My Drive/Projects/CVviewer/.agent/skills/agent-tabs/agentctl.py' hook turn_start --runtime '/private/var/folders/lk/mmnv5xq50tv5rmxvqhbwm5b80000gn/T/agent-tabs probe@v1kv07bl' --run sut-explore-lostdoorbell-1786209481 --agent worker"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "'/Users/acc/Library/CloudStorage/GoogleDrive-makarezp1@gmail.com/My Drive/Projects/CVviewer/.venv/bin/python' '/Users/acc/Library/CloudStorage/GoogleDrive-makarezp1@gmail.com/My Drive/Projects/CVviewer/.agent/skills/agent-tabs/agentctl.py' hook turn_end --runtime '/private/var/folders/lk/mmnv5xq50tv5rmxvqhbwm5b80000gn/T/agent-tabs probe@v1kv07bl' --run sut-explore-lostdoorbell-1786209481 --agent worker"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "'/Users/acc/Library/CloudStorage/GoogleDrive-makarezp1@gmail.com/My Drive/Projects/CVviewer/.venv/bin/python' '/Users/acc/Library/CloudStorage/GoogleDrive-makarezp1@gmail.com/My Drive/Projects/CVviewer/.agent/skills/agent-tabs/agentctl.py' hook exit --runtime '/private/var/folders/lk/mmnv5xq50tv5rmxvqhbwm5b80000gn/T/agent-tabs probe@v1kv07bl' --run sut-explore-lostdoorbell-1786209481 --agent worker"
+          }
+        ]
+      }
+    ]
+  }
+}

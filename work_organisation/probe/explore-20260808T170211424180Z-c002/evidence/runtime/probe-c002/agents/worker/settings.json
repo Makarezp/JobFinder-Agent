@@ -1,0 +1,44 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "'/Users/acc/Library/CloudStorage/GoogleDrive-makarezp1@gmail.com/My Drive/Projects/CVviewer/.venv/bin/python' '/Users/acc/Library/CloudStorage/GoogleDrive-makarezp1@gmail.com/My Drive/Projects/CVviewer/.agent/skills/agent-tabs/agentctl.py' hook spawned --runtime /private/tmp/claude-501/-Users-acc-Library-CloudStorage-GoogleDrive-makarezp1-gmail-com-My-Drive-Projects-CVviewer/c85ac692-5e6d-4090-ae12-bd2dd86a4bc5/scratchpad/c002-explore/runtime --run probe-c002 --agent worker"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "'/Users/acc/Library/CloudStorage/GoogleDrive-makarezp1@gmail.com/My Drive/Projects/CVviewer/.venv/bin/python' '/Users/acc/Library/CloudStorage/GoogleDrive-makarezp1@gmail.com/My Drive/Projects/CVviewer/.agent/skills/agent-tabs/agentctl.py' hook turn_start --runtime /private/tmp/claude-501/-Users-acc-Library-CloudStorage-GoogleDrive-makarezp1-gmail-com-My-Drive-Projects-CVviewer/c85ac692-5e6d-4090-ae12-bd2dd86a4bc5/scratchpad/c002-explore/runtime --run probe-c002 --agent worker"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "'/Users/acc/Library/CloudStorage/GoogleDrive-makarezp1@gmail.com/My Drive/Projects/CVviewer/.venv/bin/python' '/Users/acc/Library/CloudStorage/GoogleDrive-makarezp1@gmail.com/My Drive/Projects/CVviewer/.agent/skills/agent-tabs/agentctl.py' hook turn_end --runtime /private/tmp/claude-501/-Users-acc-Library-CloudStorage-GoogleDrive-makarezp1-gmail-com-My-Drive-Projects-CVviewer/c85ac692-5e6d-4090-ae12-bd2dd86a4bc5/scratchpad/c002-explore/runtime --run probe-c002 --agent worker"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "'/Users/acc/Library/CloudStorage/GoogleDrive-makarezp1@gmail.com/My Drive/Projects/CVviewer/.venv/bin/python' '/Users/acc/Library/CloudStorage/GoogleDrive-makarezp1@gmail.com/My Drive/Projects/CVviewer/.agent/skills/agent-tabs/agentctl.py' hook exit --runtime /private/tmp/claude-501/-Users-acc-Library-CloudStorage-GoogleDrive-makarezp1-gmail-com-My-Drive-Projects-CVviewer/c85ac692-5e6d-4090-ae12-bd2dd86a4bc5/scratchpad/c002-explore/runtime --run probe-c002 --agent worker"
+          }
+        ]
+      }
+    ]
+  }
+}
