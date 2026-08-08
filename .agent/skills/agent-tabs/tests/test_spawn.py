@@ -556,18 +556,34 @@ def test_end_to_end_spawn_completes_the_handshake(tmp_path: Path, role: Path) ->
     run = f"agenttabs-e2e-{uuid4().hex[:6]}"
     paths = agentctl.RunPaths.build(runtime, run)
     backend = agentctl.TmuxBackend()
+    initial_task = "Open your inbox, then reply exactly HANDSHAKE_READY via agentctl reply and wait."
     try:
         meta = agentctl.spawn_agent(
-            paths, backend, "probe", role, initial_task=TASK, model="sonnet", cwd=Path.cwd(), spawn_timeout=90, bootstrap_timeout=90
+            paths,
+            backend,
+            "probe",
+            role,
+            initial_task=initial_task,
+            model="haiku",
+            permission_mode="bypassPermissions",
+            cwd=Path.cwd(),
+            spawn_timeout=90,
+            bootstrap_timeout=90,
         )
         assert backend.alive(meta.handle)
-        types = [event.type for event in agentctl.read_events(paths, "probe")]
-        assert agentctl.EventType.SPAWNED in types
-        assert agentctl.EventType.TURN_START in types
         deadline = time.monotonic() + 120
-        while agentctl.EventType.TURN_END not in [event.type for event in agentctl.read_events(paths, "probe")]:
-            assert time.monotonic() < deadline, "agent never finished its first turn"
-            time.sleep(1.0)
+        while time.monotonic() < deadline:
+            events = agentctl.read_events(paths, "probe")
+            replies = agentctl.read_outbox(paths, "probe")
+            if any(
+                message.status is agentctl.OutboxStatus.REPLY and message.body.strip() == "HANDSHAKE_READY" for message in replies
+            ) and agentctl.EventType.TURN_END in [event.type for event in events]:
+                break
+            time.sleep(0.2)
+        assert any(event.type is agentctl.EventType.SPAWNED for event in events)
+        assert any(event.type is agentctl.EventType.TURN_START for event in events)
+        assert agentctl.EventType.TURN_END in [event.type for event in events]
+        assert any(message.status is agentctl.OutboxStatus.REPLY and message.body.strip() == "HANDSHAKE_READY" for message in replies)
     finally:
         backend.kill_run(run)
 

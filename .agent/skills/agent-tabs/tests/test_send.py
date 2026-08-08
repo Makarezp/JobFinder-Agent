@@ -394,6 +394,7 @@ def test_composer_gate_and_send_against_a_live_worker(tmp_path: Path) -> None:
                 break
             time.sleep(0.2)
         assert agentctl._input_row_looks_busy(backend.capture(meta.handle, agentctl.COMPOSER_SCAN_LINES, escape=True)) is False
+        outbox_before = len(agentctl.read_outbox(paths, name))
 
         result = subprocess.run(
             [sys.executable, str(Path(__file__).resolve().parents[1] / "agentctl.py"), "send", name, "Reply with the single word OK."],
@@ -407,13 +408,15 @@ def test_composer_gate_and_send_against_a_live_worker(tmp_path: Path) -> None:
         events = agentctl.read_events(paths, name)
         assert any(event.type is agentctl.EventType.MESSAGE_SENT for event in events)
 
-        doorbell_seen = False
-        deadline = time.monotonic() + 10.0
+        deadline = time.monotonic() + 30.0
+        replies = []
         while time.monotonic() < deadline:
-            if "[orchestrator] new instruction:" in backend.capture(meta.handle, 40):
-                doorbell_seen = True
+            replies = agentctl.read_outbox(paths, name, since=outbox_before)
+            if any(reply.status is agentctl.OutboxStatus.REPLY and reply.body.strip() == "OK" for reply in replies):
                 break
             time.sleep(0.2)
-        assert doorbell_seen, "doorbell never appeared on the worker's screen"
+        assert any(
+            reply.status is agentctl.OutboxStatus.REPLY and reply.body.strip() == "OK" for reply in replies
+        ), "worker did not report the instruction's expected response"
     finally:
         subprocess.run(["tmux", "kill-session", "-t", run], check=False, capture_output=True)
