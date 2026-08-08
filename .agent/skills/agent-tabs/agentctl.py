@@ -591,7 +591,7 @@ class Backend(Protocol):
 
     def send(self, handle: str, text: str, enter: bool = True) -> None: ...
 
-    def capture(self, handle: str, lines: int = 50) -> str: ...
+    def capture(self, handle: str, lines: int = 50, escape: bool = False) -> str: ...
 
     def in_mode(self, handle: str) -> bool: ...
 
@@ -752,6 +752,7 @@ class TmuxBackend:
     def __init__(self, binary: str = "tmux") -> None:
         self._binary = binary
         self._resolved: str | None = None
+        self._last_repaint: dict[str, float] = {}
 
     def _exe(self) -> str:
         if self._resolved is None:
@@ -796,12 +797,64 @@ class TmuxBackend:
         if enter:
             self._tmux("send-keys", "-t", handle, "Enter")
 
-    def capture(self, handle: str, lines: int = 50) -> str:
+    def capture(self, handle: str, lines: int = 50, escape: bool = False) -> str:
         # -S -N starts N lines above the *top* of the visible pane and captures
         # through to the bottom, so tmux returns N + pane_height lines. Slice to
         # honour the parameter's name.
-        raw = self._tmux("capture-pane", "-p", "-t", handle, "-S", f"-{lines}")
-        return "\n".join(raw.splitlines()[-lines:])
+        # Panes in an *unattached* session do not repaint on their own: Claude
+        # Code defers rendering when nobody is watching, so tmux's server-side
+        # copy of the pane stays blank or stale. A resize round-trip (SIGWINCH)
+        # forces a full redraw; without it the composer gate and the spawn
+        # diagnostics would read nothing. `escape` preserves the SGR codes the
+        # composer placeholder discriminator needs.
+        if self._attached(handle) != "1":
+            self._force_repaint(handle)
+        flags = ["capture-pane", "-p", "-t", handle, "-S", f"-{lines}"]
+        if escape:
+            flags.append("-e")
+        raw = self._tmux(*flags)
+        captured = raw.splitlines()
+        # -S -N returns N history lines plus the whole visible pane. A fresh
+        # pane has no scrollback yet, so the output is just the visible pane
+        # and can be shorter than `lines`; slicing unconditionally would then
+        # discard the pane's top (a 76-line pane loses its first 26 lines).
+        # Only slice when there is more output than requested.
+        return "\n".join(captured[-lines:] if len(captured) > lines else captured)
+
+    def _attached(self, handle: str) -> str:
+        """'1' when a client is attached to the pane's session, else '0'."""
+        try:
+            return self._tmux("display-message", "-p", "-t", handle, "#{session_attached}").strip()
+        except BackendError:
+            return "1"  # unknown (pane gone): never resize a dead window
+
+    def _force_repaint(self, handle: str) -> None:
+        """Resize round-trip on an unattached pane so its program redraws.
+
+        Throttled: the readiness poll calls capture repeatedly, and each
+        repaint makes the worker redraw a frame.
+        """
+        now = time.monotonic()
+        if now - self._last_repaint.get(handle, 0.0) < REPAINT_THROTTLE:
+            return
+        self._last_repaint[handle] = now
+        try:
+            width = self._tmux("display-message", "-p", "-t", handle, "#{window_width}").strip()
+            if not width.isdigit():
+                return
+            w = int(width)
+            # Grow first, then shrink back. tmux rejects a relative -1 with
+            # "width too small", and grow can hit the session's maximum width,
+            # so try both directions and restore the original either way.
+            for delta in (+1, -1):
+                try:
+                    self._tmux("resize-window", "-t", handle, "-x", str(w + delta))
+                    self._tmux("resize-window", "-t", handle, "-x", str(w))
+                    return
+                except BackendError:
+                    continue
+        except BackendError:
+            pass
 
     def in_mode(self, handle: str) -> bool:
         return self._tmux("display-message", "-p", "-t", handle, "#{pane_in_mode}").strip() == "1"
@@ -869,7 +922,7 @@ class FakeBackend:
         self.sends.append((handle, text, enter))
         window.screen.append(text)
 
-    def capture(self, handle: str, lines: int = 50) -> str:
+    def capture(self, handle: str, lines: int = 50, escape: bool = False) -> str:
         return "\n".join(self._window(handle).screen[-lines:])
 
     def in_mode(self, handle: str) -> bool:
@@ -1363,6 +1416,22 @@ def _worker_argv(
     return argv
 
 
+def _last_screen_diagnostic(backend: Backend, handle: str, lines: int = 40) -> str:
+    """The screen text to embed in a SpawnError, or a note when none exists.
+
+    A dark pane must not render as a healthy blank screen: the old
+    ``Last screen:`` output of 40 blank lines read as "the agent was fine"
+    exactly when spawn had failed.
+    """
+    try:
+        content = backend.capture(handle, lines)
+    except BackendError:
+        return "screen capture unavailable (pane gone)"
+    if not content.strip():
+        return "screen capture unavailable (unattached pane)"
+    return content
+
+
 def spawn_agent(
     paths: RunPaths,
     backend: Backend,
@@ -1451,7 +1520,9 @@ def spawn_agent(
         if worker_provider is WorkerProvider.AGY:
             time.sleep(AGY_BOOT_DELAY)
             if not backend.alive(handle):
-                raise SpawnError(f"agy exited on its own within {AGY_BOOT_DELAY}s of starting; last screen:\n{backend.capture(handle, 40)}")
+                raise SpawnError(
+                    f"agy exited on its own within {AGY_BOOT_DELAY}s of starting; last screen:\n{_last_screen_diagnostic(backend, handle)}"
+                )
             if doorbell:
                 backend.send(handle, "", enter=True)
 
@@ -1472,10 +1543,12 @@ def spawn_agent(
 
         if worker_provider is WorkerProvider.CODEX:
             if not backend.alive(handle):
-                raise SpawnError(f"codex exited before bootstrap; last screen:\n{backend.capture(handle, 40)}")
+                raise SpawnError(f"codex exited before bootstrap; last screen:\n{_last_screen_diagnostic(backend, handle)}")
             append_event(paths, name, EventType.SPAWNED, {"provider": WorkerProvider.CODEX.value, "source": "agentctl"})
         elif wait_for_event(paths, agent=name, types=[EventType.SPAWNED], from_seq=watermark, timeout=spawn_timeout) is None:
-            raise SpawnError(f"agent {name!r} never reported SessionStart within {spawn_timeout:.0f}s.\nLast screen:\n{backend.capture(handle, 40)}")
+            raise SpawnError(
+                f"agent {name!r} never reported SessionStart within {spawn_timeout:.0f}s.\nLast screen:\n{_last_screen_diagnostic(backend, handle)}"
+            )
 
         if doorbell:
             if worker_provider is WorkerProvider.CODEX:
@@ -1531,7 +1604,9 @@ def _bootstrap(paths: RunPaths, backend: Backend, meta: AgentMeta, bootstrap_pat
         if wait_for_event(paths, agent=meta.name, types=[EventType.TURN_START], from_seq=watermark, timeout=timeout) is not None:
             return
         log.warning("bootstrap doorbell for %s not acknowledged (attempt %d)", meta.name, attempt)
-    raise SpawnError(f"agent {meta.name!r} never started a turn after two bootstrap attempts.\nLast screen:\n{backend.capture(meta.handle, 40)}")
+    raise SpawnError(
+        f"agent {meta.name!r} never started a turn after two bootstrap attempts.\nLast screen:\n{_last_screen_diagnostic(backend, meta.handle)}"
+    )
 
 
 class _suppressed:
@@ -1557,7 +1632,49 @@ DEFAULT_WAIT_TIMEOUT = 900.0
 SENDABLE_STATES = frozenset({AgentState.IDLE, AgentState.AWAITING_HUMAN})
 COMPOSER_MARKER = "❯"
 COMPOSER_SCAN_LINES = 8
+REPAINT_THROTTLE = 1.0  # seconds between forced repaints of an unattached pane
 DEFAULT_WAIT_IDLE = 120.0
+
+
+_SGR = re.compile(r"\x1b\[([0-9;:?]*)[ -/]*([@-~])")
+
+
+def _update_dim_sgr(dim: bool, parameters: str) -> bool:
+    """Apply SGR intensity parameters, skipping extended-colour payloads."""
+    params = parameters.split(";")
+    index = 0
+    while index < len(params):
+        parameter = params[index]
+        if parameter == "0" or parameter == "22":
+            dim = False
+        elif parameter == "2":
+            dim = True
+        elif parameter in ("38", "48") and index + 1 < len(params):
+            mode = params[index + 1]
+            if mode == "2":
+                index += 4  # 38;2;r;g;b or 48;2;r;g;b
+            elif mode == "5":
+                index += 2  # 38;5;n or 48;5;n
+        index += 1
+    return dim
+
+
+def _composer_text_dims(line: str) -> list[bool] | None:
+    """Dim states of non-space glyphs after the composer marker, if present."""
+    dim = False
+    glyphs: list[tuple[str, bool]] = []
+    position = 0
+    for match in _SGR.finditer(line):
+        glyphs.extend((character, dim) for character in line[position : match.start()])
+        if match.group(2) == "m":
+            dim = _update_dim_sgr(dim, match.group(1))
+        position = match.end()
+    glyphs.extend((character, dim) for character in line[position:])
+
+    marker = next((index for index, (character, _) in enumerate(glyphs) if not character.isspace()), None)
+    if marker is None or glyphs[marker][0] != COMPOSER_MARKER:
+        return None
+    return [dim for character, dim in glyphs[marker + 1 :] if not character.isspace()]
 
 
 def _input_row_looks_busy(screen: str) -> bool:
@@ -1568,8 +1685,21 @@ def _input_row_looks_busy(screen: str) -> bool:
     event-driven and version-independent. Keep it in this one function so there
     is exactly one place to repair.
 
-    Verified against Claude Code v2.1.223, where the composer row is the marker
-    followed by U+00A0 and then any pending text.
+    Claude Code v2.1.226 renders a *placeholder* in the idle composer (the
+    observed text was "check your inbox"); v2.1.223 rendered nothing there. A
+    placeholder and genuinely typed text are indistinguishable by content, so
+    the discriminator is rendering, not text: the placeholder is emitted dim
+    (SGR param 2) while typed text is plain. ``capture(..., escape=True)``
+    preserves the escape sequences this function reads.
+
+    Assumption adopted without a live capture (the probe spike was deferred):
+    every placeholder glyph is dim and typed text is plain. The style of the
+    prompt marker itself is ignored, so a dim marker cannot make real typed
+    text look like a placeholder. If a release stops dimming the placeholder,
+    this gate fails closed -- it reads the styled text as a busy composer,
+    deadlocking sends rather than garbling a human's line. That is the
+    opposite, and safer, direction of the v2.1.226 bug this repairs, and it
+    surfaces as a red live-worker test rather than a silent wrong send.
 
     When the marker cannot be found the answer is False -- deliberately failing
     open. A missed detection garbles one line the human is typing, and the
@@ -1577,9 +1707,9 @@ def _input_row_looks_busy(screen: str) -> bool:
     every workflow the moment the TUI changed.
     """
     for line in reversed(screen.splitlines()):
-        stripped = line.strip()
-        if stripped.startswith(COMPOSER_MARKER):
-            return bool(stripped[len(COMPOSER_MARKER) :].strip())
+        text_dims = _composer_text_dims(line)
+        if text_dims is not None:
+            return bool(text_dims) and not all(text_dims)
     log.debug("composer marker not found; assuming the input row is free")
     return False
 
@@ -1611,7 +1741,7 @@ def is_ready(paths: RunPaths, backend: Backend, agent: str, handle: str | None =
         # swallowed by copy-mode, silently, in exactly the situation this
         # framework exists to support. Refuse rather than cancel their scroll.
         return Readiness(False, "copy_mode")
-    if _composer_looks_busy(backend.capture(target, COMPOSER_SCAN_LINES), meta.provider):
+    if _composer_looks_busy(backend.capture(target, COMPOSER_SCAN_LINES, escape=True), meta.provider):
         return Readiness(False, "human_typing")
     return Readiness(True, state.value)
 

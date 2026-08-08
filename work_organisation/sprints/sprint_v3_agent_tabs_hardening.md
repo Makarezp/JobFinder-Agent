@@ -45,10 +45,10 @@ T5b cmdlog checks ──────────────┘   (unblocked —
 
 | # | Ticket | File | State |
 |---|---|---|---|
-| T0 | Composer readiness regression (D1 + D2) | `tickets/agent-tabs-composer-readiness-regression.md` | **to write** |
+| T0 | Composer readiness regression (D1 + D2) | `tickets/agent-tabs-composer-readiness-regression.md` | **IMPLEMENTED — live verification pending** (2026-08-08) |
 | T1–T7 | Probe loop, seven tickets | `tickets/agent-tabs-probe-loop.md` (Rev 3) | needs Rev 4 |
 
-### T0 — Composer readiness regression *(blocking, not yet written)*
+### T0 — Composer readiness regression *(implementation complete; live verification pending)*
 
 Two coupled defects in `agentctl`'s only rendering-dependent code path.
 

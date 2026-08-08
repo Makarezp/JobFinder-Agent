@@ -212,10 +212,13 @@ def test_open_capture_kill_lifecycle(tmux_run: tuple[agentctl.TmuxBackend, str],
     assert handle.startswith("@")
     assert backend.alive(handle) is True
 
+    # Capture the whole pane: -S -N returns only the visible pane when there
+    # is no scrollback, and a pane can be far taller than the default 50 lines
+    # (the tmux server inherits the size of the terminal that created it).
     deadline = time.monotonic() + 10
-    while "AGENT-TABS-MARKER" not in backend.capture(handle) and time.monotonic() < deadline:
+    while "AGENT-TABS-MARKER" not in backend.capture(handle, 200) and time.monotonic() < deadline:
         time.sleep(0.05)
-    assert "AGENT-TABS-MARKER" in backend.capture(handle)
+    assert "AGENT-TABS-MARKER" in backend.capture(handle, 200)
 
     backend.kill(handle)
     assert backend.alive(handle) is False
@@ -308,3 +311,56 @@ def test_exact_session_targeting_does_not_match_a_prefix(tmux_run: tuple[agentct
         assert {window.name for window in backend.list_handles(sibling)} == {"other"}
     finally:
         backend.kill_run(sibling)
+
+
+def test_capture_throttles_repaints_per_unattached_pane() -> None:
+    """One dark pane must not suppress another pane's first repaint."""
+    backend = agentctl.TmuxBackend()
+    calls: list[tuple[str, ...]] = []
+
+    def tmux(*args: str) -> str:
+        calls.append(args)
+        if args[0] == "display-message":
+            return "0\n" if args[-1] == "#{session_attached}" else "80\n"
+        if args[0] == "capture-pane":
+            return "composer\n"
+        return ""
+
+    backend._tmux = tmux  # type: ignore[method-assign]
+    backend.capture("@first")
+    backend.capture("@second")
+
+    resized_handles = [call[2] for call in calls if call[0] == "resize-window"]
+    assert resized_handles == ["@first", "@first", "@second", "@second"]
+
+
+@needs_tmux
+def test_capture_forces_a_repaint_on_an_unattached_pane(tmux_run: tuple[agentctl.TmuxBackend, str], tmp_path: Path) -> None:
+    """D2 regression: a detached pane defers redrawing until resize.
+
+    Claude Code renders nothing while its session is unattached, so tmux's
+    server-side copy of the pane stays blank; capture() must force a repaint
+    (resize round-trip, SIGWINCH) or every screen assertion built on it passes
+    vacuously. The program below draws ONLY on SIGWINCH, so a plain
+    capture-pane would stay empty forever.
+    """
+    backend, run = tmux_run
+    script = (
+        "import signal, sys, time\n"
+        "def draw(sig, frame):\n"
+        "    print('FRAME-REPAINTED', flush=True)\n"
+        "signal.signal(signal.SIGWINCH, draw)\n"
+        "while True: time.sleep(1)\n"
+    )
+    handle = backend.open(run, "dark", [sys.executable, "-c", script], str(tmp_path))
+
+    # 200 lines: a pane can be taller than the default 50, and the repainted
+    # frame lands at its top.
+    deadline = time.monotonic() + 5.0
+    screen = ""
+    while time.monotonic() < deadline:
+        screen = backend.capture(handle, 200)
+        if "FRAME-REPAINTED" in screen:
+            break
+        time.sleep(0.2)
+    assert "FRAME-REPAINTED" in screen

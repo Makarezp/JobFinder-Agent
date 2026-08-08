@@ -8,8 +8,11 @@ output is how the argparse defect in Ticket 3 slipped past 63 green tests.
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
+import sys
+import time
 from collections.abc import Sequence
 from pathlib import Path
 from uuid import uuid4
@@ -19,6 +22,13 @@ import pytest
 
 HAS_TMUX = shutil.which("tmux") is not None
 needs_tmux = pytest.mark.skipif(not HAS_TMUX, reason="requires a local tmux binary")
+
+
+E2E = os.environ.get("AGENT_TABS_E2E") == "1"
+needs_worker = pytest.mark.skipif(
+    not (E2E and HAS_TMUX and shutil.which("claude")),
+    reason="set AGENT_TABS_E2E=1 with tmux and claude present",
+)
 
 RULE = "─" * 80
 
@@ -37,6 +47,13 @@ EMPTY_COMPOSER = "\n".join(
 )
 
 TYPED_COMPOSER = EMPTY_COMPOSER.replace("❯\xa0", "❯\xa0half typed by a human")
+
+# Claude Code v2.1.226 renders a *placeholder* in the idle composer ("check
+# your inbox"). The discriminator is rendering, not content: the placeholder
+# is emitted dim (SGR param 2) while typed text is plain. The escape codes
+# model Ink's dim emission; the live-worker test at the foot of this file is
+# the arbiter of what the installed binary actually emits.
+PLACEHOLDER_COMPOSER_226 = EMPTY_COMPOSER.replace("❯\xa0", "❯\xa0\x1b[2mcheck your inbox\x1b[22m")
 
 
 def _make_agent(
@@ -88,6 +105,29 @@ def test_missing_marker_fails_open() -> None:
 def test_only_the_lowest_composer_row_counts() -> None:
     scrollback = f"❯\xa0an old submitted prompt\nsome output\n{EMPTY_COMPOSER}"
     assert agentctl._input_row_looks_busy(scrollback) is False
+
+
+def test_composer_with_placeholder_is_not_busy() -> None:
+    """v2.1.226: an idle composer shows a dim placeholder, not a typing human."""
+    assert agentctl._input_row_looks_busy(PLACEHOLDER_COMPOSER_226) is False
+
+
+def test_coloured_marker_with_typed_text_is_busy() -> None:
+    """The marker's own styling must not read as a dim placeholder."""
+    line = EMPTY_COMPOSER.replace("❯\xa0", "\x1b[36m❯\x1b[0m\xa0typed by a human")
+    assert agentctl._input_row_looks_busy(line) is True
+
+
+def test_dim_marker_with_plain_text_is_busy() -> None:
+    """Only the composer text, not the prompt marker, identifies a placeholder."""
+    line = EMPTY_COMPOSER.replace("❯\xa0", "\x1b[2m❯\x1b[22m\xa0typed by a human")
+    assert agentctl._input_row_looks_busy(line) is True
+
+
+def test_truecolor_text_is_not_read_as_dim() -> None:
+    """SGR 38;2;... contains a literal 2 but is truecolor, not dim."""
+    line = EMPTY_COMPOSER.replace("❯\xa0", "❯\xa0\x1b[38;2;100;100;100mtyped\x1b[0m")
+    assert agentctl._input_row_looks_busy(line) is True
 
 
 # ---------------------------------------------------------------------------
@@ -287,3 +327,93 @@ def test_capture_returns_at_most_the_requested_lines(tmp_path: Path) -> None:
         assert len(backend.capture(handle, 3).splitlines()) <= 3
     finally:
         backend.kill_run(run)
+
+
+# ---------------------------------------------------------------------------
+# Live worker regression guard (the v2.1.226 placeholder defect)
+# ---------------------------------------------------------------------------
+
+
+@needs_tmux
+@needs_worker
+def test_composer_gate_and_send_against_a_live_worker(tmp_path: Path) -> None:
+    """This test is opt-in because it invokes a paid external worker. It is the
+    only test in this file that cannot silently rot when the TUI changes: it
+    asserts the gate against a real spawned worker's actual composer row
+    instead of a frozen string fixture. Against v2.1.226 -- which renders a
+    placeholder the frozen fixtures do not model -- the old gate reported an
+    idle agent as busy and every ``send`` exited 3.
+    """
+    run = f"live-{uuid4().hex[:6]}"
+    runtime = tmp_path / "rt"
+    role = tmp_path / "ROLE.md"
+    role.write_text("You are a test subject. Reply with one short sentence.\n", encoding="utf-8")
+    env = {**os.environ, agentctl.ENV_RUNTIME: str(runtime), agentctl.ENV_RUN: run, agentctl.ENV_VIEWER: "none"}
+    paths = agentctl.RunPaths.build(runtime, run)
+    backend = agentctl.get_backend("tmux")
+    name = "t0live"
+    try:
+        agentctl.spawn_agent(
+            paths,
+            backend,
+            name,
+            role,
+            initial_task="Say one short sentence, then wait.",
+            model="haiku",
+            # D3: the default permission mode blocks a fresh worker on approval
+            # dialogs for reading its own inbox; a throwaway test worker must
+            # not hang on one nobody is watching.
+            permission_mode="bypassPermissions",
+            spawn_timeout=90.0,
+            bootstrap_timeout=60.0,
+        )
+        meta = agentctl.AgentMeta.load(paths.meta(name))
+        readiness = agentctl.await_ready(paths, backend, name, meta.handle, timeout=120.0)
+        assert readiness.ready, readiness.reason
+
+        screen = backend.capture(meta.handle, agentctl.COMPOSER_SCAN_LINES, escape=True)
+        # Positive control: on a blank capture every absence assertion below
+        # would pass vacuously, so refuse to proceed on one.
+        assert screen.strip(), "live composer capture is blank; the D2 repaint path is broken"
+        assert agentctl._input_row_looks_busy(screen) is False  # idle -> free
+
+        backend.send(meta.handle, "half typed by the test", enter=False)
+        deadline = time.monotonic() + 5.0
+        while time.monotonic() < deadline:
+            if agentctl._input_row_looks_busy(backend.capture(meta.handle, agentctl.COMPOSER_SCAN_LINES, escape=True)):
+                break
+            time.sleep(0.2)
+        assert agentctl._input_row_looks_busy(backend.capture(meta.handle, agentctl.COMPOSER_SCAN_LINES, escape=True)) is True
+
+        # Clear the composer (BSpace keys; the payload was typed without a
+        # newline) so the real send below sees a free composer.
+        subprocess.run(["tmux", "send-keys", "-t", meta.handle, *(["BSpace"] * 30)], check=False, capture_output=True)
+        deadline = time.monotonic() + 5.0
+        while time.monotonic() < deadline:
+            if not agentctl._input_row_looks_busy(backend.capture(meta.handle, agentctl.COMPOSER_SCAN_LINES, escape=True)):
+                break
+            time.sleep(0.2)
+        assert agentctl._input_row_looks_busy(backend.capture(meta.handle, agentctl.COMPOSER_SCAN_LINES, escape=True)) is False
+
+        result = subprocess.run(
+            [sys.executable, str(Path(__file__).resolve().parents[1] / "agentctl.py"), "send", name, "Reply with the single word OK."],
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=120.0,
+        )
+        assert result.returncode == 0, result.stderr
+
+        events = agentctl.read_events(paths, name)
+        assert any(event.type is agentctl.EventType.MESSAGE_SENT for event in events)
+
+        doorbell_seen = False
+        deadline = time.monotonic() + 10.0
+        while time.monotonic() < deadline:
+            if "[orchestrator] new instruction:" in backend.capture(meta.handle, 40):
+                doorbell_seen = True
+                break
+            time.sleep(0.2)
+        assert doorbell_seen, "doorbell never appeared on the worker's screen"
+    finally:
+        subprocess.run(["tmux", "kill-session", "-t", run], check=False, capture_output=True)

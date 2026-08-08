@@ -570,3 +570,28 @@ def test_end_to_end_spawn_completes_the_handshake(tmp_path: Path, role: Path) ->
             time.sleep(1.0)
     finally:
         backend.kill_run(run)
+
+
+# ---------------------------------------------------------------------------
+# Spawn diagnostics: a dark pane must not render as a healthy blank screen
+# ---------------------------------------------------------------------------
+
+
+def test_last_screen_diagnostic_reports_unattached_pane() -> None:
+    """A blank capture must not read as 'Last screen:' followed by nothing."""
+    backend = agentctl.FakeBackend()
+    handle = backend.open("cvv", "critic", ["claude"], "/tmp")
+    backend.windows[handle].screen = []
+    assert agentctl._last_screen_diagnostic(backend, handle) == "screen capture unavailable (unattached pane)"
+
+
+def test_last_screen_diagnostic_reports_gone_pane() -> None:
+    backend = agentctl.FakeBackend()
+    assert agentctl._last_screen_diagnostic(backend, "@missing") == "screen capture unavailable (pane gone)"
+
+
+def test_last_screen_diagnostic_returns_real_content() -> None:
+    backend = agentctl.FakeBackend()
+    handle = backend.open("cvv", "critic", ["claude"], "/tmp")
+    backend.windows[handle].screen = ["line one", "line two"]
+    assert agentctl._last_screen_diagnostic(backend, handle) == "line one\nline two"

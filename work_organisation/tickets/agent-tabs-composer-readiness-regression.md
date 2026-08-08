@@ -79,3 +79,11 @@ Consequence: `Readiness(False, "human_typing")` → **every `send` exits 3 and n
 - [Automated] The existing `test_send.py` string cases still pass unmodified.
 - [Manual] Spawn an agent, let it go idle, and `agentctl send` it a message with no human text in the composer. The message arrives and the agent acts on it. Today this exits `3` and the message sits unread.
 - [Manual] Type half a line into that agent's composer and `send` again. It exits `3` and queues — the gate still protects genuine human input.
+
+---
+
+## Status
+
+**IMPLEMENTED — LIVE VERIFICATION PENDING (2026-08-08).** Changes live in `.agent/skills/agent-tabs/` (agentctl.py + 3 test files), uncommitted. Unit and tmux-backed checks are complete; the live-worker and manual acceptance checks remain pending.
+
+**Deferred live check.** The dim-SGR discriminator is unit-tested but not yet arbitrated against a live Claude Code v2.1.226 worker: the claude account is at its monthly spend limit, so spawned workers refuse before the TUI starts (`claude -p` → *"You've hit your monthly spend limit"*). `test_composer_gate_and_send_against_a_live_worker` is explicitly opt-in: run `AGENT_TABS_E2E=1 AGENTCTL_PYTHON="$PWD/.venv/bin/python" .agent/skills/agent-tabs/test.sh` after the limit is raised at claude.ai/settings/usage. If the placeholder is not emitted dim, that test goes red and the discriminator falls back to cursor position or the documented placeholder list.
