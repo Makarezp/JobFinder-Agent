@@ -497,10 +497,7 @@ Without a durable record, a fresh author agent rediscovers the same dead ends ev
 
 #### Status
 
-**IMPLEMENTED — AWAITING HUMAN REVIEW (2026-08-08).**
-- [Automated] `test_probe_journal.py` covers deterministic rendering, hash drift and legacy entries, unevidenced dead-end rejection, path redaction, explore-gate override recording, and derived T4 coverage.
-- [Manual] Regenerated `probe/COVERAGE.md` shows the three covered T4 claims, twelve uncovered T3-seed claims, rate trends for B001–B003, and ranked unvisited cells.
-- [Validation] Ruff and strict mypy pass. The full suite passes with the three expected opt-in E2E skips. `pre-commit run --all-files` passes after normalizing the journal cell and cmdlog phase types; all T6 files are formatted.
+**DONE — HUMAN-SIGNED-OFF (2026-08-08).** Archived record: `history/tickets/agent-tabs-probe-journal-digest.md`.
 
 ---
 
@@ -543,8 +540,16 @@ Route findings to the right kind of fix, and deduplicate them, before anything r
 #### Acceptance Criteria
 - [Automated] A test asserts a verdict of `code` or `doc-rewrite` carrying `claim: null` is rejected at append time.
 - [Automated] A test asserts that when an open spec in `work_organisation/probe/` already cites claim `C014`, a second `C014` finding routes to `duplicate` and emits no new file.
-- [Manual] One real finding from T4 or T5 produces a spec in `work_organisation/probe/` that names the reproducing brief, the rate, the commit, and a preserved artifact path a human can open.
-- [Manual] The emitted spec follows the `spec-writer` template (Overview / Functional Requirements / Verification & Acceptance Criteria).
+- [Manual] One preserved real T4/T5 finding reaches exactly one evidence-backed verdict in a separately torn-down oracle harness. A `harness` or `duplicate` verdict emits no spec.
+- [Automated] Every `code`, `doc-gap`, and `doc-rewrite` result emits a quarantined `work_organisation/probe/` spec with the required metadata and Overview / Functional Requirements / Verification & Acceptance Criteria structure.
+
+#### Status
+
+**DONE — HUMAN-SIGNED-OFF (2026-08-08).**
+- [Automated] `test_probe_oracle.py` rejects claimless `code`/`doc-rewrite` verdicts, proves claim-ID deduplication emits no second spec, validates emitted metadata/template sections, and verifies the oracle uses a distinct disposable harness run.
+- [Automated] `test_probe_briefs.py` proves `probe.py run` routes a measured finding through triage.
+- [Validation] `pre-commit run --all-files`, strict mypy, and the complete agent-tabs suite pass with the three expected opt-in E2E skips.
+- [Manual] Live Opus triage ran against preserved T4 B003 (`C005`) and B001 (`C014`) findings. Both correctly classified as `harness`: B003's artifact contains a matching worker reply, and B001's harness force-exited the worker before it could process its final inbox message. Both append `verdict` records, emit no spec, and their oracle harnesses tear down. The revised acceptance deliberately prohibits manufacturing a `code`, `doc-gap`, or `doc-rewrite` finding only to create a spec.
 
 ---
 

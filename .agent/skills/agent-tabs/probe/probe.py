@@ -37,6 +37,7 @@ from probe.lib.journal import (
 from probe.lib.journal import (
     load as load_journal,
 )
+from probe.lib.oracle import OracleError, triage_finding
 from probe.lib.orchestrator_checks import (
     CheckResult,
     ignored_awaiting_human,
@@ -93,10 +94,12 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 def _run_brief(brief_id: str, trials: int | None) -> int:
-    """Run a T4 brief, reserving exit 2 for harness failures."""
+    """Run a T4 brief and route a measured finding through the isolated oracle."""
     try:
         entry = run_brief(brief_id, trials=trials)
-    except HarnessError as error:
+        if entry["outcome"] == "finding":
+            entry["verdict"] = triage_finding(entry)
+    except (HarnessError, OracleError) as error:
         print(f"harness error: {error}", file=sys.stderr)
         return 2
     print(json.dumps(entry, sort_keys=True))

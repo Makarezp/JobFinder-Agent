@@ -2,6 +2,8 @@
 
 **Branch:** `probe-spike` (cut from `main` at `1bb37a7`)
 **Track:** Tooling / meta — deliberately separate from the archived product sprint `history/sprints/sprint_v2_search_ledger.md`, which has already landed.
+**Status:** **DONE — HUMAN-SIGNED-OFF (2026-08-08).**
+
 
 ## Why this sprint exists
 
@@ -46,7 +48,7 @@ T5b cmdlog checks ──────────────┘   (unblocked —
 | # | Ticket | File | State |
 |---|---|---|---|
 | T0 | Composer readiness regression (D1 + D2) | `history/tickets/agent-tabs-composer-readiness-regression.md` | **DONE** (2026-08-08) |
-| T1–T7 | Probe loop, seven tickets | `tickets/agent-tabs-probe-loop.md` (Revision 4) | T1, T2, T3, T4, T5a, and T5b **DONE**; T6 implemented — human review pending; T7 planned |
+| T1–T7 | Probe loop, seven tickets | `history/tickets/agent-tabs-probe-loop.md` (Revision 4) | **DONE** (2026-08-08) |
 
 ### T0 — Composer readiness regression *(Done; archived ticket)*
 
@@ -79,7 +81,7 @@ Detail lives in `tickets/agent-tabs-probe-loop.md`. **Revision 4 already folds i
 
 ## Smallest useful slice
 
-**T0, T1, T2, T3, T4, T5a, and T5b are complete. T6 is implemented and awaiting human review.**
+**T0, T1, T2, T3, T4, T5a, T5b, and T6 are complete. T7 is implemented and awaiting human review.**
 
 T3 and T5a answer the question that decides whether the remaining tickets are worth building: *does an orchestrator reading `SKILL.md` actually obey it?*
 

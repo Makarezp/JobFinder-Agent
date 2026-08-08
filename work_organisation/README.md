@@ -15,9 +15,6 @@ Only active work belongs in `sprints/` or `tickets/`. Move completed or supersed
 
 | Work item | Status | Authority | Next action |
 |---|---|---|---|
-| Sprint V3: Agent-Tabs Hardening & Probe Loop | Active | `sprints/sprint_v3_agent_tabs_hardening.md` | Follow its dependency graph and execution notes. |
-| T6: Journal and coverage digest | Implemented — human review pending | `tickets/agent-tabs-probe-loop.md` | Review the generated digest and exploration gate. |
-| T7: Oracle triage and spec emission | Planned — Revision 4 | `tickets/agent-tabs-probe-loop.md` | Follow T6 human review. |
 
 ## Evidence and proposals
 
@@ -42,6 +39,9 @@ Only active work belongs in `sprints/` or `tickets/`. Move completed or supersed
 | T2: Deterministic puppet fault states | Human-signed-off deterministic terminal fault injector. | `history/tickets/agent-tabs-probe-puppet.md` |
 | T4: Conformance briefs | Human-signed-off reduced-scope real-worker conformance smoke. | `history/tickets/agent-tabs-probe-conformance-briefs.md` |
 | T5b: Cmdlog checks | Human-signed-off Route A instrumentation and cmdlog conformance checks. | `history/tickets/agent-tabs-probe-cmdlog-checks.md` |
+| T6: Journal and coverage digest | Human-signed-off durable journal, exploration gate, and coverage digest. | `history/tickets/agent-tabs-probe-journal-digest.md` |
+| T7: Oracle triage and spec emission | Human-signed-off oracle routing; live historical findings correctly classified as harness defects. | `history/tickets/agent-tabs-probe-loop.md` |
+| Sprint V3: Agent-Tabs Hardening & Probe Loop | All tickets human-signed-off. | `history/sprints/sprint_v3_agent_tabs_hardening.md` |
 
 ## Maintenance rule
 

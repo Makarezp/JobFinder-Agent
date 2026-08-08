@@ -71,5 +71,16 @@ def test_probe_command_returns_two_for_harness_error(monkeypatch: pytest.MonkeyP
     assert probe._run_brief("B002", 1) == 2
 
 
+def test_probe_command_routes_measured_finding(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+    entry: dict[str, object] = {"outcome": "finding", "entry": "t4-fixture"}
+    verdict = {"kind": "verdict", "verdict": "harness"}
+    monkeypatch.setattr(probe, "run_brief", lambda _brief, *, trials: entry)
+    monkeypatch.setattr(probe, "triage_finding", lambda candidate: verdict if candidate is entry else {})
+
+    assert probe._run_brief("B001", 1) == 0
+    assert entry["verdict"] == verdict
+    assert '"verdict": {"kind": "verdict", "verdict": "harness"}' in capsys.readouterr().out
+
+
 def _failed_control(*_: object, **__: object) -> list[TrialResult]:
     return [TrialResult(passed=False, artifact=None)]
