@@ -1,0 +1,13 @@
+{
+  "name": "worker",
+  "role": "/Users/acc/Library/CloudStorage/GoogleDrive-makarezp1@gmail.com/My Drive/Projects/CVviewer/.agent/skills/agent-tabs/probe/roles/probe-worker.md",
+  "handle": "@1272",
+  "cwd": "/private/var/folders/lk/mmnv5xq50tv5rmxvqhbwm5b80000gn/T/agent-tabs probe@v1kv07bl",
+  "permission_mode": "bypassPermissions",
+  "created_at": "2026-08-08T17:18:01.638Z",
+  "binary": "/Users/acc/.local/bin/claude",
+  "provider": "claude",
+  "model": "haiku",
+  "worktree": null,
+  "isolated_settings": false
+}
