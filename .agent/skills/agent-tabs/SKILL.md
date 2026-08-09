@@ -100,8 +100,8 @@ Claude blocks until its `SessionStart` hook fires and its first turn begins.
 Codex has no compatible hook surface, so Agent Tabs proves its tmux window is
 alive, records a synthetic `spawned` event, and delivers the durable bootstrap
 inbox message; its reply/question/blocked reports are the observable lifecycle.
-There is no sleep-and-hope: a spawn that cannot be proven kills its own window
-and cleans up rather than leaving a half-live agent behind.
+There is no sleep-and-hope: an unprovable spawn always kills its window and
+deletes its undelivered bootstrap; the meta.json/settings.json record stays.
 
 Useful flags: `--worktree` (own git checkout, for agents editing in parallel),
 `--permission-mode`, `--isolated-settings`, `--cwd`, `--no-doorbell`. Codex is

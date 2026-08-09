@@ -338,7 +338,11 @@ def test_spawn_timeout_leaves_no_window_and_no_worktree(tmp_path: Path, role: Pa
 
     assert all(window.alive is False for window in backend.windows.values())
     assert not (paths.worktrees / "critic").exists()
-    assert [event.type for event in agentctl.read_events(paths)][-1] is agentctl.EventType.ERROR
+    events = [event for event in agentctl.read_events(paths)]
+    assert events[-1].type is agentctl.EventType.ERROR
+    assert "bootstrap" not in events[-1].data
+    assert not any(paths.inbox("critic").iterdir())
+    assert paths.meta("critic").exists()
 
 
 def test_unacknowledged_bootstrap_is_retried_exactly_once_then_fails(tmp_path: Path, role: Path) -> None:
@@ -352,6 +356,9 @@ def test_unacknowledged_bootstrap_is_retried_exactly_once_then_fails(tmp_path: P
 
     assert len(backend.sends) == 2
     assert all(window.alive is False for window in backend.windows.values())
+    events = [event for event in agentctl.read_events(paths)]
+    assert events[-1].data.get("bootstrap") is not None
+    assert any(paths.inbox("critic").iterdir())
 
 
 def test_spawn_rejects_a_duplicate_name_before_touching_the_backend(tmp_path: Path, role: Path) -> None:

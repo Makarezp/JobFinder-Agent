@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 brief: explore
 claim: C002
 rate: n/a
@@ -7,6 +7,7 @@ control_rate: n/a
 commit: e8ec234
 journal_entry: explore-20260808T170211424180Z
 triage: manual (no automated oracle path -- oracle wiring in probe/lib/oracle.py only accepts T4 brief findings, not `explore` findings)
+disposition: TICKET-006 (Reading C) fixed spawn_agent's except-block in agentctl.py to unconditionally delete only the undelivered bootstrap inbox message (gated on a new `bootstrap_delivered` flag), leaving meta.json/settings.json in place as the diagnostic record; SKILL.md:103-104 reworded to match; verified via explore-20260808T213115818363Z.
 ---
 
 # Specification: Probe finding explore-20260808T170211424180Z

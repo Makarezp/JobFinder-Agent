@@ -1477,6 +1477,7 @@ def spawn_agent(
     worktree_path: Path | None = None
     handle: str | None = None
     bootstrap_path: Path | None = None
+    bootstrap_delivered: bool = False
     try:
         if worktree:
             worktree_path = add_worktree(paths, name, source)
@@ -1551,6 +1552,7 @@ def spawn_agent(
             )
 
         if doorbell:
+            bootstrap_delivered = True
             if worker_provider is WorkerProvider.CODEX:
                 if bootstrap_path is None:
                     raise SpawnError("Codex bootstrap inbox was not prepared")
@@ -1569,16 +1571,9 @@ def spawn_agent(
                 remove_worktree(paths, worktree_path, source)
         bootstrap_error_path: str | None = None
         if bootstrap_path is not None and bootstrap_path.exists():
-            agent_dir = paths.agent_dir(name)
-            other_files = [path for path in agent_dir.rglob("*") if path.is_file() and path != bootstrap_path]
-            if not other_files:
+            if not bootstrap_delivered:
                 with _suppressed():
                     bootstrap_path.unlink()
-                    for child in (paths.inbox(name), paths.outbox(name)):
-                        if child.exists() and not any(child.iterdir()):
-                            child.rmdir()
-                    if agent_dir.exists() and not any(agent_dir.iterdir()):
-                        agent_dir.rmdir()
             else:
                 bootstrap_error_path = str(bootstrap_path)
         with _suppressed():
