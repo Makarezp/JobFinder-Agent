@@ -104,4 +104,4 @@ def test_coverage_write_includes_t4_claims_and_ranked_unvisited_cells(tmp_path: 
     assert "<!-- GENERATED FILE" in digest
     assert "Covered (3): C003, C005, C014" in digest
     assert "## Ranked unvisited cells" in digest
-    assert "1. C001 / none / real-haiku / claude / 1" in digest
+    assert "1. C003 / none / real-haiku / claude / 1" in digest
