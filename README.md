@@ -1,6 +1,53 @@
-# CVviewer (AI Scraper Bot)
+# JobFinder Agent
 
-**"The Tinder for Jobs" Agent** - An AI companion that finds, filters, and recommends jobs based on your actual preferences.
+An AI job-search companion that onboards you through a conversation, builds a
+structured profile from your CV, then continuously finds, ranks, and discusses
+job matches with you — swipe-to-decide, chat to refine. Backend is a
+multi-graph LangGraph agent behind a typed FastAPI service; frontend is
+Next.js with a Zustand store driving the swipe/chat UI.
+
+![Profile](documents/assets/profile.jpg)
+![Job matching](documents/assets/job-matching.jpg)
+![Chat advisory](documents/assets/chat-advisory.jpg)
+
+## Architecture
+
+The agent is split into three cooperating LangGraph graphs rather than one
+monolithic chatbot, because onboarding, open-ended chat, and job search are
+different problems with different failure modes:
+
+- **Onboarding is a data-collection problem.** A dedicated profile graph
+  drives the conversation until it has a usable profile, using tool-calling
+  (not free-text parsing) to write structured fields into cross-session
+  memory — so "I'm a Senior Python Dev" becomes a typed update, not a string
+  the rest of the system has to re-interpret later.
+- **Chat is an open-ended, tool-using problem.** The discovery graph is a
+  standard reasoning-and-tool-call loop, but it treats job search itself as a
+  *delegated subtask* rather than one more tool call: when the user's intent
+  needs a search, the chatbot hands off to a dedicated job-specialist
+  subgraph and resumes once it returns, instead of trying to reason about
+  fetching, filtering, and ranking jobs inline.
+- **Ranking jobs at volume is a batch problem, not a chat turn.** The
+  job-specialist subgraph fetches listings from JSearch, chunks them, and
+  summarizes/scores each batch **concurrently** (`asyncio.gather` over
+  LLM calls with structured output, not one job at a time) before handing a
+  ranked shortlist back to the conversation — the difference between a
+  chatbot that stalls on 20 job descriptions and one that doesn't.
+
+All three graphs checkpoint to Postgres (`langgraph-checkpoint-postgres`), so
+a user's onboarding state, chat history, and profile persist across sessions
+without the backend holding anything in memory. Prompts are written
+defensively where the model has a known failure mode — e.g. the search-query
+schema explicitly forbids boolean operators and salary numbers in the query
+string, because JSearch's API silently returns zero results otherwise, a
+constraint discovered empirically and encoded directly in the tool's
+Pydantic field description so the LLM sees it every time it calls the tool.
+
+`ChatService` picks which graph handles a request (`discovery` vs `profile`
+workspace) and streams the result back through `POST /api/chat`; the LLM
+provider itself is swappable per environment (DeepSeek / Gemini today) behind
+a single `ACTIVE_LLM_MODEL` setting, so the agent logic doesn't depend on one
+vendor's API.
 
 ## Quick Start
 
@@ -33,6 +80,7 @@ Run a single script from the project root to automatically manage virtual enviro
 2. **Configure Environment**:
     - Copy `.env.example` to `.env`
     - Add your `JSEARCH_API_KEY` (via RapidAPI) and chosen LLM API key.
+    - The backend needs Postgres (for LangGraph checkpointing) — `docker-compose up -d db` is the quickest way to get one running locally.
 
 ### LLM Provider Configuration
 
@@ -76,38 +124,6 @@ To wipe build caches, test caches, Docker database volumes, and temporary logs (
 ./scripts/clean.sh
 ```
 
-## AI Personas (READ FIRST)
-This project uses a **Persona-based Documentation Model**. Before starting work, the user will assign you a persona. Read the corresponding files in **[PERSONAS.md](documents/PERSONAS.md)** to focus your context.
-
-- **Architect**: System design & constraints.
-- **Senior Developer**: Features & components.
-- **Bug Fixer**: Troubleshooting & technical debt.
-- **Product Ideator**: Vision & UX strategy.
-- **QA / Tester**: Testing & quality audit.
-
-## Documentation
-
-Detailed documentation is available in the `documents/` directory:
-
-| Document | Audience | Description |
-| :--- | :--- | :--- |
-| **[PERSONAS.md](documents/PERSONAS.md)** | **AI Agents** | **START HERE**. Persona assignment and context read lists. |
-| **[AGENTS.md](documents/AGENTS.md)** | **Devs** | Project internal map, workflows, and "How-To" guides. |
-| **[CONVENTIONS.md](documents/CONVENTIONS.md)** | **Devs** | Strict rules for Typing, Error Handling, and Testing. |
-| **[domain.md](documents/domain.md)** | **Context** | Business logic, glossary, and the "Soul" of the project. |
-| **[DESIGN_PRINCIPLES.md](documents/DESIGN_PRINCIPLES.md)** | **Engineers** | SOLID, Clean Architecture, and abstract system rules. |
-
-### Work Organisation
-The `work_organisation/` folder contains project management and historical data.
-- **history/**: Archived documentation (formerly `legacy_documents`).
-- **bugs/**: Bug trackers and issue logs.
-- **sprints/**: Sprint plans and tickets.
-
-> [!IMPORTANT]
-> **AI Interaction Rules**:
-> - **history/**: **DO NOT READ** unless explicitly asked for a specific file name. Reading this will "poison" your context with outdated information.
-> - **bugs/ & sprints/**: Only read when explicitly asked by the user to focus on a particular task or bug.
-
 ## Development
 
 ### Backend Checks
@@ -130,6 +146,9 @@ Run inside the `frontend/` directory:
 - **Type Check**: `npm run type-check`
 - **Test**: `npm run test`
 
+CI runs the lint/type-check/test suite for both on every push and PR
+(`.github/workflows/ci.yml`).
+
 ## Committing
 
 This project uses **pre-commit** hooks to ensure quality across both backend and frontend.
@@ -144,12 +163,12 @@ Keep it simple, **lowercase**, and **short**:
 ## Project Structure
 
 ```
-CVviewer/
+JobFinder Agent/
 ├── app/                  # FastAPI backend
 │   ├── api/              # Routes, Dependencies, Middleware
-│   ├── agent/            # LangGraph Agent (Graph, Nodes, State)
-│   ├── core/             # Config, Logging
-│   ├── services/         # ChatService, AdminService
+│   ├── agent/            # LangGraph graphs (profile, discovery, job_search)
+│   ├── core/             # Config, Logging, DB
+│   ├── services/         # ChatService, ProfileService, AdminService
 │   └── tools/            # JSearch API client, LangGraph memory tools
 ├── frontend/             # Next.js frontend
 │   └── src/
@@ -158,10 +177,13 @@ CVviewer/
 │           ├── api/      # API client functions
 │           ├── store/    # Zustand state management
 │           └── types/    # Shared TypeScript types
-├── tests/                # Python backend tests
-├── documents/            # Project documentation
-└── work_organisation/    # Project management & History
-    ├── history/          # Archived docs (AI DO NOT READ)
-    ├── bugs/             # Bug tracker (Explicit request only)
-    └── sprints/          # Sprint plans (Explicit request only)
+├── tests/                # Python backend tests (unit + integration)
+└── documents/            # Project documentation
 ```
+
+## Development workflow
+
+This repo was built with heavy use of AI coding agents, documented in
+`documents/AGENTS.md`, `documents/CONVENTIONS.md`, and `documents/domain.md`
+for anyone curious about that process. Not required reading to use or evaluate
+the project above.
