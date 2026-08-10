@@ -34,6 +34,7 @@ The failure mode is the dangerous part: **the session started normally and print
 
 ```python
 import shlex, sys
+
 cmd = " ".join(shlex.quote(p) for p in [sys.executable, str(AGENTCTL_ABS), "hook", ev, "--run", run, "--agent", name])
 ```
 
@@ -90,8 +91,10 @@ Note the underlying `flock` design is fine. I tested the append-under-`flock` pa
 # module level in test_bus.py — importable in the spawned child
 def _append_worker(src: str, bus: str, n: int) -> None:
     import importlib.util
+
     spec = importlib.util.spec_from_file_location("agentctl", src)
-    mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
     for _ in range(25):
         mod.append_event(...)
 ```

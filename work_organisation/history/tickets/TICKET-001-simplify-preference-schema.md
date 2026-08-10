@@ -49,9 +49,13 @@ Update `save_preference` signature and docstring. The `value` and `category` par
 async def save_preference(
     config: RunnableConfig,
     store: Annotated[BaseStore, InjectedStore],
-    key: Annotated[str, "A short machine identifier for this preference, e.g. 'min_salary', 'remote', 'tech_stack'. Used for deduplication and deletion."],
+    key: Annotated[
+        str, "A short machine identifier for this preference, e.g. 'min_salary', 'remote', 'tech_stack'. Used for deduplication and deletion."
+    ],
     label: Annotated[str, "A human-readable sentence describing the preference, e.g. 'Min salary £100k', 'Remote only', 'No agencies'."],
-    sentiment: Annotated[Literal["positive", "negative"], "Use 'positive' when user wants something, 'negative' when they want to avoid it."] = "positive",
+    sentiment: Annotated[
+        Literal["positive", "negative"], "Use 'positive' when user wants something, 'negative' when they want to avoid it."
+    ] = "positive",
 ) -> str:
     """
     Save a user preference or constraint.

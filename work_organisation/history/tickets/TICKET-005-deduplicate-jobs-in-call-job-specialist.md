@@ -27,6 +27,7 @@ class SeenJob(BaseModel):
     Minimal identity record for a job that has already been processed by the LLM.
     Stored under (user_id, "seen_jobs") namespace.
     """
+
     id: str
     title: str
     company: str
@@ -40,6 +41,7 @@ async def get_seen_job_ids(self, user_id: str = DEFAULT_USER_ID) -> set[str]:
     """Return the set of all job IDs previously processed by the LLM."""
     items = await self._store.asearch((user_id, "seen_jobs"))
     return {item.key for item in items if item.value}
+
 
 async def mark_jobs_seen(self, jobs: list[JobListing], user_id: str = DEFAULT_USER_ID) -> None:
     """Persist minimal identity records for all jobs returned by a search."""
@@ -87,15 +89,15 @@ async def call_job_specialist(
 
     # Build structured payload: full data for fresh, identity-only for seen
     fresh_payload = [r.model_dump() for r in fresh]
-    seen_payload = [
-        {"id": r.id, "title": r.title, "company": r.company, "location": r.location}
-        for r in seen
-    ]
+    seen_payload = [{"id": r.id, "title": r.title, "company": r.company, "location": r.location} for r in seen]
 
-    output_content = json.dumps({
-        "fresh": fresh_payload,
-        "seen": seen_payload,
-    }, indent=2)
+    output_content = json.dumps(
+        {
+            "fresh": fresh_payload,
+            "seen": seen_payload,
+        },
+        indent=2,
+    )
 
     return {
         "messages": [ToolMessage(content=output_content, tool_call_id=tool_call_id)],

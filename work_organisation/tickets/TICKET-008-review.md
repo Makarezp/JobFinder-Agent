@@ -19,7 +19,7 @@ The first sentence is true. The conclusion does not follow, because **a grouped 
 
 ```python
 if not self._session_exists(run):
-    self._tmux("new-session", "-d", "-s", run, "-n", ROOT_WINDOW)   # line 783
+    self._tmux("new-session", "-d", "-s", run, "-n", ROOT_WINDOW)  # line 783
 ```
 
 `ROOT_WINDOW` (`__root__`, line 722) is never killed by `close_agent` — it belongs to no agent. It is filtered out of `list_handles` (line 879) precisely because it is not an agent. So the group's window list is always `{__root__} ∪ {agent windows}`, and a viewer session joined to that group holds **all of them**:

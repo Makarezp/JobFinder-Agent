@@ -11,10 +11,7 @@
    - Add a module constant `BOOTSTRAP_REPLY_GRACE = 60.0` near `READY_TIMEOUT` (line 29).
    - Add a module constant with the nudge body:
      ```python
-     _BOOTSTRAP_NUDGE = (
-         "Your previous turn ended without calling `agentctl reply`. "
-         "Call `agentctl reply --status reply` now with any short body."
-     )
+     _BOOTSTRAP_NUDGE = "Your previous turn ended without calling `agentctl reply`. Call `agentctl reply --status reply` now with any short body."
      ```
    - Rewrite `_wait_for_bootstrap` as:
      ```python
@@ -56,8 +53,7 @@
          )
          if completed.returncode != 0:
              raise HarnessError(
-                 f"worker bootstrap did not finish after nudge "
-                 f"(turn_end observed before nudge: {turn_ended.returncode == 0}): {completed.stderr.strip()}"
+                 f"worker bootstrap did not finish after nudge (turn_end observed before nudge: {turn_ended.returncode == 0}): {completed.stderr.strip()}"
              )
      ```
    - `_send(sut, _BOOTSTRAP_NUDGE)` is called **without** `force=True`, matching the existing `_send` default (runner.py:192-200): if the worker is not yet idle (turn hasn't actually ended despite the zero-timeout `turn_end` check racing it), `_send`'s `--wait-idle READY_TIMEOUT` makes delivery wait for idle rather than clobbering an in-flight turn. This is the same idle-respecting delivery every other instruction in this file already uses (`_inbox_discipline`, `_lost_doorbell`, `_watermark`) — do not special-case the nudge to use `--force`.

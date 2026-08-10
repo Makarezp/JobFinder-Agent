@@ -166,6 +166,7 @@ Build the durable, terminal-independent core: an on-disk run directory plus an a
    ROOT = pathlib.Path(__file__).resolve().parents[2]
    SRC = ROOT / ".agent/skills/agent-tabs/agentctl.py"
 
+
    def load_agentctl() -> ModuleType:
        spec = importlib.util.spec_from_file_location("agentctl", SRC)
        assert spec and spec.loader
@@ -182,8 +183,10 @@ Build the durable, terminal-independent core: an on-disk run directory plus an a
    # module level in test_bus.py — importable by the spawned child
    def _append_worker(src: str, runtime: str, run: str, count: int) -> None:
        import importlib.util
+
        spec = importlib.util.spec_from_file_location("agentctl", src)
-       mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+       mod = importlib.util.module_from_spec(spec)
+       spec.loader.exec_module(mod)
        ...
    ```
    The session fixture stays for all in-process tests; only this one needs the treatment.
@@ -234,7 +237,7 @@ Isolate every terminal-specific operation behind one interface, with an in-memor
    def open(self, run: str, name: str, cmd: list[str], cwd: str, env: dict[str, str]) -> str: ...
    def send(self, handle: str, text: str, enter: bool) -> None: ...
    def capture(self, handle: str, lines: int) -> str: ...
-   def in_mode(self, handle: str) -> bool: ...      # copy-mode / any pane mode  (N1)
+   def in_mode(self, handle: str) -> bool: ...  # copy-mode / any pane mode  (N1)
    def kill(self, handle: str) -> None: ...
    def alive(self, handle: str) -> bool: ...
    def list_handles(self, run: str) -> list[str]: ...
@@ -316,8 +319,8 @@ Launch a live Claude session in a tmux window, wired so it reports its own lifec
 
    ```python
    import shlex, sys
-   argv = [sys.executable, str(AGENTCTL_ABS), "hook", ev,
-           "--runtime", str(runtime_root), "--run", run, "--agent", name]
+
+   argv = [sys.executable, str(AGENTCTL_ABS), "hook", ev, "--runtime", str(runtime_root), "--run", run, "--agent", name]
    command = " ".join(shlex.quote(p) for p in argv)
    ```
 
@@ -657,6 +660,7 @@ Inspiration: `~/Library/CloudStorage/GoogleDrive-makarezp1@gmail.com/My Drive/cv
 4. **Registry — mirror `get_backend`'s actual signature (`agentctl.py:757-768`), not just its shape.** `get_backend` is `get_backend(name: str | None = None, config: Config | None = None)`, with `cfg = config if config is not None else Config.from_env()` — both parameters optional, `config` defaulted and resolved internally when omitted. Match that exactly:
    ```python
    VIEWERS: dict[str, type[Viewer]] = {"none": NullViewer, "iterm-tab": ItermTabViewer}
+
 
    def get_viewer(name: str | None = None, config: Config | None = None) -> Viewer:
        cfg = config if config is not None else Config.from_env()

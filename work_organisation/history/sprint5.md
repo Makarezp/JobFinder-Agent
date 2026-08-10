@@ -84,10 +84,12 @@ The LLM's only responsibility is to call `final_answer` with the `apply_link` in
        inspect_attempts = state.get("inspect_attempts", 0)
        if inspect_attempts >= 5:
            return {
-               "messages": [ToolMessage(
-                   content="SYSTEM ALERT: Maximum inspect attempts (5) reached.",
-                   tool_call_id=tool_call_id,
-               )]
+               "messages": [
+                   ToolMessage(
+                       content="SYSTEM ALERT: Maximum inspect attempts (5) reached.",
+                       tool_call_id=tool_call_id,
+                   )
+               ]
            }
        new_inspect_attempts = inspect_attempts + 1
    else:

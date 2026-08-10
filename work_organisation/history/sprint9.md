@@ -118,6 +118,7 @@ Create a self-contained Profile Agent as a standalone compiled LangGraph graph w
 
    logger = structlog.get_logger(__name__)
 
+
    async def fetch_profile_data(state: ProfileAgentState, config: RunnableConfig, store: Annotated[BaseStore, InjectedStore]) -> dict[str, Any]:
        """Read user profile and preferences from Store and inject into state."""
        logger.info("Node Started: fetch_profile_data")
@@ -207,6 +208,7 @@ Refactor the backend to route chat requests to the correct agent graph based on 
    ```python
    from typing import Literal
 
+
    class ChatRequest(BaseModel):
        message: str
        workspace: Literal["discovery", "profile"] = "discovery"
@@ -255,6 +257,7 @@ Refactor the backend to route chat requests to the correct agent graph based on 
      ```python
      def get_discovery_graph(request: Request) -> CompiledStateGraph[Any]:
          return request.app.state.discovery_graph
+
 
      def get_profile_graph(request: Request) -> CompiledStateGraph[Any]:
          return request.app.state.profile_graph

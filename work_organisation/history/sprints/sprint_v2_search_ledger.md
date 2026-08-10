@@ -40,6 +40,7 @@ Define the `SearchLedgerEntry` Pydantic model and add two new `ProfileService` m
        The LLM reads these entries to avoid repeating searches and to discover
        unexplored pages.
        """
+
        query: str = Field(..., description="Raw query string passed to JSearch (e.g., 'Python Developer in London')")
        country: str = Field(..., description="2-letter ISO country code used in the search")
        remote_only: bool = Field(default=False, description="Whether remote_only filter was applied")
@@ -88,9 +89,7 @@ Define the `SearchLedgerEntry` Pydantic model and add two new `ProfileService` m
            searched_at=datetime.now(UTC).isoformat(),
        )
        key = str(uuid4())
-       await self._store.aput(
-           (user_id, "search_ledger"), key, entry.model_dump()
-       )
+       await self._store.aput((user_id, "search_ledger"), key, entry.model_dump())
        logger.info(
            "Search logged to ledger",
            query=entry.query,
@@ -199,10 +198,7 @@ Load the search ledger in `fetch_profile`, add it to `DiscoveryAgentState`, form
            searched_at = entry.get("searched_at", "?")
 
            more_tag = " [MORE PAGES AVAILABLE]" if has_more else ""
-           lines.append(
-               f'- "{query}" (country={country}, page={page}) → '
-               f"{results} results, {fresh} fresh{more_tag} — {searched_at}"
-           )
+           lines.append(f'- "{query}" (country={country}, page={page}) → {results} results, {fresh} fresh{more_tag} — {searched_at}')
        return "\n".join(lines)
    ```
    This produces lines like:
@@ -279,10 +275,7 @@ After every `fetch_jobs` call, write a `SearchLedgerEntry` to the store via `Pro
    ```
    Update the call site in `call_job_specialist` to pass `profile_service`:
    ```python
-   results = await asyncio.gather(*[
-       _run_single_job_search(tc, seen_ids, user_profile, preferences, profile_service)
-       for tc in job_tool_calls_to_run
-   ])
+   results = await asyncio.gather(*[_run_single_job_search(tc, seen_ids, user_profile, preferences, profile_service) for tc in job_tool_calls_to_run])
    ```
 
 2. **Log search after fetch + dedup — `app/agent/discovery/graph.py`**:

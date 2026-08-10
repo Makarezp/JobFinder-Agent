@@ -15,10 +15,12 @@
 Three-line reproduction — no tmux, no spawn, no model call:
 
 ```python
-sys.path.insert(0, ".agent/skills/agent-tabs"); import agentctl as m
-m._input_row_looks_busy("❯ check your inbox")   # -> True   IDLE agent, placeholder
-m._input_row_looks_busy("❯ half a sentence")    # -> True   human genuinely typing
-m._input_row_looks_busy("❯ ")                   # -> False
+sys.path.insert(0, ".agent/skills/agent-tabs")
+import agentctl as m
+
+m._input_row_looks_busy("❯ check your inbox")  # -> True   IDLE agent, placeholder
+m._input_row_looks_busy("❯ half a sentence")  # -> True   human genuinely typing
+m._input_row_looks_busy("❯ ")  # -> False
 ```
 
 The first string was captured verbatim from a healthy idle v2.1.226 worker. The first two are indistinguishable to the gate.

@@ -59,6 +59,7 @@ Create the data model and API endpoint for logging user feedback on job cards. W
    - **CRITICAL**: The `id` MUST be computed in `_parse_agent_result` in `ChatService` as a post-processing step. Do NOT rely on the LLM to generate it — `_parse_agent_result` returns raw `tool_calls` dicts without Pydantic validation, so adding the field to the schema alone does nothing for the actual response. Add the following after extracting jobs:
      ```python
      import hashlib
+
      for job in jobs:
          if "id" not in job:
              slug = f"{job.get('company', '')}{job.get('title', '')}{job.get('apply_link', '')}".encode()
@@ -103,7 +104,7 @@ Update the existing `GET /api/profile` endpoint to also return the decision log,
      {
          "profile": profile.model_dump(),
          "preferences": preferences,
-         "decisions": decisions  # list[dict]
+         "decisions": decisions,  # list[dict]
      }
      ```
 
@@ -119,6 +120,7 @@ Update the existing `GET /api/profile` endpoint to also return the decision log,
    - Add `recent_decisions` using `NotRequired` (since `AgentState` is a `TypedDict`, NOT a Pydantic model — default values are not supported):
      ```python
      from typing import NotRequired
+
      recent_decisions: NotRequired[list[dict[str, Any]]]
      ```
    - All access MUST use `state.get("recent_decisions", [])` to avoid `KeyError`.

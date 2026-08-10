@@ -58,11 +58,17 @@ Create the new Pydantic schemas, update existing state TypedDicts, increase the 
    ```python
    class JobSummary(BaseModel):
        """Single job summary result from the LLM."""
+
        job_id: str = Field(..., description="The id of the summarized JobListing.")
-       description: str = Field(..., description="A ~500-character profile-aware analytical summary covering Essence, Conditions, and Limitations. This replaces the raw JSearch snippet.")
+       description: str = Field(
+           ...,
+           description="A ~500-character profile-aware analytical summary covering Essence, Conditions, and Limitations. This replaces the raw JSearch snippet.",
+       )
+
 
    class JobSummaryBatch(BaseModel):
        """Structured output schema enforced on the summary LLM via with_structured_output."""
+
        summaries: list[JobSummary] = Field(..., description="One summary per job in the input batch.")
    ```
 
@@ -76,12 +82,12 @@ Create the new Pydantic schemas, update existing state TypedDicts, increase the 
 
    class JobSpecialistState(TypedDict):
        input: JobSpecialistInput
-       user_profile: dict[str, Any] | None          # NEW — injected by caller
-       preferences: dict[str, Any] | None            # NEW — injected by caller
+       user_profile: dict[str, Any] | None  # NEW — injected by caller
+       preferences: dict[str, Any] | None  # NEW — injected by caller
        search_results: list[JobListing] | None
-       summaries: NotRequired[list[dict[str, Any]]]   # NEW — output of summarize node
+       summaries: NotRequired[list[dict[str, Any]]]  # NEW — output of summarize node
        job_payloads: NotRequired[list[dict[str, Any]]]  # NEW — full payloads for UI
-       tool_message_content: NotRequired[str]          # NEW — lightweight content for ToolMessage
+       tool_message_content: NotRequired[str]  # NEW — lightweight content for ToolMessage
    ```
 
 3. **Update `DiscoveryAgentState` — `app/agent/discovery/state.py`**:
@@ -173,8 +179,11 @@ Write the LLM prompt template that powers the `summarize_jobs_parallel` node. Th
    ```python
    from langchain_core.prompts import ChatPromptTemplate
 
-   SUMMARY_PROMPT = ChatPromptTemplate.from_messages([
-       ("system", """You are a job listing analyst. Your task is to produce a concise, profile-aware analytical description for each job listing.
+   SUMMARY_PROMPT = ChatPromptTemplate.from_messages(
+       [
+           (
+               "system",
+               """You are a job listing analyst. Your task is to produce a concise, profile-aware analytical description for each job listing.
 
    **USER PROFILE:**
    {user_profile}
@@ -195,9 +204,11 @@ Write the LLM prompt template that powers the `summarize_jobs_parallel` node. Th
    - If a job's description is truncated or sparse, summarize what is available — do NOT penalize the job.
    - If no user profile or CV is available, focus on Essence and Conditions only.
    - You are a summarizer, NOT a filter. Do NOT make keep/drop decisions. Describe limitations factually — the user's agent will decide what to present.
-   - Keep each description close to 500 characters. Do not exceed 700."""),
-       ("human", "{jobs_json}"),
-   ])
+   - Keep each description close to 500 characters. Do not exceed 700.""",
+           ),
+           ("human", "{jobs_json}"),
+       ]
+   )
    ```
 
    The template has three placeholders: `{user_profile}`, `{preferences}`, `{jobs_json}`. `ChatPromptTemplate` handles brace escaping — no manual `.format()` needed.
@@ -206,6 +217,7 @@ Write the LLM prompt template that powers the `summarize_jobs_parallel` node. Th
    ```python
    def format_profile_for_summary(profile: dict[str, Any] | None) -> str:
        """Format user profile dict into a string for the summary prompt."""
+
 
    def format_preferences_for_summary(preferences: dict[str, Any] | None) -> str:
        """Format preferences dict into a [WANT]/[AVOID] string for the summary prompt."""
@@ -256,6 +268,7 @@ Implement the summarization node that chunks job listings into batches of `SUMMA
 
    _summary_llm: BaseChatModel | None = None
 
+
    def _get_summary_llm() -> BaseChatModel:
        global _summary_llm
        if _summary_llm is None:
@@ -303,6 +316,7 @@ Implement the summarization node that chunks job listings into batches of `SUMMA
          except asyncio.TimeoutError:
              logger.warning("Summary batch timed out", batch_size=len(chunk))
              return []
+
 
      results = await asyncio.gather(*[_timed_batch(chunk) for chunk in chunks])
      ```
@@ -488,10 +502,7 @@ Wire everything together. This ticket builds the 2-node subgraph, restructures `
      all_tool_messages: list[ToolMessage] = []
      all_job_payloads: list[dict[str, Any]] = []
 
-     results = await asyncio.gather(*[
-         _run_single_job_search(tc, profile_service, user_profile, preferences)
-         for tc in job_tool_calls_to_run
-     ])
+     results = await asyncio.gather(*[_run_single_job_search(tc, profile_service, user_profile, preferences) for tc in job_tool_calls_to_run])
 
      for tool_msg, job_payloads in results:
          all_tool_messages.append(tool_msg)

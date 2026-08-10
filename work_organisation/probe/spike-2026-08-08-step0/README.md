@@ -65,7 +65,7 @@ that makes Spike 1 succeed also makes `agentctl send` emit a `turn_start`.
 `message_sent` **second**:
 
 ```python
-backend.send(handle, doorbell_text(inbox_path), enter)   # submits the prompt
+backend.send(handle, doorbell_text(inbox_path), enter)  # submits the prompt
 ...
 append_event(paths, agent, EventType.MESSAGE_SENT, {...})  # only now
 ```
@@ -179,11 +179,14 @@ Proof it is a placeholder and not real text:
 Three-line reproduction — no tmux, no spawn, no model call:
 
 ```python
-import sys; sys.path.insert(0, ".agent/skills/agent-tabs")
+import sys
+
+sys.path.insert(0, ".agent/skills/agent-tabs")
 import agentctl as m
+
 m._input_row_looks_busy("❯\xa0check your inbox")  # -> True   IDLE agent
-m._input_row_looks_busy("❯\xa0half a sentence")   # -> True   human really typing
-m._input_row_looks_busy("❯\xa0")                  # -> False
+m._input_row_looks_busy("❯\xa0half a sentence")  # -> True   human really typing
+m._input_row_looks_busy("❯\xa0")  # -> False
 ```
 
 The first two are indistinguishable to the gate. The function's own docstring

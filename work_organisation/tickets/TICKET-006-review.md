@@ -141,10 +141,10 @@ to preserve.
 :1477-1479:
 
 ```python
-    worktree_path: Path | None = None
-    handle: str | None = None
-    bootstrap_path: Path | None = None
-    settings_path: Path | None = None      # must be bound before the try
+worktree_path: Path | None = None
+handle: str | None = None
+bootstrap_path: Path | None = None
+settings_path: Path | None = None  # must be bound before the try
 ```
 
 and drop the assignment's `= ` into `settings_path = write_settings(...) if ... else None`

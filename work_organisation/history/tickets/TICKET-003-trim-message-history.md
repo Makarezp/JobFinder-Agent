@@ -21,17 +21,18 @@ Import and apply trimming before the LLM invocation. Use `strategy="last"` to ke
 ```python
 from langchain_core.messages import trim_messages
 
+
 def main_chatbot(state: AgentState) -> dict[str, list[BaseMessage]]:
     messages = state[MESSAGES_KEY]
 
     trimmed_messages = trim_messages(
         messages,
-        max_tokens=160_000,     # ~40k tokens × ~4 chars/token
+        max_tokens=160_000,  # ~40k tokens × ~4 chars/token
         strategy="last",
-        token_counter=len,      # character count — free, local, no API call
-        include_system=False,   # system prompt is added separately, do not count it here
-        allow_partial=False,    # never split a message mid-content
-        start_on="human",       # always start trimmed history on a HumanMessage
+        token_counter=len,  # character count — free, local, no API call
+        include_system=False,  # system prompt is added separately, do not count it here
+        allow_partial=False,  # never split a message mid-content
+        start_on="human",  # always start trimmed history on a HumanMessage
     )
 
     system_messages = [SystemMessage(content=formatted_prompt)]

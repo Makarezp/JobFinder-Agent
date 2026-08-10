@@ -148,10 +148,7 @@ This documented limitation and the prompt constraint together are the accepted s
        await profile_service.mark_jobs_seen(fresh, DEFAULT_USER_ID)
 
        fresh_payload = [r.model_dump() for r in fresh]
-       seen_payload = [
-           {"id": r.id, "title": r.title, "company": r.company, "location": r.location}
-           for r in seen
-       ]
+       seen_payload = [{"id": r.id, "title": r.title, "company": r.company, "location": r.location} for r in seen]
        content = json.dumps({"fresh": fresh_payload, "seen": seen_payload}, indent=2)
        return ToolMessage(content=content, tool_call_id=tool_call_id)
    ```
@@ -170,17 +167,13 @@ This documented limitation and the prompt constraint together are the accepted s
        if not isinstance(last_message, AIMessage) or not last_message.tool_calls:
            return {"messages": []}
 
-       job_tool_calls = [
-           tc for tc in last_message.tool_calls if tc["name"] == "job_specialist_tool"
-       ]
+       job_tool_calls = [tc for tc in last_message.tool_calls if tc["name"] == "job_specialist_tool"]
        if not job_tool_calls:
            return {"messages": []}
 
        current_attempts = state.get("search_attempts", 0)
 
-       tool_messages = await asyncio.gather(
-           *[_run_single_job_search(tc, profile_service) for tc in job_tool_calls]
-       )
+       tool_messages = await asyncio.gather(*[_run_single_job_search(tc, profile_service) for tc in job_tool_calls])
 
        # Increment by 1 per batch (preserves "number of search rounds" semantics,
        # consistent with the loop protection threshold and the system prompt's

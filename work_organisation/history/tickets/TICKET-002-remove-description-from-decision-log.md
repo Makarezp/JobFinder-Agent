@@ -32,6 +32,7 @@ Remove `description` from `DecisionLog`:
 # REMOVE:
 description: str | None = None
 
+
 # Result:
 class DecisionLog(BaseModel):
     job_title: str
@@ -48,6 +49,7 @@ Remove `description` from `FeedbackRequest`:
 ```python
 # REMOVE:
 description: str | None = None
+
 
 # Result:
 class FeedbackRequest(BaseModel):

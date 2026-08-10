@@ -390,7 +390,7 @@ Measure whether the documented worker behaviour actually occurs, using real mode
    **The 250 ms rule — mandatory, and this is the subtle part.** Because `turn_start` fires on *any* prompt submission, `agentctl send`'s own doorbell produces one too. So the check depends on `message_sent` being logged before the doorbell's `turn_start` — and `_deliver` (`:1232-1240`) types the keystroke **first** and appends `message_sent` **second**:
 
    ```python
-   backend.send(handle, doorbell_text(inbox_path), enter)   # submits the prompt
+   backend.send(handle, doorbell_text(inbox_path), enter)  # submits the prompt
    append_event(paths, agent, EventType.MESSAGE_SENT, ...)  # logged only after
    ```
 
