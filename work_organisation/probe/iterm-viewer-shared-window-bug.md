@@ -54,13 +54,26 @@ Observed in the same session: after this collapse occurred, `impl-007`'s compose
 
 ## 5. Workaround (no code change)
 
-Attach manually from a plain terminal instead of relying on `--viewer iterm-tab`'s auto-opened tabs:
+**Correction (2026-08-10):** an earlier version of this section recommended plain `tmux attach -t <run>:<window>` as a workaround, claiming it "is not retargeted by subsequent spawns in the same run." That claim is **false** — measured and disproven during TICKET-008's review (review-008, F8). A plain-attach client is still attached to the *base* session and therefore still shares its current-window pointer with every other client on that session, including `--viewer iterm-tab`'s own reveal:
 
 ```
-tmux attach -t <run>:<window-index-or-name>
+$ TMUX= tmux attach -t 't008c2:1'     # manual "workaround" client -> agentA
+   t008c2|@1411|agentA
+$ tmux select-window -t @1412         # a later spawn's reveal(), today's code
+   t008c2|@1412|agentB                # <-- retargeted anyway
 ```
 
-Each such invocation creates its own client cleanly targeted at that window and is not retargeted by subsequent spawns in the same run — the bug is specifically in `reveal()`'s use of `attach` + `select-window` against a session that already has other clients on it, not in tmux's addressing itself. (`--viewer none` plus manual `tmux attach` for each agent, as done earlier in this session, sidesteps the bug entirely.)
+So plain `tmux attach` is **not safe** as a workaround while any `--viewer iterm-tab` spawn can still fire in that run — it only appears safe if no further `iterm-tab` reveal ever happens after it.
+
+Two options that are actually verified-immune:
+
+1. **`--viewer none` for every spawn in the run, always**, with manual attach only after all spawning is done for that run (no `reveal()` call ever fires to retarget anything).
+2. **Attach via your own grouped session**, which gives your client an independent current-window pointer the same way TICKET-008's fix does:
+   ```
+   TMUX= tmux new-session -t '=<run>' -s "$(whoami)-manual-$$" \; select-window -t <window>
+   ```
+
+The only workaround that is immune *and* compatible with other agents in the run still being spawned with `--viewer iterm-tab` is option 2.
 
 ## 6. Suggested fix direction (not yet decided — for human review)
 
