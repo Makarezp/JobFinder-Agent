@@ -29,27 +29,32 @@ python3 .agent/skills/agent-tabs/probe/probe.py run B002
 
 ## 3. Open problem: measurement harness reliability (separate from the ticket's own fix)
 
-`probe.py run B002` has aborted **5 times in a row** on the **control brief** (`B002-control`), before any target-brief trial ever ran. Each abort raised `HarnessError` from inside `run_trials`/`_run_trial` and produced **no ledger/journal entry** (confirmed empty diff each time), so per the ticket's own guidance these don't count against the "run B002 at most twice" cap -- but each attempt still burns several real minutes of real-Haiku API cost with zero data produced.
+`probe.py run B002` has aborted **6 times in a row** (attempts exhausted per the human's "stop at ~4-6" instruction) before ever producing a ledger/journal entry. 5 aborted on the **control brief** (`B002-control`); the 6th finally cleared the control brief (10/10) for the first time, then aborted on **target trial 5**. Every abort raised `HarnessError` from inside `run_trials`/`_run_trial`, and none of the 6 produced a ledger/journal entry (confirmed empty diff each time), so per the ticket's own guidance none count against the "run B002 at most twice" cap -- but each attempt burns several real minutes of real-Haiku API cost with zero data produced.
 
-The 5 failures were 4 *different* symptoms, none in the code path this ticket's fix touches:
+The 6 failures, in order:
 1. Control trial 7: worker's third reply didn't land inside the 10s `wait_timeout` (but its second message's turn completed cleanly `reply`->`turn_end`, confirming the new wait works correctly when given the chance).
 2. Control trial 4: no reply at all to the bootstrap message within the 120s `READY_TIMEOUT`.
 3. Control trial 1: bootstrap `turn_end` fired cleanly ~13s in, but the worker never called `agentctl reply` that turn at all -- outbox stayed empty, forced-killed ~108s later when `_wait_for_bootstrap`'s 120s timeout expired.
-4. Control trial 2 (two separate occurrences, attempts 4 and 5): bootstrap `turn_start` fires, then nothing -- no reply, no `turn_end` -- forced-killed at the 120s mark.
+4. Control trial 2: bootstrap `turn_start` fires, then nothing -- no reply, no `turn_end` -- forced-killed at the 120s mark.
+5. Control trial 2 (again, different run): identical symptom to #4.
+6. **Target trial 5** (control brief passed 10/10 this time): identical symptom to #3/#4/#5 -- bootstrap `turn_end` fired ~14s in with no `agentctl reply` ever called, forced-killed ~106s later at the 120s `READY_TIMEOUT` mark.
 
-I initially hypothesized machine-level contention (this box had ~19 tmux sessions from other concurrent agent-tabs work at the time). The human checked and **ruled this out**: every other agent-tabs agent was idle or dead at the time of the failures. Root cause is therefore **still unconfirmed** -- candidates not yet checked: real-Haiku API-side latency/rate-limiting independent of local load, a spawn/bootstrap race specific to this repo's current `settings.json`/hook wiring, or something specific to how many SUTs get created back-to-back in one `run_brief` invocation (control runs 10 SUTs sequentially before target even starts).
+**Refined diagnosis**: 4 of the 6 failures (and both distinct recurring symptoms across all 6) trace to the same place -- the worker's very first turn (bootstrap: "Open your inbox, then reply exactly HANDSHAKE_READY... and wait") sometimes ends (`Stop` hook fires, i.e. the model genuinely stopped generating) **without the model ever invoking `agentctl reply`**, despite that being the bootstrap's one explicit instruction. This is upstream of any B002-specific content -- it happens before message A is ever sent, and happened once on the *target* brief's trial 5 too, so it isn't specific to the control path. This looks like a real Haiku-model instruction-following/reliability gap on the bootstrap turn specifically (rate roughly 1-in-6 sequential-run attempts hit it at least once across ~10-20 SUT spawns per attempt), not a harness code defect and not machine contention (ruled out by the human -- all other agent-tabs agents were idle when the failures happened).
 
-Retry logs, each one `harness error: B002-control trial N did not execute: <artifact temp dir>`:
-- `/tmp/ticket007_b002_run1.log` (trial 7)
-- `/tmp/ticket007_b002_run1_retry.log` (trial 4)
-- `/tmp/ticket007_b002_run1_retry2.log` (trial 1)
-- `/tmp/ticket007_b002_run1_retry3.log` (trial 2)
-- `/tmp/ticket007_b002_run1_retry4.log` (trial 2)
+I initially hypothesized machine-level contention (this box had ~19 tmux sessions from other concurrent agent-tabs work at the time of the first failures). The human checked and **ruled this out**. Root cause is therefore the bootstrap-non-reply pattern above; still unconfirmed *why* the model sometimes stops without replying on that specific turn (candidates: something about the bootstrap prompt/role text, an occasional hook-wiring race that swallows the `agentctl reply` invocation, or genuine haiku-model flakiness independent of this harness).
+
+Retry logs, each one `harness error: B002[-control] trial N did not execute: <artifact temp dir>`:
+- `/tmp/ticket007_b002_run1.log` (control trial 7)
+- `/tmp/ticket007_b002_run1_retry.log` (control trial 4)
+- `/tmp/ticket007_b002_run1_retry2.log` (control trial 1)
+- `/tmp/ticket007_b002_run1_retry3.log` (control trial 2)
+- `/tmp/ticket007_b002_run1_retry4.log` (control trial 2)
+- `/tmp/ticket007_b002_run1_retry5.log` (**control passed 10/10**, then target trial 5)
 
 Each preserved artifact's temp directory (path is in the corresponding log line) has a full `bus.jsonl` plus `agents/worker/{inbox,outbox,meta.json,settings.json}` -- these are ephemeral `/private/var/folders/.../T/...` temp dirs and will be cleaned up by the OS eventually; if this needs deeper investigation later, pull the paths from the logs above before they age out.
 
-This is worth its own follow-up (possibly its own ticket) regardless of how TICKET-007 resolves: **B002-control's own `expect_rate: 1.0` combined with `run_brief` raising `HarnessError` before any target trial runs makes the harness very fragile to exactly this kind of flake** -- a point the ticket's own review (F6) already flagged as a risk, now observed in practice at a much higher rate than one might expect from "control flakiness is not hypothetical."
+This is worth its own follow-up (possibly its own ticket) regardless of how TICKET-007 resolves: **B002-control's own `expect_rate: 1.0` combined with `run_brief` raising `HarnessError` before any target trial runs makes the harness very fragile to exactly this kind of flake** -- a point the ticket's own review (F6) already flagged as a risk, now observed in practice at a much higher rate than "control flakiness is not hypothetical" implied. Worse, the same bootstrap-non-reply flake also hit the *target* brief on the one attempt that got that far, so a future re-run attempting all 10 target trials is likely to hit it again partway through, not just on the control side.
 
-## 4. Status of the 6th attempt as of this writing
+## 4. Status as of this writing -- retries stopped at 6 per the human's instruction
 
-Started 13:09 local time, still running as of this handoff (`ps aux` confirms the `probe.py run B002` process is alive, PID present). Its log (`/tmp/ticket007_b002_run1_retry5.log`) is still empty, which is itself informative: every one of the 5 prior failures surfaced within the first 1-2 control trials (well under 2 minutes), and this attempt has now run well past that point without erroring -- the first sign any attempt has gotten further into the control brief. Per the human's instruction, if this 6th attempt also fails, retries stop here and the failure pattern gets reported rather than trying a 7th time. If it succeeds, proceed straight to step 6 above using its measured rate.
+The 6th attempt (started 13:09 local) completed: control brief passed 10/10 for the first time, then target trial 5 hit the bootstrap-non-reply flake described above and aborted with `HarnessError`. No ledger entry was produced. Per the human's explicit instruction ("if it also failed, stop retrying and report the failure pattern instead of trying a seventh time"), I am stopping here rather than attempting a 7th run. Step 5 remains incomplete; whoever picks this up next needs a decision from the human on how to proceed (see options in the reply accompanying this handoff).
